@@ -36,13 +36,17 @@ Example for CKKS bootstrapping with full packing
 */
 
 #include "openfhe.h"
+#include "re-utils.h"
 
 using namespace lbcrypto;
 
 void SimpleBootstrapExample();
 
 int main(int argc, char* argv[]) {
-    SimpleBootstrapExample();
+    test_encodeInRE();
+    test2_encodeInRE();
+    test3_encodeInRE();
+    //SimpleBootstrapExample();
 }
 
 void SimpleBootstrapExample() {
@@ -95,7 +99,7 @@ void SimpleBootstrapExample() {
     * using GetBootstrapDepth, and add it to levelsAvailableAfterBootstrap to set our initial multiplicative
     * depth. We recommend using the input parameters below to get started.
     */
-    std::vector<uint32_t> levelBudget = {4, 4};
+    std::vector<uint32_t> levelBudget = {1, 1};
 
     // Note that the actual number of levels avalailable after bootstrapping before next bootstrapping
     // will be levelsAvailableAfterBootstrap - 1 because an additional level
@@ -123,7 +127,7 @@ void SimpleBootstrapExample() {
     cryptoContext->EvalMultKeyGen(keyPair.secretKey);
     cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
 
-    std::vector<double> x = {0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0};
+    std::vector<double> x = {0, 0, 0, 0, 0, 0, 0, 0};
     size_t encodedLength  = x.size();
 
     // We start with a depleted ciphertext that has used up all of its levels.
@@ -135,21 +139,4 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> ciph = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
 
     std::cout << "Initial number of levels remaining: " << depth - ciph->GetLevel() << "\n\n";
-
-    // auto start = std::chrono::high_resolution_clock::now();
-
-    // Perform the bootstrapping operation. The goal is to increase the number of levels remaining
-    // for HE computation.
-    auto ciphertextAfter = cryptoContext->EvalBootstrap(ciph);
-
-    // auto stop = std::chrono::high_resolution_clock::now();
-    // std::cout << "Bootstrapping time: " << std::chrono::duration<double>(stop - start).count() << " s\n\n";
-
-    std::cout << "Number of levels remaining after bootstrapping: "
-              << depth - ciphertextAfter->GetLevel() - (ciphertextAfter->GetNoiseScaleDeg() - 1) << "\n\n";
-
-    Plaintext result;
-    cryptoContext->Decrypt(keyPair.secretKey, ciphertextAfter, &result);
-    result->SetLength(encodedLength);
-    std::cout << "Output after bootstrapping: " << result << "\n";
 }
