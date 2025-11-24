@@ -100,6 +100,68 @@ std::vector<double> multiplyByU(std::vector<double> input) {
     return realResult;
 }
 
+std::vector<double> multiplyByUInverseComplex(std::vector<std::complex<double>> input) {
+    size_t slots   = input.size();
+    uint32_t m     = 4 * slots;
+    uint32_t mmask = m - 1;  // assumes m is power of 2
+
+    // computes indices for all primitive roots of unity
+    std::vector<uint32_t> rotGroup(slots);
+    uint32_t fivePows = 1;
+    for (uint32_t i = 0; i < slots; ++i) {
+        rotGroup[i] = fivePows;
+        fivePows *= 5;
+        fivePows &= mmask;
+    }
+
+    // computes all powers of a primitive root of unity exp(2 * M_PI/m)
+    std::vector<std::complex<double>> ksiPows(m + 1);
+    double ak = 2 * M_PI / m;
+    for (uint32_t j = 0; j < m; ++j) {
+        double angle = ak * j;
+        ksiPows[j].real(std::cos(angle));
+        ksiPows[j].imag(std::sin(angle));
+    }
+    ksiPows[m] = ksiPows[0];
+
+    std::vector<std::vector<std::complex<double>>> UT(2 * slots, std::vector<std::complex<double>>(slots));
+
+    for (uint32_t i = 0; i < slots; ++i) {
+        for (uint32_t j = 0; j < 2 * slots; ++j) {
+            UT[j][i] = std::conj(ksiPows[(j * rotGroup[i]) & mmask]) / static_cast<double>(slots);
+        }
+    }
+
+    std::vector<std::complex<double>> result(2 * slots);
+
+    // do matrix multiplication of U * val
+    for (uint32_t i = 0; i < 2 * slots; ++i) {
+        result[i] = 0;
+        for (uint32_t j = 0; j < slots; ++j) {
+            result[i] += UT[i][j] * input[j];
+        }
+    }
+    std::vector<double> reals;
+    for (auto& r : result) {
+        reals.push_back(r.real());
+    }
+    return reals;
+}
+
+void test_UInverse() {
+    std::vector<double> input = {1, 2, 3, 0, 0, 0, 0, 0};
+    auto enc                  = multiplyByUComplex(input);
+    std::cout << "Complex: " << std::endl;
+    for (size_t i = 0; i != enc.size(); ++i) {
+        std::cout << enc[i] << " ";
+    }
+    auto recovered = multiplyByUInverseComplex(enc);
+    std::cout << "Recovered: " << std::endl;
+    for (size_t i = 0; i != recovered.size(); ++i) {
+        std::cout << recovered[i] << " ";
+    }
+}
+
 // For X^8-X+2
 static const inline std::vector<std::complex<double>> z_upper_roots_8 = {
     -1.0553707970856263 + 0.46044989545852666j, -0.3759904375006573 + 1.062443306305578j,
@@ -213,6 +275,24 @@ std::vector<double> encodeInRE(int32_t input) {
     return result;
 }
 
+std::vector<double> roundInRe(std::vector<double> input) {
+    // do [\cdot ]_1
+    std::vector<double> output;
+    for (auto i : input) {
+        if (i < 0) {
+            // make it positive
+            auto ni      = -i;
+            auto niFloor = std::floor(ni);
+            output.push_back(-(ni - niFloor));
+        }
+        else {
+            auto iFloor = std::floor(i);
+            output.push_back(i - iFloor);
+        }
+    }
+    return output;
+}
+
 int32_t decodeFromRE(const std::vector<double>& input) {
     std::vector<double> t(zN, 0);
     t[0] = -2.0;
@@ -235,6 +315,38 @@ int32_t decodeFromRE(const std::vector<double>& input) {
         ret += static_cast<int>(std::round(result[i])) << i;
     }
     return ret;
+}
+
+std::vector<double> multiplyInRE(const std::vector<double>& lhs, const std::vector<double>& rhs) {
+    auto multResult = std::vector<double>(lhs.size() + lhs.size() - 1, 0.0);
+    for (size_t i = 0; i != lhs.size(); ++i) {
+        for (size_t j = 0; j != rhs.size(); ++j) {
+            multResult[i + j] += lhs[i] * rhs[j];
+        }
+    }
+    // now euclidean reduction mod X^zN - X + 2
+    for (size_t i = multResult.size() - 1; i >= zN; --i) {
+        multResult[i - zN + 1] += multResult[i];
+        multResult[i - zN] += -2.0 * multResult[i];
+        multResult.pop_back();
+    }
+    // then muliply by t
+    std::vector<double> t(zN, 0);
+    t[0] = -2.0;
+    t[1] = 1.0;
+    std::vector<double> finalResult(zN + zN - 1, 0.0);
+    for (size_t i = 0; i != zN; ++i) {
+        for (size_t j = 0; j != zN; ++j) {
+            finalResult[i + j] += multResult[i] * t[j];
+        }
+    }
+    // now euclidean reduction mod X^zN - X + 2
+    for (size_t i = finalResult.size() - 1; i >= zN; --i) {
+        finalResult[i - zN + 1] += finalResult[i];
+        finalResult[i - zN] += -2.0 * finalResult[i];
+        finalResult.pop_back();
+    }
+    return finalResult;
 }
 
 void test_encodeInRE() {
@@ -265,38 +377,33 @@ void test2_encodeInRE() {
 }
 
 void test3_encodeInRE() {
-    auto input1     = 33;
-    auto input2     = 57;
-    auto encoded1   = encodeInRE(input1);
-    auto encoded2   = encodeInRE(input2);
-    auto multResult = std::vector<double>(encoded1.size() + encoded2.size() - 1, 0.0);
-    for (size_t i = 0; i != encoded1.size(); ++i) {
-        for (size_t j = 0; j != encoded2.size(); ++j) {
-            multResult[i + j] += encoded1[i] * encoded2[j];
-        }
-    }
-    // now euclidean reduction mod X^zN - X + 2
-    for (size_t i = multResult.size() - 1; i >= zN; --i) {
-        multResult[i - zN + 1] += multResult[i];
-        multResult[i - zN] += -2.0 * multResult[i];
-        multResult.pop_back();
-    }
-    // then muliply by t
-    std::vector<double> t(zN, 0);
-    t[0] = -2.0;
-    t[1] = 1.0;
-    std::vector<double> finalResult(zN + zN - 1, 0.0);
-    for (size_t i = 0; i != zN; ++i) {
-        for (size_t j = 0; j != zN; ++j) {
-            finalResult[i + j] += multResult[i] * t[j];
-        }
-    }
-    // now euclidean reduction mod X^zN - X + 2
-    for (size_t i = finalResult.size() - 1; i >= zN; --i) {
-        finalResult[i - zN + 1] += finalResult[i];
-        finalResult[i - zN] += -2.0 * finalResult[i];
-        finalResult.pop_back();
-    }
-    auto decoded = decodeFromRE(finalResult);
+    auto input1      = 33;
+    auto input2      = 57;
+    auto encoded1    = encodeInRE(input1);
+    auto encoded2    = encodeInRE(input2);
+    auto multResult  = std::vector<double>(encoded1.size() + encoded2.size() - 1, 0.0);
+    auto finalResult = roundInRe(multiplyInRE(encoded1, encoded2));
+    auto decoded     = decodeFromRE(finalResult);
     std::cout << "Decoded 33 * 57 from RE: " << decoded << "\n";
+}
+
+void test4_encodeInRE() {
+    auto input    = 3;
+    auto encodedZ = encodeInRE(input);
+    auto encodedC = multiplyByZUComplex(encodedZ);
+    auto encodedR = multiplyByUInverseComplex(encodedC);
+    std::cout << "Input: " << input << "\nEncoded in RE: ";
+    for (const auto& val : encodedR) {
+        std::cout << std::setprecision(20) << val << " ";
+    }
+
+    // now back
+    auto encCBack = multiplyByUComplex(encodedR);
+    auto encZBack = multiplyByZUInverse(encCBack);
+    std::cout << "\nEncoded back in RE: ";
+    for (const auto& val : encZBack) {
+        std::cout << std::setprecision(20) << val << " ";
+    }
+    auto decoded = decodeFromRE(encZBack);
+    std::cout << "\nDecoded back: " << decoded << "\n";
 }

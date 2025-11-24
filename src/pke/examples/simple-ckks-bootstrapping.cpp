@@ -40,13 +40,141 @@ Example for CKKS bootstrapping with full packing
 
 using namespace lbcrypto;
 
+// related to __heir_debug2
+CryptoContextT cc_global;
+PrivateKeyT sk_global;
+size_t slots_global;
+
+double __heir_debug2(CiphertextT ct, std::string msg) {
+    auto b = DecryptCore(ct->GetElements(), sk_global);
+    b.SetFormat(Format::COEFFICIENT);
+    auto bigB       = b.CRTInterpolate();
+    auto& bigCoeffs = bigB.GetValues();
+
+    auto sf = ct->GetScalingFactor();
+    //auto level = ct->GetLevel();
+
+    //std::cout << msg << "  Scaling factor: " << std::log2(sf) << std::endl;
+
+    const auto& q{b.GetParams()->GetModulus()};
+    const auto& half{q >> 1};
+
+    std::vector<double> values;
+    for (size_t i = 0; i < b.GetRingDimension(); i++) {
+        auto x   = bigCoeffs[i];
+        bool neg = false;
+        if (x > half) {
+            x   = q - x;
+            neg = true;
+        }
+        double value = x.ConvertToDouble() / sf;
+        if (neg)
+            value = -value;
+        // generic for different packed cases
+        if ((msg == "Input" || msg == "Encode" || msg == "Mult") &&
+            (i % (b.GetRingDimension() / (slots_global * 2)) == 0)) {
+            values.push_back(value);
+        }
+    }
+
+    // Check the slot encoding?
+    //for (size_t i = 0; i != values.size(); ++i) {
+    //    std::cout << msg << "  values [" << i << "]: " << values[i] << std::endl;
+    //}
+    auto complexValues = multiplyByUComplex(values);
+    auto zValues       = multiplyByZUInverse(complexValues);
+    for (size_t i = 0; i != values.size(); ++i) {
+        std::cout << msg << "  zValues [" << i << "]: " << zValues[i] << std::endl;
+    }
+    auto rounded   = roundInRe(zValues);
+    auto decodeInR = decodeFromRE(rounded);
+    std::cout << "Z: " << decodeInR << std::endl;
+
+    //if (msg != "Input" && msg != "ModRaise") {
+    //    for (size_t i = 0; i != 1; ++i) {
+    //        std::cout << msg << "  complexValues [" << i << "]: " << complexValues[i] << std::endl;
+    //    }
+    //}
+    return 0;
+}
+
+DCRTPoly getPolyFromVec(std::vector<double> input, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                        double scalingFactor) {
+    DCRTPoly newPoly(elementParams, Format::COEFFICIENT, true);
+    auto bigPoly = newPoly.CRTInterpolate();
+    auto ringDim = elementParams->GetRingDimension();
+    for (size_t i = 0; i != input.size(); ++i) {
+        double val = input[i] * scalingFactor;
+        bool neg   = false;
+        if (val < 0) {
+            val = -val;
+            neg = true;
+        }
+        int64_t intVal = static_cast<int64_t>(std::round(val));
+        if (neg) {
+            bigPoly[i * (ringDim / (input.size()))] = elementParams->GetModulus() - intVal;
+        }
+        else {
+            bigPoly[i * (ringDim / (input.size()))] = intVal;
+        }
+    }
+    DCRTPoly finalPoly(bigPoly, elementParams);
+    finalPoly.SetFormat(Format::EVALUATION);
+    return finalPoly;
+}
+
+CiphertextT encodeREVecInCt(CiphertextT ct, std::vector<double> input) {
+    auto newCt         = ct->Clone();
+    auto& cv0          = ct->GetElements()[0];
+    double sf          = ct->GetScalingFactor();
+    auto elementParams = cv0.GetParams();
+
+    auto encodedC = multiplyByZUComplex(input);
+    auto encodedR = multiplyByUInverseComplex(encodedC);
+
+    auto finalPoly = getPolyFromVec(encodedR, elementParams, sf);
+    finalPoly.SetFormat(Format::EVALUATION);
+    auto& cv = newCt->GetElements();
+    cv[0] += finalPoly;
+    return newCt;
+}
+
+CiphertextT encodeREInCt(CiphertextT ct, int32_t input) {
+    auto encodedZ = encodeInRE(input);
+    return encodeREVecInCt(ct, encodedZ);
+}
+
+CiphertextT encodeZPtmInCt(CiphertextT ct) {
+    // X-2 in calZ
+    std::vector<double> encodedZPtm = {-2, 1, 0, 0, 0, 0, 0, 0};
+    assert(encodedZPtm.size() == zN && "Encoded ZPtm size does not match zN");
+    return encodeREVecInCt(ct, encodedZPtm);
+}
+
+CiphertextT multiplyByZptm(CryptoContextT cc, CiphertextT ct) {
+    // X-2 in calZ
+    std::vector<double> encodedZPtm = {-2, 1, 0, 0, 0, 0, 0, 0};
+    auto encodedC                   = multiplyByZUComplex(encodedZPtm);
+    auto encodedR                   = multiplyByUInverseComplex(encodedC);
+
+    auto newCt         = ct->Clone();
+    auto& cv0          = ct->GetElements()[0];
+    double sf          = ct->GetScalingFactor();
+    auto elementParams = cv0.GetParams();
+    auto finalPoly     = getPolyFromVec(encodedR, elementParams, sf);
+    finalPoly.SetFormat(Format::EVALUATION);
+    auto& cv = newCt->GetElements();
+    cv[0] *= finalPoly;
+    cv[1] *= finalPoly;
+    cc->ModReduceInPlace(newCt);
+    return newCt;
+}
+
 void SimpleBootstrapExample();
 
 int main(int argc, char* argv[]) {
-    test_encodeInRE();
-    test2_encodeInRE();
-    test3_encodeInRE();
-    //SimpleBootstrapExample();
+    //test4_encodeInRE();
+    SimpleBootstrapExample();
 }
 
 void SimpleBootstrapExample() {
@@ -83,7 +211,7 @@ void SimpleBootstrapExample() {
     uint32_t dcrtBits            = 78;
     uint32_t firstMod            = 89;
 #else
-    ScalingTechnique rescaleTech = FLEXIBLEAUTO;
+    ScalingTechnique rescaleTech = FIXEDMANUAL;
     uint32_t dcrtBits            = 59;
     uint32_t firstMod            = 60;
 #endif
@@ -104,39 +232,56 @@ void SimpleBootstrapExample() {
     // Note that the actual number of levels avalailable after bootstrapping before next bootstrapping
     // will be levelsAvailableAfterBootstrap - 1 because an additional level
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
-    uint32_t levelsAvailableAfterBootstrap = 10;
-    uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(depth);
+    //uint32_t levelsAvailableAfterBootstrap = 10;
+    //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
+    parameters.SetMultiplicativeDepth(5);
 
     CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
 
     cryptoContext->Enable(PKE);
     cryptoContext->Enable(KEYSWITCH);
     cryptoContext->Enable(LEVELEDSHE);
-    cryptoContext->Enable(ADVANCEDSHE);
-    cryptoContext->Enable(FHE);
+    //cryptoContext->Enable(ADVANCEDSHE);
+    //cryptoContext->Enable(FHE);
 
     uint32_t ringDim = cryptoContext->GetRingDimension();
     // This is the maximum number of slots that can be used for full packing.
-    uint32_t numSlots = ringDim / 2;
+    //uint32_t numSlots = ringDim / 2;
     std::cout << "CKKS scheme ring dimension: " << ringDim << "\n\n";
 
-    cryptoContext->EvalBootstrapSetup(levelBudget);
+    //cryptoContext->EvalBootstrapSetup(levelBudget);
 
     auto keyPair = cryptoContext->KeyGen();
     cryptoContext->EvalMultKeyGen(keyPair.secretKey);
-    cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
+    //cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
+
+    cc_global    = cryptoContext;
+    sk_global    = keyPair.secretKey;
+    slots_global = zN / 2;
 
     std::vector<double> x = {0, 0, 0, 0, 0, 0, 0, 0};
     size_t encodedLength  = x.size();
 
     // We start with a depleted ciphertext that has used up all of its levels.
-    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(x, 1, depth - 1);
+    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(x, 1);
 
     ptxt->SetLength(encodedLength);
     std::cout << "Input: " << ptxt << "\n";
 
     Ciphertext<DCRTPoly> ciph = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
 
-    std::cout << "Initial number of levels remaining: " << depth - ciph->GetLevel() << "\n\n";
+    __heir_debug2(ciph, "Input");
+
+    auto encoded = encodeREInCt(ciph, 255);
+    __heir_debug2(encoded, "Encode");
+    auto encoded2 = encodeREInCt(ciph, 2);
+    __heir_debug2(encoded2, "Encode");
+
+    // should use another empty ct
+    auto ZPtm = encodeZPtmInCt(ciph);
+
+    auto multResultHalf = cryptoContext->EvalMult(encoded, encoded2);
+    auto multResult     = cryptoContext->EvalMult(multResultHalf, ZPtm);
+
+    __heir_debug2(multResult, "Mult");
 }
