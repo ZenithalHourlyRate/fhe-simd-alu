@@ -40,16 +40,10 @@ DCRTPoly DecryptCore(const std::vector<DCRTPoly>& cv, const PrivateKey<DCRTPoly>
     return b;
 }
 
-std::vector<std::complex<double>> multiplyByUComplex(std::vector<double> input) {
-    // now input.size() == slots * 2
-    // as it is the special input polynomial
-    std::vector<std::complex<double>> val(input.size());
-    for (size_t i = 0; i < input.size(); ++i) {
-        val[i].real(input[i]);
-        val[i].imag(0);
-    }
-    size_t slots   = input.size() / 2;
-    uint32_t m     = 4 * slots;
+using CMatrix = std::vector<std::vector<std::complex<double>>>;
+
+CMatrix getU(size_t m) {
+    auto slots     = m / 4;
     uint32_t mmask = m - 1;  // assumes m is power of 2
 
     // computes indices for all primitive roots of unity
@@ -78,9 +72,34 @@ std::vector<std::complex<double>> multiplyByUComplex(std::vector<double> input) 
             U[i][j] = ksiPows[(j * rotGroup[i]) & mmask];
         }
     }
+    return U;
+}
+
+CMatrix getUT(size_t m) {
+    auto U       = getU(m);
+    size_t slots = m / 4;
+    CMatrix UTrans(2 * slots, std::vector<std::complex<double>>(slots));
+    for (size_t i = 0; i != slots; ++i) {
+        for (size_t j = 0; j != 2 * slots; ++j) {
+            UTrans[j][i] = std::conj(U[i][j]) / static_cast<double>(slots);
+        }
+    }
+    return UTrans;
+}
+
+std::vector<std::complex<double>> multiplyByUComplex(std::vector<double> input) {
+    // now input.size() == slots * 2
+    // as it is the special input polynomial
+    std::vector<std::complex<double>> val(input.size());
+    for (size_t i = 0; i < input.size(); ++i) {
+        val[i].real(input[i]);
+        val[i].imag(0);
+    }
+    size_t slots = input.size() / 2;
+    uint32_t m   = 4 * slots;
+    auto U       = getU(m);
 
     std::vector<std::complex<double>> result(slots);
-
     // do matrix multiplication of U * val
     for (uint32_t i = 0; i < slots; ++i) {
         result[i] = 0;
@@ -101,36 +120,10 @@ std::vector<double> multiplyByU(std::vector<double> input) {
 }
 
 std::vector<double> multiplyByUInverseComplex(std::vector<std::complex<double>> input) {
-    size_t slots   = input.size();
-    uint32_t m     = 4 * slots;
-    uint32_t mmask = m - 1;  // assumes m is power of 2
+    size_t slots = input.size();
+    uint32_t m   = 4 * slots;
 
-    // computes indices for all primitive roots of unity
-    std::vector<uint32_t> rotGroup(slots);
-    uint32_t fivePows = 1;
-    for (uint32_t i = 0; i < slots; ++i) {
-        rotGroup[i] = fivePows;
-        fivePows *= 5;
-        fivePows &= mmask;
-    }
-
-    // computes all powers of a primitive root of unity exp(2 * M_PI/m)
-    std::vector<std::complex<double>> ksiPows(m + 1);
-    double ak = 2 * M_PI / m;
-    for (uint32_t j = 0; j < m; ++j) {
-        double angle = ak * j;
-        ksiPows[j].real(std::cos(angle));
-        ksiPows[j].imag(std::sin(angle));
-    }
-    ksiPows[m] = ksiPows[0];
-
-    std::vector<std::vector<std::complex<double>>> UT(2 * slots, std::vector<std::complex<double>>(slots));
-
-    for (uint32_t i = 0; i < slots; ++i) {
-        for (uint32_t j = 0; j < 2 * slots; ++j) {
-            UT[j][i] = std::conj(ksiPows[(j * rotGroup[i]) & mmask]) / static_cast<double>(slots);
-        }
-    }
+    auto UT = getUT(m);
 
     std::vector<std::complex<double>> result(2 * slots);
 
@@ -170,32 +163,18 @@ static const inline std::vector<std::complex<double>> z_upper_roots_8 = {
 const auto z_upper_roots = z_upper_roots_8;
 const auto zN            = 8;
 
-std::vector<std::complex<double>> multiplyByZUComplex(std::vector<double> input) {
-    std::vector<std::complex<double>> val(input.size());
-    for (size_t i = 0; i < input.size(); ++i) {
-        val[i].real(input[i]);
-        val[i].imag(0);
-    }
-    assert(input.size() == z_upper_roots.size() * 2 &&
-           "Input size does not match expected size for multiplyByZUComplex");
-
-    // This is the vandermond matrix
-    std::vector<std::complex<double>> result;
-    size_t halfSize = input.size() / 2;
-    for (size_t i = 0; i < halfSize; ++i) {
-        std::complex<double> sum = 0;
-        for (size_t j = 0; j < input.size(); ++j) {
-            sum += std::pow(z_upper_roots[i], static_cast<int>(j)) * val[j];
+CMatrix getZU() {
+    // Vandermond matrix
+    CMatrix zu(zN / 2, std::vector<std::complex<double>>(zN));
+    for (size_t i = 0; i != zN / 2; ++i) {
+        for (size_t j = 0; j != zN; ++j) {
+            zu[i][j] = std::pow(z_upper_roots[i], static_cast<int>(j));
         }
-        result.push_back(sum);
     }
-    return result;
+    return zu;
 }
 
-std::vector<double> multiplyByZUInverse(std::vector<std::complex<double>> input) {
-    std::vector<double> result;
-    assert(input.size() == z_upper_roots.size() && "Input size does not match expected size for multiplyByZUInverse");
-
+CMatrix getZUInverse() {
     std::vector<std::vector<std::complex<double>>> zUInv(zN, std::vector<std::complex<double>>(zN / 2, 0));
 
     // Build the inverse Vandermond matrix
@@ -212,6 +191,38 @@ std::vector<double> multiplyByZUInverse(std::vector<std::complex<double>> input)
             }
         }
     }
+    return zUInv;
+}
+
+std::vector<std::complex<double>> multiplyByZUComplex(std::vector<double> input) {
+    std::vector<std::complex<double>> val(input.size());
+    for (size_t i = 0; i < input.size(); ++i) {
+        val[i].real(input[i]);
+        val[i].imag(0);
+    }
+    assert(input.size() == z_upper_roots.size() * 2 &&
+           "Input size does not match expected size for multiplyByZUComplex");
+
+    // This is the vandermond matrix
+    std::vector<std::complex<double>> result;
+    auto ZU = getZU();
+
+    size_t halfSize = input.size() / 2;
+    for (size_t i = 0; i < halfSize; ++i) {
+        std::complex<double> sum = 0;
+        for (size_t j = 0; j < input.size(); ++j) {
+            sum += ZU[i][j] * val[j];
+        }
+        result.push_back(sum);
+    }
+    return result;
+}
+
+std::vector<double> multiplyByZUInverse(std::vector<std::complex<double>> input) {
+    std::vector<double> result;
+    assert(input.size() == z_upper_roots.size() && "Input size does not match expected size for multiplyByZUInverse");
+
+    auto zUInv = getZUInverse();
 
     for (size_t i = 0; i != zN; ++i) {
         std::complex<double> sum = 0;
@@ -406,4 +417,21 @@ void test4_encodeInRE() {
     }
     auto decoded = decodeFromRE(encZBack);
     std::cout << "\nDecoded back: " << decoded << "\n";
+}
+
+Ciphertext<DCRTPoly> Conjugate(ConstCiphertext<DCRTPoly> ciphertext,
+                               const std::map<uint32_t, EvalKey<DCRTPoly>>& evalKeyMap) {
+    uint32_t N = ciphertext->GetElements()[0].GetRingDimension();
+    std::vector<uint32_t> vec(N);
+    PrecomputeAutoMap(N, 2 * N - 1, &vec);
+
+    auto result = ciphertext->Clone();
+
+    auto algo = ciphertext->GetCryptoContext()->GetScheme();
+    algo->KeySwitchInPlace(result, evalKeyMap.at(2 * N - 1));
+
+    auto& rcv = result->GetElements();
+    rcv[0]    = rcv[0].AutomorphismTransform(2 * N - 1, vec);
+    rcv[1]    = rcv[1].AutomorphismTransform(2 * N - 1, vec);
+    return result;
 }

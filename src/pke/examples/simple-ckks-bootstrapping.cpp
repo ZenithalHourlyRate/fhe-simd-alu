@@ -71,8 +71,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         if (neg)
             value = -value;
         // generic for different packed cases
-        if ((msg == "Input" || msg == "Encode" || msg == "Mult") &&
-            (i % (b.GetRingDimension() / (slots_global * 2)) == 0)) {
+        if ((i % (b.GetRingDimension() / (slots_global * 2)) == 0)) {
             values.push_back(value);
         }
     }
@@ -82,13 +81,21 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     //    std::cout << msg << "  values [" << i << "]: " << values[i] << std::endl;
     //}
     auto complexValues = multiplyByUComplex(values);
-    auto zValues       = multiplyByZUInverse(complexValues);
-    for (size_t i = 0; i != values.size(); ++i) {
-        std::cout << msg << "  zValues [" << i << "]: " << zValues[i] << std::endl;
+    if (msg == "Upper" || msg == "Down" || msg == "Aux" || msg == "AuxI" || msg == "Encode" || msg == "AuxJ") {
+        for (size_t i = 0; i != complexValues.size(); ++i) {
+            std::cout << msg << std::setprecision(20) << "  complexValues [" << i << "]: " << complexValues[i]
+                      << std::endl;
+        }
     }
-    auto rounded   = roundInRe(zValues);
-    auto decodeInR = decodeFromRE(rounded);
-    std::cout << "Z: " << decodeInR << std::endl;
+    auto zValues = multiplyByZUInverse(complexValues);
+    if (msg == "Encode") {
+        for (size_t i = 0; i != values.size(); ++i) {
+            std::cout << msg << std::setprecision(20) << "  zValues [" << i << "]: " << zValues[i] << std::endl;
+        }
+    }
+    //auto rounded   = roundInRe(zValues);
+    //auto decodeInR = decodeFromRE(rounded);
+    //std::cout << "Z: " << decodeInR << std::endl;
 
     //if (msg != "Input" && msg != "ModRaise") {
     //    for (size_t i = 0; i != 1; ++i) {
@@ -170,9 +177,68 @@ CiphertextT multiplyByZptm(CryptoContextT cc, CiphertextT ct) {
     return newCt;
 }
 
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxInverseCt(CryptoContextT cc, CiphertextT zero, CMatrix T) {
+    // T is of shape zN * (zN / 2)
+    auto halfSize = T[0].size();
+    // print T
+    std::cout << "T matrix:" << std::endl;
+    for (size_t i = 0; i != T.size(); ++i) {
+        for (size_t j = 0; j != T[0].size(); ++j) {
+            std::cout << std::setprecision(5) << T[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    std::vector<Ciphertext<DCRTPoly>> results1;
+    std::vector<Ciphertext<DCRTPoly>> results2;
+
+    // up matrix
+    for (size_t i = 0; i != halfSize; ++i) {
+        auto newCt    = zero->Clone();
+        auto diagonal = std::vector<std::complex<double>>(halfSize, 0);
+        for (size_t j = 0; j != halfSize; ++j) {
+            diagonal[j] = T[j][(i + j) % halfSize];
+        }
+        auto diagonalInR = multiplyByUInverseComplex(diagonal);
+        auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
+        finalPoly.SetFormat(Format::EVALUATION);
+        auto& cv = newCt->GetElements();
+        cv[0] += finalPoly;
+        results1.push_back(newCt);
+    }
+    // down matrix
+    for (size_t i = 0; i != halfSize; ++i) {
+        auto newCt    = zero->Clone();
+        auto diagonal = std::vector<std::complex<double>>(halfSize, 0);
+        for (size_t j = 0; j != halfSize; ++j) {
+            diagonal[j] = T[j][(i + j) % halfSize + halfSize];
+        }
+        auto diagonalInR = multiplyByUInverseComplex(diagonal);
+        auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
+        finalPoly.SetFormat(Format::EVALUATION);
+        auto& cv = newCt->GetElements();
+        cv[1] += finalPoly;
+        results2.push_back(newCt);
+    }
+    return {results1, results2};
+}
+
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxUInverseCt(CryptoContextT cc, CiphertextT zero) {
+    auto UT = getUT(zN * 2);
+    return getAuxInverseCt(cc, zero, UT);
+}
+
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxZUInverseCt(CryptoContextT cc, CiphertextT zero) {
+    auto zUInv = getZUInverse();
+    return getAuxInverseCt(cc, zero, zUInv);
+}
+
 void SimpleBootstrapExample();
 
 int main(int argc, char* argv[]) {
+    //test4_encodeInRE();
+    //test_UInverse();
+    //test_zu();
     //test4_encodeInRE();
     SimpleBootstrapExample();
 }
@@ -211,7 +277,7 @@ void SimpleBootstrapExample() {
     uint32_t dcrtBits            = 78;
     uint32_t firstMod            = 89;
 #else
-    ScalingTechnique rescaleTech = FIXEDMANUAL;
+    ScalingTechnique rescaleTech = FIXEDAUTO;
     uint32_t dcrtBits            = 59;
     uint32_t firstMod            = 60;
 #endif
@@ -234,28 +300,31 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(5);
+    parameters.SetMultiplicativeDepth(7);
+    parameters.SetBatchSize(8);
 
-    CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
+    CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
-    cryptoContext->Enable(PKE);
-    cryptoContext->Enable(KEYSWITCH);
-    cryptoContext->Enable(LEVELEDSHE);
-    //cryptoContext->Enable(ADVANCEDSHE);
-    //cryptoContext->Enable(FHE);
+    cc->Enable(PKE);
+    cc->Enable(KEYSWITCH);
+    cc->Enable(LEVELEDSHE);
+    //cc->Enable(ADVANCEDSHE);
+    //cc->Enable(FHE);
 
-    uint32_t ringDim = cryptoContext->GetRingDimension();
+    uint32_t ringDim = cc->GetRingDimension();
     // This is the maximum number of slots that can be used for full packing.
     //uint32_t numSlots = ringDim / 2;
     std::cout << "CKKS scheme ring dimension: " << ringDim << "\n\n";
 
-    //cryptoContext->EvalBootstrapSetup(levelBudget);
+    //cc->EvalBootstrapSetup(levelBudget);
 
-    auto keyPair = cryptoContext->KeyGen();
-    cryptoContext->EvalMultKeyGen(keyPair.secretKey);
-    //cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
+    auto keyPair = cc->KeyGen();
+    cc->EvalMultKeyGen(keyPair.secretKey);
+    cc->EvalRotateKeyGen(keyPair.secretKey, {1});
+    cc->EvalAutomorphismKeyGen(keyPair.secretKey, {2 * ringDim - 1});
+    //cc->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
 
-    cc_global    = cryptoContext;
+    cc_global    = cc;
     sk_global    = keyPair.secretKey;
     slots_global = zN / 2;
 
@@ -263,25 +332,54 @@ void SimpleBootstrapExample() {
     size_t encodedLength  = x.size();
 
     // We start with a depleted ciphertext that has used up all of its levels.
-    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(x, 1);
+    Plaintext ptxt = cc->MakeCKKSPackedPlaintext(x, 1);
 
     ptxt->SetLength(encodedLength);
     std::cout << "Input: " << ptxt << "\n";
 
-    Ciphertext<DCRTPoly> ciph = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
+    Ciphertext<DCRTPoly> zero = cc->Encrypt(keyPair.publicKey, ptxt);
 
-    __heir_debug2(ciph, "Input");
+    __heir_debug2(zero, "Input");
 
-    auto encoded = encodeREInCt(ciph, 255);
+    auto encoded = encodeREInCt(zero, 255);
     __heir_debug2(encoded, "Encode");
-    auto encoded2 = encodeREInCt(ciph, 2);
-    __heir_debug2(encoded2, "Encode");
 
-    // should use another empty ct
-    auto ZPtm = encodeZPtmInCt(ciph);
+    auto [auxUInvCtsUpper, auxUInvCtsDown] = getAuxZUInverseCt(cc, zero);
+    __heir_debug2(auxUInvCtsUpper[0], "Aux");
+    __heir_debug2(auxUInvCtsUpper[1], "Aux");
 
-    auto multResultHalf = cryptoContext->EvalMult(encoded, encoded2);
-    auto multResult     = cryptoContext->EvalMult(multResultHalf, ZPtm);
+    // Halevi-Shoup
+    auto startCt     = encoded->Clone();
+    auto resultUpper = zero->Clone();
+    auto resultDown  = zero->Clone();
+    for (size_t i = 0; i != auxUInvCtsUpper.size(); ++i) {
+        if (i == 0 || i == 1) {
+            __heir_debug2(startCt, "AuxI");
+        }
+        auto diagonalUpper = cc->EvalMult(startCt, auxUInvCtsUpper[i]);
+        if (i == 0 || i == 1) {
+            __heir_debug2(diagonalUpper, "AuxJ");
+        }
+        resultUpper = cc->EvalAdd(resultUpper, diagonalUpper);
+        //auto diagonalDown  = cc->EvalMult(startCt, auxUInvCtsDown[i]);
+        //resultDown         = cc->EvalAdd(resultDown, diagonalDown);
+        // rotate one more
+        startCt = cc->EvalRotate(startCt, 1);
+    }
+    cc->EvalAddInPlace(resultUpper, Conjugate(resultUpper, cc->GetEvalAutomorphismKeyMap(resultUpper->GetKeyTag())));
+    //cc->EvalAddInPlace(resultDown, Conjugate(resultDown, cc->GetEvalAutomorphismKeyMap(resultDown->GetKeyTag())));
 
-    __heir_debug2(multResult, "Mult");
+    __heir_debug2(resultUpper, "Upper");
+    //__heir_debug2(resultDown, "Down");
+
+    // auto encoded2 = encodeREInCt(ciph, 2);
+    // __heir_debug2(encoded2, "Encode");
+
+    // // should use another empty ct
+    // auto ZPtm = encodeZPtmInCt(ciph);
+
+    // auto multResultHalf = cc->EvalMult(encoded, encoded2);
+    // auto multResult     = cc->EvalMult(multResultHalf, ZPtm);
+
+    // __heir_debug2(multResult, "Mult");
 }
