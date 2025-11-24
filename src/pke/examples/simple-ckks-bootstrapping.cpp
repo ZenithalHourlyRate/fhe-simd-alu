@@ -77,7 +77,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
 
     // Check the slot encoding?
-    if (msg == "S2RC") {
+    if (msg == "S2RC" || msg == "MSB") {
         for (size_t i = 0; i != values.size(); ++i) {
             std::cout << msg << std::setprecision(20) << "  values [" << i << "]: " << values[i] << std::endl;
         }
@@ -331,6 +331,19 @@ Ciphertext<DCRTPoly> SlotsToZCoeffs(CryptoContextT cc, CiphertextT ctLeft, Ciphe
     return SlotsToCoeffs(cc, ctLeft, ctRight, zero, getAuxZUCt(cc, zero));
 }
 
+void MSBBootstrap(CryptoContextT cc, CiphertextT ct) {
+    auto q      = ct->GetElements()[0].GetModulus();
+    auto sf     = ct->GetScalingFactor();
+    auto log2sf = std::log2(sf);
+    std::cout << "q: " << q.GetMSB() << " log2sf: " << log2sf << std::endl;
+    auto multBy = q >> (log2sf - 1);
+    auto ct2    = ct->Clone();
+    auto& cv    = ct2->GetElements();
+    cv[0] *= BigInteger(64);
+    cv[1] *= BigInteger(64);
+    __heir_debug2(ct2, "MSB");
+}
+
 void SimpleBootstrapExample();
 
 int main(int argc, char* argv[]) {
@@ -398,7 +411,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(7);
+    parameters.SetMultiplicativeDepth(2);
     parameters.SetBatchSize(8);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
@@ -450,6 +463,8 @@ void SimpleBootstrapExample() {
     auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1], zero);
 
     __heir_debug2(z2S2r, "S2RC");
+
+    MSBBootstrap(cc, z2S2r);
 
     // SlotsToR-Coeffs
 
