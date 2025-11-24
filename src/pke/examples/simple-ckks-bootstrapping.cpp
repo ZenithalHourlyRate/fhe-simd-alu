@@ -77,9 +77,11 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
 
     // Check the slot encoding?
-    //for (size_t i = 0; i != values.size(); ++i) {
-    //    std::cout << msg << "  values [" << i << "]: " << values[i] << std::endl;
-    //}
+    if (msg == "S2RC") {
+        for (size_t i = 0; i != values.size(); ++i) {
+            std::cout << msg << std::setprecision(20) << "  values [" << i << "]: " << values[i] << std::endl;
+        }
+    }
     auto complexValues = multiplyByUComplex(values);
     if (msg == "Upper" || msg == "Down" || msg == "Aux" || msg == "AuxI" || msg == "Encode" || msg == "AuxJ") {
         for (size_t i = 0; i != complexValues.size(); ++i) {
@@ -180,14 +182,54 @@ CiphertextT multiplyByZptm(CryptoContextT cc, CiphertextT ct) {
 std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxInverseCt(CryptoContextT cc, CiphertextT zero, CMatrix T) {
     // T is of shape zN * (zN / 2)
     auto halfSize = T[0].size();
-    // print T
-    std::cout << "T matrix:" << std::endl;
-    for (size_t i = 0; i != T.size(); ++i) {
-        for (size_t j = 0; j != T[0].size(); ++j) {
-            std::cout << std::setprecision(5) << T[i][j] << " ";
+
+    std::vector<Ciphertext<DCRTPoly>> results1;
+    std::vector<Ciphertext<DCRTPoly>> results2;
+
+    // up matrix
+    for (size_t i = 0; i != halfSize; ++i) {
+        auto newCt    = zero->Clone();
+        auto diagonal = std::vector<std::complex<double>>(halfSize, 0);
+        for (size_t j = 0; j != halfSize; ++j) {
+            diagonal[j] = T[j][(i + j) % halfSize];
         }
-        std::cout << std::endl;
+        auto diagonalInR = multiplyByUInverseComplex(diagonal);
+        auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
+        finalPoly.SetFormat(Format::EVALUATION);
+        auto& cv = newCt->GetElements();
+        cv[0] += finalPoly;
+        results1.push_back(newCt);
     }
+    // down matrix
+    for (size_t i = 0; i != halfSize; ++i) {
+        auto newCt    = zero->Clone();
+        auto diagonal = std::vector<std::complex<double>>(halfSize, 0);
+        for (size_t j = 0; j != halfSize; ++j) {
+            diagonal[j] = T[j + halfSize][(i + j) % halfSize];
+        }
+        auto diagonalInR = multiplyByUInverseComplex(diagonal);
+        auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
+        finalPoly.SetFormat(Format::EVALUATION);
+        auto& cv = newCt->GetElements();
+        cv[0] += finalPoly;
+        results2.push_back(newCt);
+    }
+    return {results1, results2};
+}
+
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxUInverseCt(CryptoContextT cc, CiphertextT zero) {
+    auto UT = getUT(zN * 2);
+    return getAuxInverseCt(cc, zero, UT);
+}
+
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxZUInverseCt(CryptoContextT cc, CiphertextT zero) {
+    auto zUInv = getZUInverse();
+    return getAuxInverseCt(cc, zero, zUInv);
+}
+
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxCt(CryptoContextT cc, CiphertextT zero, CMatrix T) {
+    // T is of shape (zN / 2) * zN
+    auto halfSize = T.size();
 
     std::vector<Ciphertext<DCRTPoly>> results1;
     std::vector<Ciphertext<DCRTPoly>> results2;
@@ -217,20 +259,76 @@ std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxInverseCt(CryptoContextT 
         auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
         finalPoly.SetFormat(Format::EVALUATION);
         auto& cv = newCt->GetElements();
-        cv[1] += finalPoly;
+        cv[0] += finalPoly;
         results2.push_back(newCt);
     }
     return {results1, results2};
 }
 
-std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxUInverseCt(CryptoContextT cc, CiphertextT zero) {
-    auto UT = getUT(zN * 2);
-    return getAuxInverseCt(cc, zero, UT);
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxUCt(CryptoContextT cc, CiphertextT zero) {
+    auto U = getU(zN * 2);
+    return getAuxCt(cc, zero, U);
 }
 
-std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxZUInverseCt(CryptoContextT cc, CiphertextT zero) {
-    auto zUInv = getZUInverse();
-    return getAuxInverseCt(cc, zero, zUInv);
+std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxZUCt(CryptoContextT cc, CiphertextT zero) {
+    auto zU = getZU();
+    return getAuxCt(cc, zero, zU);
+}
+
+std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT ct, CiphertextT zero,
+                                                const std::array<std::vector<Ciphertext<DCRTPoly>>, 2>& auxCts) {
+    // Halevi-Shoup
+    // Z-CoeffToSlots
+    auto startCt     = ct->Clone();
+    auto resultUpper = zero->Clone();
+    auto resultDown  = zero->Clone();
+    for (size_t i = 0; i != auxCts[0].size(); ++i) {
+        auto diagonalUpper = cc->EvalMult(startCt, auxCts[0][i]);
+        resultUpper        = cc->EvalAdd(resultUpper, diagonalUpper);
+        auto diagonalDown  = cc->EvalMult(startCt, auxCts[1][i]);
+        resultDown         = cc->EvalAdd(resultDown, diagonalDown);
+        // rotate one more
+        startCt = cc->EvalRotate(startCt, 1);
+    }
+    cc->EvalAddInPlace(resultUpper, Conjugate(resultUpper, cc->GetEvalAutomorphismKeyMap(resultUpper->GetKeyTag())));
+    cc->EvalAddInPlace(resultDown, Conjugate(resultDown, cc->GetEvalAutomorphismKeyMap(resultDown->GetKeyTag())));
+
+    return {resultUpper, resultDown};
+}
+
+std::vector<Ciphertext<DCRTPoly>> ZCoeffToSlots(CryptoContextT cc, CiphertextT ct, CiphertextT zero) {
+    return CoeffsToSlots(cc, ct, zero, getAuxZUInverseCt(cc, zero));
+}
+
+std::vector<Ciphertext<DCRTPoly>> RCoeffToSlots(CryptoContextT cc, CiphertextT ct, CiphertextT zero) {
+    return CoeffsToSlots(cc, ct, zero, getAuxUInverseCt(cc, zero));
+}
+
+Ciphertext<DCRTPoly> SlotsToCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight, CiphertextT zero,
+                                   const std::array<std::vector<Ciphertext<DCRTPoly>>, 2>& auxCts) {
+    // Halevi-Shoup
+    // Z-CoeffToSlots
+    auto startCtLeft  = ctLeft->Clone();
+    auto startCtRight = ctRight->Clone();
+    auto result       = zero->Clone();
+    for (size_t i = 0; i != auxCts[0].size(); ++i) {
+        auto diagonalLeft  = cc->EvalMult(startCtLeft, auxCts[0][i]);
+        result             = cc->EvalAdd(result, diagonalLeft);
+        auto diagonalRight = cc->EvalMult(startCtRight, auxCts[1][i]);
+        result             = cc->EvalAdd(result, diagonalRight);
+        // rotate one more
+        startCtLeft  = cc->EvalRotate(startCtLeft, 1);
+        startCtRight = cc->EvalRotate(startCtRight, 1);
+    }
+    return result;
+}
+
+Ciphertext<DCRTPoly> SlotsToRCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight, CiphertextT zero) {
+    return SlotsToCoeffs(cc, ctLeft, ctRight, zero, getAuxUCt(cc, zero));
+}
+
+Ciphertext<DCRTPoly> SlotsToZCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight, CiphertextT zero) {
+    return SlotsToCoeffs(cc, ctLeft, ctRight, zero, getAuxZUCt(cc, zero));
 }
 
 void SimpleBootstrapExample();
@@ -344,33 +442,16 @@ void SimpleBootstrapExample() {
     auto encoded = encodeREInCt(zero, 255);
     __heir_debug2(encoded, "Encode");
 
-    auto [auxUInvCtsUpper, auxUInvCtsDown] = getAuxZUInverseCt(cc, zero);
-    __heir_debug2(auxUInvCtsUpper[0], "Aux");
-    __heir_debug2(auxUInvCtsUpper[1], "Aux");
+    auto zC2S = ZCoeffToSlots(cc, encoded, zero);
 
-    // Halevi-Shoup
-    auto startCt     = encoded->Clone();
-    auto resultUpper = zero->Clone();
-    auto resultDown  = zero->Clone();
-    for (size_t i = 0; i != auxUInvCtsUpper.size(); ++i) {
-        if (i == 0 || i == 1) {
-            __heir_debug2(startCt, "AuxI");
-        }
-        auto diagonalUpper = cc->EvalMult(startCt, auxUInvCtsUpper[i]);
-        if (i == 0 || i == 1) {
-            __heir_debug2(diagonalUpper, "AuxJ");
-        }
-        resultUpper = cc->EvalAdd(resultUpper, diagonalUpper);
-        //auto diagonalDown  = cc->EvalMult(startCt, auxUInvCtsDown[i]);
-        //resultDown         = cc->EvalAdd(resultDown, diagonalDown);
-        // rotate one more
-        startCt = cc->EvalRotate(startCt, 1);
-    }
-    cc->EvalAddInPlace(resultUpper, Conjugate(resultUpper, cc->GetEvalAutomorphismKeyMap(resultUpper->GetKeyTag())));
-    //cc->EvalAddInPlace(resultDown, Conjugate(resultDown, cc->GetEvalAutomorphismKeyMap(resultDown->GetKeyTag())));
+    __heir_debug2(zC2S[0], "Upper");
+    __heir_debug2(zC2S[1], "Down");
 
-    __heir_debug2(resultUpper, "Upper");
-    //__heir_debug2(resultDown, "Down");
+    auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1], zero);
+
+    __heir_debug2(z2S2r, "S2RC");
+
+    // SlotsToR-Coeffs
 
     // auto encoded2 = encodeREInCt(ciph, 2);
     // __heir_debug2(encoded2, "Encode");
