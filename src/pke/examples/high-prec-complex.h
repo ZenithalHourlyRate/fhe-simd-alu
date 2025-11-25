@@ -1,3 +1,5 @@
+#ifndef SRC_PKE_EXAMPLES_HIGH_PREC_COMPLEX_H_
+#define SRC_PKE_EXAMPLES_HIGH_PREC_COMPLEX_H_
 
 #include <cassert>
 #include "openfhe.h"
@@ -178,6 +180,21 @@ public:
         return result;
     }
 
+    friend BigFixedPoint operator+(const BigFixedPoint& a, const BigFixedPoint& b);
+
+    BigFixedPoint& operator+=(const BigFixedPoint& other) {
+        *this = *this + other;
+        return *this;
+    }
+
+    friend BigFixedPoint operator-(const BigFixedPoint& a, const BigFixedPoint& b);
+
+    friend BigFixedPoint operator-(const BigFixedPoint& a);
+    BigFixedPoint& operator-=(const BigFixedPoint& other) {
+        *this = *this - other;
+        return *this;
+    }
+
 private:
     BigInteger value;  // unsigned big
     int log2Scale;     // scale = 2^log2Scale
@@ -227,6 +244,10 @@ BigFixedPoint operator-(const BigFixedPoint& a, const BigFixedPoint& b) {
     return a + negB;
 }
 
+BigFixedPoint operator-(const BigFixedPoint& a) {
+    return BigFixedPoint(a.getValue(), a.getLog2Scale(), !a.getNeg());
+}
+
 // make it scale preserving
 BigFixedPoint operator*(const BigFixedPoint& a, const BigFixedPoint& b) {
     BigInteger prod = a.getValue() * b.getValue();
@@ -260,7 +281,7 @@ public:
         return BigComplex(real.scaleTo(log2S), imag.scaleTo(log2S));
     }
     BigComplex conj() const {
-        return BigComplex(real, BigFixedPoint(imag.getValue(), imag.getLog2Scale(), !imag.getNeg()));
+        return BigComplex(real, -imag);
     }
 
     std::complex<double> convertToComplex() const {
@@ -490,3 +511,5 @@ BigCMatrix getRUInverse() {
     }
     return UInverse;
 }
+
+#endif  // SRC_PKE_EXAMPLES_HIGH_PREC_COMPLEX_H_
