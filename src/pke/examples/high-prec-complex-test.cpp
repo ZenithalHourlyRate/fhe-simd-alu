@@ -92,7 +92,7 @@ void test_ru() {
 
     std::cout << "After RU and inverse RU: ";
     for (const auto& val : uInvResult) {
-        std::cout << std::setprecision(20) << val.toBinary() << " ";
+        std::cout << std::setprecision(20) << val.convertToDouble() << " ";
     }
     std::cout << "\n";
 }

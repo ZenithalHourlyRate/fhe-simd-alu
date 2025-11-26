@@ -11,6 +11,7 @@ std::vector<BigFixedPoint> encodeInZ(uint32_t input) {
     for (size_t i = 0; i != zN; ++i) {
         bits.push_back((input & (1 << i)) >> i);
     }
+
     std::vector<BigFixedPoint> tInv;
     // denominator
     auto one = BigFixedPoint(1).scaleTo(z_upper_roots_scale);
@@ -42,21 +43,27 @@ std::vector<BigFixedPoint> encodeInZ(uint32_t input) {
 }
 
 std::vector<BigFixedPoint> roundInZ(std::vector<BigFixedPoint> input) {
+    // Add small epsilon to ensure range in (-1, 0)
+    // epsilon = 2^{-zN-1}
+    auto eps = BigFixedPoint(BigInteger(1) << z_upper_roots_scale - zN - 1, z_upper_roots_scale, false);
     // do [\cdot ]_1
     std::vector<BigFixedPoint> output;
     for (auto i : input) {
+        i = i - eps;
+        // then do ceil
         if (i.getNeg()) {
             // make it positive
             auto ni      = -i;
             auto niFloor = (ni.getValue() >> ni.getLog2Scale());
             auto niFP    = BigFixedPoint(niFloor, 0, false);
             //std::cout << "ni: " << ni.toBinary() << " niFP: " << niFP.toBinary() << "\n";
-            output.push_back(-(ni - niFP));
+            output.push_back(-(ni - niFP) + eps);
         }
         else {
+            auto one    = BigFixedPoint(1, 0, false);
             auto iFloor = (i.getValue() >> i.getLog2Scale());
-            auto iFP    = BigFixedPoint(iFloor, 0, false);
-            output.push_back(i - iFP);
+            auto iCeil  = BigFixedPoint(iFloor, 0, false) + one;
+            output.push_back(i - iCeil + eps);
         }
     }
     return output;
@@ -81,15 +88,28 @@ uint32_t decodeFromZ(const std::vector<BigFixedPoint>& input) {
         result[i - zN] += -two * result[i];
         result.pop_back();
     }
+    // Now we have [m]_t + (X-2)I with I in {0, -1}
+    // Need to remove the possible I
+    // We need to add eps = 3 * 2^{-zN - 1}
+    auto eps               = BigFixedPoint(BigInteger(3) << z_upper_roots_scale - zN - 1, z_upper_roots_scale, false);
+    auto constCoeff        = result[0] + eps;
+    auto constCoeffInteger = constCoeff.getValue() >> constCoeff.getLog2Scale();
+    // This is b1. OpenFHE count bits from 1...
+    int32_t I = constCoeffInteger.GetBitAtIndex(2);
+    auto BigI = BigFixedPoint(I, 0, false);
+    result[1] += BigI;
+    // Now we get pure [m]_t
+
     int32_t ret = 0;
     for (size_t i = 0; i != zN; ++i) {
+        // actually we should use rounding...
+        // But for convenience let's just make it larger than 0
+        // It becomes either 0 + small or 1 + small
+        result[i] += eps;
         auto iInt = result[i].getValue() >> result[i].getLog2Scale();
         // OpenFHE count from 1???
         int64_t iBit = iInt.GetBitAtIndex(1);
-        bool iNeg    = result[i].getNeg();
-        if (iNeg && iBit) {
-            iBit = 0;
-        }
+        //std::cout << "iInt " << result[i].toHexString() << " Bit " << i << "\n";
         ret += iBit << i;
     }
     return ret;

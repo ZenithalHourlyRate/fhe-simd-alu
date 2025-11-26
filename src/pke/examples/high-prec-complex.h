@@ -117,6 +117,67 @@ public:
         return result;
     }
 
+    std::string toHexString(int prec = 32) const {
+        std::string result;
+
+        if (neg && value != 0) {
+            result += "-";
+        }
+
+        // Calculate the integer and fractional parts
+        BigInteger scaledValue    = value;
+        BigInteger integerPart    = scaledValue >> log2Scale;                  // Divide by 2^log2Scale
+        BigInteger fractionalPart = scaledValue - (integerPart << log2Scale);  // Remainder
+
+        // Convert integer part to string
+        if (integerPart != 0) {
+            // Manual binary conversion for integer part
+            BigInteger temp = integerPart;
+            std::string hexStr;
+            while (temp != 0) {
+                // OpenFHE count from 1???
+                auto rem = temp % 16;
+                std::stringstream ss;
+                ss << std::hex << temp.ConvertToInt();
+                hexStr = ss.str() + hexStr;
+                temp >>= 4;
+            }
+            result += hexStr;
+        }
+        else {
+            result += "0";
+        }
+
+        // Convert fractional part to decimal
+        if (fractionalPart != 0 && log2Scale > 0) {
+            result += ".";
+
+            // Convert fractional part (which is in base-2) to base-10
+            BigInteger frac            = fractionalPart;
+            const int maxDecimalDigits = prec;  // Maximum decimal digits to display
+
+            for (int i = 0; i < maxDecimalDigits && frac != 0; i++) {
+                frac *= 16;                            // Multiply by 10 to get next decimal digit
+                BigInteger digit = frac >> log2Scale;  // Extract the digit
+                std::stringstream ss;
+                ss << std::hex << digit.ConvertToInt();
+                result += ss.str();
+                frac = frac - (digit << log2Scale);  // Remainder for next iteration
+
+                // Early exit if remainder becomes zero
+                if (frac == 0) {
+                    break;
+                }
+            }
+        }
+        else if (log2Scale > 0) {
+            // Add .0 if there's fractional precision but value is integer
+            result += ".0";
+        }
+
+        return result;
+    }
+
     std::string toBinary(int prec = 64) const {
         std::string result;
 
@@ -292,6 +353,10 @@ public:
         return "(" + real.toString(prec) + ", " + imag.toString(prec) + ")";
     }
 
+    std::string toHexString(int prec = 32) const {
+        return "(" + real.toHexString(prec) + ", " + imag.toHexString(prec) + ")";
+    }
+
     std::string toBinary(int prec = 64) const {
         return "(" + real.toBinary(prec) + ", " + imag.toBinary(prec) + ")";
     }
@@ -381,8 +446,8 @@ BigCMatrix getZUInverse() {
     for (size_t j = 0; j != zN / 2; ++j) {
         auto xi = z_upper_roots[j];
         std::vector<BigComplex> xiPowers;
-        auto one   = BigFixedPoint(1, 0, false);
-        auto zNbig = BigFixedPoint(zN, 0, false);
+        auto one   = BigFixedPoint(1, 0, false).scaleTo(z_upper_roots_scale);
+        auto zNbig = BigFixedPoint(zN, 0, false).scaleTo(z_upper_roots_scale);
         xiPowers.push_back(one);
         for (size_t p = 1; p != zN; ++p) {
             xiPowers.push_back(xiPowers[p - 1] * xi);
@@ -504,7 +569,7 @@ BigCMatrix getRUInverse() {
     auto U = getRU();
     BigCMatrix UInverse(rN, std::vector<BigComplex>(rN / 2));
     for (size_t i = 0; i != rN / 2; ++i) {
-        auto rNBig = BigFixedPoint(rN, 0, false);
+        auto rNBig = BigFixedPoint(BigInteger(rN), 0, false).scaleTo(r_roots_scale);
         for (size_t j = 0; j != rN; ++j) {
             UInverse[j][i] = U[i][j].conj() / rNBig;
         }
