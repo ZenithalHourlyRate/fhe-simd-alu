@@ -162,19 +162,28 @@ public:
             BigInteger frac            = fractionalPart;
             const int maxDecimalDigits = prec;  // Maximum decimal digits to display
 
+            std::string fracStr;
+
             for (int i = 0; i < maxDecimalDigits && frac != 0; i++) {
                 frac *= 16;                            // Multiply by 10 to get next decimal digit
                 BigInteger digit = frac >> log2Scale;  // Extract the digit
                 std::stringstream ss;
                 ss << std::hex << digit.ConvertToInt();
-                result += ss.str();
+                fracStr += ss.str();
                 frac = frac - (digit << log2Scale);  // Remainder for next iteration
 
                 // Early exit if remainder becomes zero
                 if (frac == 0) {
                     break;
                 }
+                // If there is still more digit
+                // And we have 8 char (32 bits)
+                // Add a '_'
+                if ((i + 1) % 8 == 0 && (i + 1) < maxDecimalDigits && frac != 0) {
+                    fracStr += "_";
+                }
             }
+            result += fracStr;
         }
         else if (log2Scale > 0) {
             // Add .0 if there's fractional precision but value is integer

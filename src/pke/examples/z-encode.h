@@ -5,6 +5,8 @@
 #include "openfhe.h"
 #include "high-prec-complex.h"
 
+struct RPolynomial;
+
 struct ZPolynomial {
 public:
     ZPolynomial() : coefficients(zN) {}
@@ -198,8 +200,48 @@ public:
         return recoded;
     }
 
+    // Convert to complex
+    std::vector<BigComplex> toComplexVec() const {
+        return multU(getZU(), coefficients);
+    }
+
+    RPolynomial toRPolynomial() const;
+
 private:
     std::vector<BigFixedPoint> coefficients;
 };
+
+struct RPolynomial {
+public:
+    RPolynomial() : coefficients(rN) {}
+    RPolynomial(const std::vector<BigFixedPoint>& coeffs) : coefficients(coeffs) {}
+    std::vector<BigFixedPoint> getCoefficients() const {
+        return coefficients;
+    }
+
+    BigFixedPoint& operator[](size_t index) {
+        return coefficients[index];
+    }
+    const BigFixedPoint& operator[](size_t index) const {
+        return coefficients[index];
+    }
+
+    // Convert to complex
+    std::vector<BigComplex> toComplexVec() const {
+        return multU(getRU(), coefficients);
+    }
+
+    // Conversion to ZPolynomial
+    ZPolynomial toZPolynomial() const {
+        return multUInverse(getZUInverse(), toComplexVec());
+    }
+
+private:
+    std::vector<BigFixedPoint> coefficients;
+};
+
+RPolynomial ZPolynomial::toRPolynomial() const {
+    return multUInverse(getRUInverse(), toComplexVec());
+}
 
 #endif  // SRC_PKE_EXAMPLES_Z_ENCODE_H_
