@@ -65,10 +65,10 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
     }
-    auto complexValues = values.toComplexVec();
+    auto cSlots = values.toCSlots();
     if (msg == "Upper" || msg == "Down" || msg == "Aux" || msg == "AuxI" || msg == "AuxJ") {
-        for (size_t i = 0; i != complexValues.size(); ++i) {
-            std::cout << msg << "  complexValues [" << i << "]: " << complexValues[i].toHexString(16) << std::endl;
+        for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
+            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
     }
     ZPolynomial zValues = values.toZPolynomial();
@@ -90,44 +90,6 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     //}
     return 0;
 }
-
-//std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxInverseCt(CryptoContextT cc, CiphertextT zero, CMatrix T) {
-//    // T is of shape zN * (zN / 2)
-//    auto halfSize = T[0].size();
-//
-//    std::vector<Ciphertext<DCRTPoly>> results1;
-//    std::vector<Ciphertext<DCRTPoly>> results2;
-//
-//    // up matrix
-//    for (size_t i = 0; i != halfSize; ++i) {
-//        auto newCt    = zero->Clone();
-//        auto diagonal = std::vector<std::complex<double>>(halfSize, 0);
-//        for (size_t j = 0; j != halfSize; ++j) {
-//            diagonal[j] = T[j][(i + j) % halfSize];
-//        }
-//        auto diagonalInR = multiplyByUInverseComplex(diagonal);
-//        auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
-//        finalPoly.SetFormat(Format::EVALUATION);
-//        auto& cv = newCt->GetElements();
-//        cv[0] += finalPoly;
-//        results1.push_back(newCt);
-//    }
-//    // down matrix
-//    for (size_t i = 0; i != halfSize; ++i) {
-//        auto newCt    = zero->Clone();
-//        auto diagonal = std::vector<std::complex<double>>(halfSize, 0);
-//        for (size_t j = 0; j != halfSize; ++j) {
-//            diagonal[j] = T[j + halfSize][(i + j) % halfSize];
-//        }
-//        auto diagonalInR = multiplyByUInverseComplex(diagonal);
-//        auto finalPoly   = getPolyFromVec(diagonalInR, zero->GetElements()[0].GetParams(), zero->GetScalingFactor());
-//        finalPoly.SetFormat(Format::EVALUATION);
-//        auto& cv = newCt->GetElements();
-//        cv[0] += finalPoly;
-//        results2.push_back(newCt);
-//    }
-//    return {results1, results2};
-//}
 
 //std::array<std::vector<Ciphertext<DCRTPoly>>, 2> getAuxUInverseCt(CryptoContextT cc, CiphertextT zero) {
 //    auto UT = getUT(zN * 2);

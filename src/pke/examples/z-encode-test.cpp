@@ -141,11 +141,58 @@ void test4_encodeInZ() {
     std::cout << "Trunc term[0]: " << trunc[0].toHexString() << std::endl;
 }
 
+void test_natural() {
+    uint32_t input = 255;
+    auto encodedZ  = ZPolynomial::encode(input);
+
+    std::cout << "Input: " << input << "\nEncoded in Z: ";
+    for (const auto& val : encodedZ.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto roundNatural = ZPolynomial::roundBigINatural(encodedZ);
+    std::cout << "Rounded Natural in Z: ";
+    for (const auto& val : roundNatural.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+}
+
+void test_extractI() {
+    uint32_t input = 255;
+    auto encodedZ  = ZPolynomial::encode(input);
+    auto mult      = ZPolynomial::multiplyRaw(ZPolynomial::multiplyRaw(encodedZ, encodedZ), ZPolynomial::getT());
+
+    std::cout << "Mult: " << input << "\nEncoded in Z: ";
+    for (const auto& val : mult.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto Ipoly = ZPolynomial::extractI(mult);
+    std::cout << "Extracted I in Z: ";
+    for (const auto& val : Ipoly.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto multNatural = ZPolynomial::roundBigINatural(mult);
+    Ipoly            = ZPolynomial::extractI(multNatural);
+    std::cout << "Extracted I in Z after Natural rounding: ";
+    for (const auto& val : Ipoly.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+}
+
 int main() {
     test_encodeInZ();
     test2_encodeInZ();
     test3_encodeInZ();
-    test_add_mult();
+    //test_add_mult();
     test4_encodeInZ();
+    test_natural();
+    test_extractI();
     return 0;
 }

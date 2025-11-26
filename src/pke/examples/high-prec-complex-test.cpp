@@ -97,10 +97,59 @@ void test_ru() {
     std::cout << "\n";
 }
 
+void test_round() {
+    BigFixedPoint a = BigFixedPoint(-3.5).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint(2.5).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint(3.5).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint(-2.5).scaleTo(128);
+    BigFixedPoint e = BigFixedPoint(-2.1).scaleTo(128);
+    BigFixedPoint f = BigFixedPoint(-0).scaleTo(128);
+    BigFixedPoint g = BigFixedPoint(0).scaleTo(128);
+
+    std::cout << "a: " << a.toString() << " rounded: " << a.round().toString() << "\n";
+    std::cout << "b: " << b.toString() << " rounded: " << b.round().toString() << "\n";
+    std::cout << "c: " << c.toString() << " rounded: " << c.round().toString() << "\n";
+    std::cout << "d: " << d.toString() << " rounded: " << d.round().toString() << "\n";
+    std::cout << "e: " << e.toString() << " rounded: " << e.round().toString() << "\n";
+    std::cout << "f: " << f.toString() << " rounded: " << f.round().toString() << "\n";
+    std::cout << "g: " << g.toString() << " rounded: " << g.round().toString() << "\n";
+}
+
+void test_ceil() {
+    BigFixedPoint a = BigFixedPoint(-3.2).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint(2.3).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint(3.0).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint(-2.7).scaleTo(128);
+    BigFixedPoint e = BigFixedPoint(-3.0).scaleTo(128);
+
+    std::cout << "a: " << a.toString() << " ceil: " << a.ceil().toString() << "\n";
+    std::cout << "b: " << b.toString() << " ceil: " << b.ceil().toString() << "\n";
+    std::cout << "c: " << c.toString() << " ceil: " << c.ceil().toString() << "\n";
+    std::cout << "d: " << d.toString() << " ceil: " << d.ceil().toString() << "\n";
+    std::cout << "e: " << e.toString() << " ceil: " << e.ceil().toString() << "\n";
+}
+
+void test_floor() {
+    BigFixedPoint a = BigFixedPoint(-3.8).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint(2.7).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint(3.0).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint(-2.1).scaleTo(128);
+    BigFixedPoint e = BigFixedPoint(-3.0).scaleTo(128);
+
+    std::cout << "a: " << a.toString() << " floor: " << a.floor().toString() << "\n";
+    std::cout << "b: " << b.toString() << " floor: " << b.floor().toString() << "\n";
+    std::cout << "c: " << c.toString() << " floor: " << c.floor().toString() << "\n";
+    std::cout << "d: " << d.toString() << " floor: " << d.floor().toString() << "\n";
+    std::cout << "e: " << e.toString() << " floor: " << e.floor().toString() << "\n";
+}
+
 int main() {
     test_big_fixed_point();
     test_zu1();
     test_zu();
     test_ru();
+    test_round();
+    test_ceil();
+    test_floor();
     return 0;
 }

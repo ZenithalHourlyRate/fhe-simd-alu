@@ -65,6 +65,70 @@ public:
         return *this;
     }
 
+    bool equalZero() const {
+        return (value == BigInteger(0));
+    }
+
+    BigFixedPoint floor() const {
+        auto intPart  = getValue() >> getLog2Scale();
+        auto intBFP   = BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
+        auto fracPart = *this - intBFP;
+        if (equalZero()) {
+            return BigFixedPoint(0, 0, false).scaleTo(log2Scale);
+        }
+        if (getNeg()) {
+            if (fracPart.equalZero()) {
+                return BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
+            }
+            else {
+                return BigFixedPoint(intPart + 1, 0, getNeg()).scaleTo(log2Scale);
+            }
+        }
+        else {
+            return BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
+        }
+    }
+
+    BigFixedPoint ceil() const {
+        auto intPart  = getValue() >> getLog2Scale();
+        auto intBFP   = BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
+        auto fracPart = *this - intBFP;
+        if (equalZero()) {
+            return BigFixedPoint(0, 0, false).scaleTo(log2Scale);
+        }
+        if (getNeg()) {
+            return BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
+        }
+        else {
+            if (fracPart.equalZero()) {
+                return BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
+            }
+            else {
+                return BigFixedPoint(intPart + 1, 0, getNeg()).scaleTo(log2Scale);
+            }
+        }
+    }
+
+    BigFixedPoint round() const {
+        auto one  = BigFixedPoint(1, 0, false).scaleTo(log2Scale);
+        auto half = BigFixedPoint(1, 1, false).scaleTo(log2Scale);
+        // first do mod 1
+        auto i      = *this;
+        auto iFloor = i.floor();
+        // In [0, 1)
+        auto iFracPos = i - iFloor;
+        // then do round
+        BigFixedPoint frac;
+        auto diff = iFracPos - half;
+        if (diff.equalZero() || !diff.getNeg()) {
+            frac = iFracPos - one;
+        }
+        else {
+            frac = iFracPos;
+        }
+        return i - frac;
+    }
+
     double log2Norm() const {
         auto valDouble = value.ConvertToDouble();
         auto norm      = std::log2(valDouble) - static_cast<double>(log2Scale);
