@@ -65,6 +65,12 @@ public:
         return *this;
     }
 
+    double log2Norm() const {
+        auto valDouble = value.ConvertToDouble();
+        auto norm      = std::log2(valDouble) - static_cast<double>(log2Scale);
+        return norm;
+    }
+
     double convertToDouble() const {
         double val = value.ConvertToDouble();
         val /= std::pow(2.0, log2Scale);
@@ -343,6 +349,12 @@ public:
     }
     BigComplex conj() const {
         return BigComplex(real, -imag);
+    }
+
+    double log2Norm() const {
+        auto length = real * real + imag * imag;
+        auto norm   = 0.5 * length.log2Norm();
+        return norm;
     }
 
     std::complex<double> convertToComplex() const {
