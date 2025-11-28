@@ -81,6 +81,24 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         std::cout << msg << "  zValues error log2Norm: " << ZPolynomial::extractError(zValues).getLog2Norm()
                   << std::endl;
     }
+    if (msg == "Encode") {
+        std::vector<BigComplex> encodeZCoeffsToSlots(zN);
+
+        auto zUInverse = getZUInverse();
+        for (size_t i = 0; i != zN; ++i) {
+            for (size_t j = 0; j != zN / 2; ++j) {
+                encodeZCoeffsToSlots[i] = encodeZCoeffsToSlots[i] + zUInverse[i][j] * cSlots[j];
+            }
+        }
+        for (size_t i = 0; i != encodeZCoeffsToSlots.size(); ++i) {
+            encodeZCoeffsToSlots[i] = encodeZCoeffsToSlots[i] + encodeZCoeffsToSlots[i].conj();
+        }
+        for (size_t i = 0; i != encodeZCoeffsToSlots.size(); ++i) {
+            std::cout << msg << "  encodeZCoeffsToSlots [" << i << "]: " << encodeZCoeffsToSlots[i].toHexString(16)
+                      << std::endl;
+        }
+    }
+
     //auto rounded   = roundInRe(zValues);
     //auto decodeInR = decodeFromRE(rounded);
     //std::cout << "Z: " << decodeInR << std::endl;
@@ -139,8 +157,7 @@ void SimpleBootstrapExample() {
     */
     parameters.SetSecurityLevel(HEStd_NotSet);
     parameters.SetRingDim(1 << 12);
-    // To reduce encryption noise
-    //parameters.SetEncryptionTechnique(EncryptionTechnique::EXTENDED);
+    parameters.SetNumLargeDigits(5);
 
     /*  A3) Scaling parameters.
     * By default, we set the modulus sizes and rescaling technique to the following values
@@ -194,7 +211,11 @@ void SimpleBootstrapExample() {
 
     auto keyPair = cc->KeyGen();
     cc->EvalMultKeyGen(keyPair.secretKey);
-    cc->EvalRotateKeyGen(keyPair.secretKey, {1});
+    std::vector<int> rotateIndices = {};
+    for (int i = 1; i <= 31; ++i) {
+        rotateIndices.push_back(i);
+    }
+    cc->EvalRotateKeyGen(keyPair.secretKey, rotateIndices);
     cc->EvalAutomorphismKeyGen(keyPair.secretKey, {2 * ringDim - 1});
     //cc->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
 
