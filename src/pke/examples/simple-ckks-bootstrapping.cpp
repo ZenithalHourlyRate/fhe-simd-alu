@@ -61,10 +61,27 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     RPolynomial values = getFixedPointVecFromDCRTPoly(b, sfBigFP, valueSize);
 
+    auto printZPoly = [&](const ZPolynomial zPoly) {
+        auto decoded = ZPolynomial::decode(zPoly);
+        std::cout << msg << "  zPoly Decoded: " << decoded << std::endl;
+        auto I = ZPolynomial::extractI(zPoly);
+        std::cout << msg << "  zPoly I: ";
+        for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
+            std::cout << I[i].toHexString(16) << " ";
+        }
+        std::cout << std::endl;
+        std::cout << msg << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
+    };
+
     // Check the slot encoding?
     if (msg == "S2RC" || msg == "MSB") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
+        }
+        if (msg == "S2RC") {
+            // Directly interpret as ZPolynomial
+            ZPolynomial zPoly(values.getCoefficients());
+            printZPoly(zPoly);
         }
     }
     auto cSlots = values.toCSlots();
@@ -85,9 +102,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             for (size_t i = 0; i != zC2SVals.size(); ++i) {
                 zCoeffs[i] = zC2SVals[i].getReal();
             }
-            ZPolynomial zPoly(zCoeffs);
-            std::cout << msg << "  zValues error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm()
-                      << std::endl;
+            printZPoly(zCoeffs);
         }
     }
     ZPolynomial zValues = values.toZPolynomial();
@@ -95,10 +110,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(32) << std::endl;
         }
-        auto decoded = ZPolynomial::decode(zValues);
-        std::cout << msg << "  Decoded: " << decoded << std::endl;
-        std::cout << msg << "  zValues error log2Norm: " << ZPolynomial::extractError(zValues).getLog2Norm()
-                  << std::endl;
+        printZPoly(zValues);
     }
     if (msg == "Encode" && false) {
         std::vector<BigComplex> encodeZCoeffsToSlots(16);
@@ -243,7 +255,7 @@ void SimpleBootstrapExample() {
     */
     parameters.SetSecurityLevel(HEStd_NotSet);
     parameters.SetRingDim(1 << 12);
-    parameters.SetNumLargeDigits(5);
+    //parameters.SetNumLargeDigits(6);
 
     /*  A3) Scaling parameters.
     * By default, we set the modulus sizes and rescaling technique to the following values
@@ -278,7 +290,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(4);
+    parameters.SetMultiplicativeDepth(5);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -318,10 +330,10 @@ void SimpleBootstrapExample() {
 
     //__heir_debug2(zero, "Input");
 
-    RPolynomial value1 = ZPolynomial::encode(255).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
     DCRTPoly ptxt1     = getDCRTPolyFromFixedPointVec(value1.getCoefficients(), elemParam, sfBigFP);
 
-    RPolynomial value2 = ZPolynomial::encode(2).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(-2).toRPolynomial();
     DCRTPoly ptxt2     = getDCRTPolyFromFixedPointVec(value2.getCoefficients(), elemParam, sfBigFP);
 
     /// TEST ENCODE
@@ -353,11 +365,11 @@ void SimpleBootstrapExample() {
 
     /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct;
-    if (0) {
+    if (1) {
         auto ctMulRaw = cc->EvalMult(encoded, encoded2);
         ModReduceCustomInPlace(ctMulRaw);
         ctMulRaw->SetScalingFactor(sf);
-        __heir_debug2(ctMulRaw, "CMult");
+        //__heir_debug2(ctMulRaw, "CMult");
 
         auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
         ctMulRawT->SetScalingFactor(sf * sf);
@@ -376,32 +388,34 @@ void SimpleBootstrapExample() {
     }
 
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
+    std::vector<Ciphertext<DCRTPoly>> zC2S;
     {
-        auto zC2S = ZCoeffsToSlots(cc, encoded);
+        zC2S = ZCoeffsToSlots(cc, ct);
         zC2S[0]->SetScalingFactor(sf * sf);
         zC2S[1]->SetScalingFactor(sf * sf);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
 
-        //ModReduceCustomInPlace(zC2S[0]);
-        //ModReduceCustomInPlace(zC2S[1]);
-        //// Now SF is sf
+        ModReduceCustomInPlace(zC2S[0]);
+        ModReduceCustomInPlace(zC2S[1]);
+        zC2S[0]->SetScalingFactor(sf);
+        zC2S[1]->SetScalingFactor(sf);
 
-        //auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
-        //z2S2z->SetScalingFactor(sf * sf * 32 * 32);
+        // Now SF is sf
 
-        //__heir_debug2(z2S2z, "Z2S2Z");
+        auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
+        z2S2z->SetScalingFactor(sf * sf);
+
+        __heir_debug2(z2S2z, "Z2S2Z");
     }
 
-    // auto zC2S = ZCoeffToSlots(cc, encoded, zero);
-
-    // __heir_debug2(zC2S[0], "Upper");
-    // __heir_debug2(zC2S[1], "Down");
-
-    // auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1], zero);
-
-    // __heir_debug2(z2S2r, "S2RC");
+    // TEST SlotsToRCoeffs and RCoeffsToSlots
+    {
+        auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
+        z2S2r->SetScalingFactor(sf * sf);
+        __heir_debug2(z2S2r, "S2RC");
+    }
 
     // MSBBootstrap(cc, z2S2r);
 
