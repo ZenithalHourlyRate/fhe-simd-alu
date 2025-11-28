@@ -96,8 +96,61 @@ public:
         return multiplyRaw(bits, getTInv());
     }
 
-    /// This gives off-by-one representation with possible I term
-    static ZPolynomial roundBigI(ZPolynomial input) {
+    static ZPolynomial encodeBalanced(uint32_t input) {
+        auto half    = BigFixedPoint(1, 1, false).scaleTo(z_upper_roots_scale);
+        auto negHalf = -half;
+        std::vector<BigFixedPoint> bits;
+        // get bits of input in {-1/2, 1/2}
+        // Note that 0 maps to -1/2
+        for (size_t i = 0; i != zN; ++i) {
+            if (input & (1ul << i)) {
+                bits.push_back(half);
+            }
+            else {
+                bits.push_back(negHalf);
+            }
+        }
+        return multiplyRaw(bits, getTInv());
+    }
+
+    static ZPolynomial toBalanced(ZPolynomial input) {
+        uint32_t offset    = 0xFFFFFFFF;
+        auto offsetEncoded = encode(offset);
+        auto half          = BigFixedPoint(1, 1, false).scaleTo(z_upper_roots_scale);
+        ZPolynomial output;
+        for (size_t i = 0; i != input.coefficients.size(); ++i) {
+            output[i] = input[i] - half * offsetEncoded[i];
+        }
+        return output;
+    }
+
+    static ZPolynomial toStandard(ZPolynomial input) {
+        uint32_t offset    = 0xFFFFFFFF;
+        auto offsetEncoded = encode(offset);
+        auto half          = BigFixedPoint(1, 1, false).scaleTo(z_upper_roots_scale);
+        ZPolynomial output;
+        for (size_t i = 0; i != input.coefficients.size(); ++i) {
+            output[i] = input[i] + half * offsetEncoded[i];
+        }
+        return output;
+    }
+
+    // Round to [-1, 1)
+    static ZPolynomial roundNOneToOne(ZPolynomial input) {
+        std::vector<BigFixedPoint> output;
+        auto two = BigFixedPoint(2, 0, false).scaleTo(z_upper_roots_scale);
+        for (auto i : input.getCoefficients()) {
+            auto j      = i / two;
+            auto jRound = j.round();
+            auto jFrac  = j - jRound;
+            auto iFrac  = jFrac * two;
+            output.push_back(iFrac);
+        }
+        return ZPolynomial(output);
+    }
+
+    // Round to (-1, 0]
+    static ZPolynomial roundNOneToZero(ZPolynomial input) {
         // Add small epsilon to ensure range in (-1, 0)
         // epsilon = 2^{-zN-1}
         auto eps = BigFixedPoint(BigInteger(1) << z_upper_roots_scale - zN - 1, z_upper_roots_scale, false);
@@ -106,26 +159,14 @@ public:
         for (auto i : input.getCoefficients()) {
             i = i - eps;
             // then do ceil
-            if (i.getNeg()) {
-                // make it positive
-                auto ni      = -i;
-                auto niFloor = (ni.getValue() >> ni.getLog2Scale());
-                auto niFP    = BigFixedPoint(niFloor, 0, false);
-                //std::cout << "ni: " << ni.toBinary() << " niFP: " << niFP.toBinary() << "\n";
-                output.push_back(-(ni - niFP) + eps);
-            }
-            else {
-                auto one    = BigFixedPoint(1, 0, false);
-                auto iFloor = (i.getValue() >> i.getLog2Scale());
-                auto iCeil  = BigFixedPoint(iFloor, 0, false) + one;
-                output.push_back(i - iCeil + eps);
-            }
+            auto iCeil = i.ceil();
+            output.push_back(i - iCeil + eps);
         }
         return output;
     }
 
-    // This gives redundant representation in [-1/2, 1/2)
-    static ZPolynomial roundBigINatural(ZPolynomial input) {
+    // Round to [-1/2, 1/2)
+    static ZPolynomial roundNHalfToHalf(ZPolynomial input) {
         // Do []_1, which reduces to [-1/2, 1/2)
         std::vector<BigFixedPoint> output;
         for (auto i : input.getCoefficients()) {
@@ -135,38 +176,32 @@ public:
         return output;
     }
 
-    static uint32_t decodeFromOffByOne(ZPolynomial input) {
-        auto result = multiplyRaw(input, getT());
-
-        // Now we have [m]_t + (X-2)I with I in {0, -1}
-        // Need to remove the possible I
-        // We need to add eps = 3 * 2^{-zN - 1}
-        auto eps        = BigFixedPoint(BigInteger(3) << z_upper_roots_scale - zN - 1, z_upper_roots_scale, false);
-        auto constCoeff = result.getCoefficients()[0] + eps;
-        auto constCoeffInteger = constCoeff.getValue() >> constCoeff.getLog2Scale();
-        // This is b1. OpenFHE count bits from 1...
-        int32_t I = constCoeffInteger.GetBitAtIndex(2);
-        auto BigI = BigFixedPoint(I, 0, false);
-        result[1] += BigI;
-        // Now we get pure [m]_t
-
-        uint32_t ret = 0;
-        for (size_t i = 0; i != zN; ++i) {
-            // actually we should use rounding...
-            // But for convenience let's just make it larger than 0
-            // It becomes either 0 + small or 1 + small
-            result[i] += eps;
-            auto iInt = result[i].getValue() >> result[i].getLog2Scale();
-            // OpenFHE count from 1???
-            uint32_t iBit = iInt.GetBitAtIndex(1);
-            //std::cout << "iInt " << result[i].toHexString() << " Bit " << i << "\n";
-            ret += iBit << i;
-        }
-        return ret;
+    static ZPolynomial roundBigI(ZPolynomial input) {
+        return roundNOneToZero(input);
     }
 
     static uint32_t decode(ZPolynomial input) {
         auto poly = multiplyRaw(input, getT());
+
+        // Do Euclidean division by X-2
+        auto two                          = BigFixedPoint(2, 0, false).scaleTo(z_upper_roots_scale);
+        std::vector<BigFixedPoint> result = poly.getCoefficients();
+        for (size_t i = result.size() - 1; i >= 1; --i) {
+            result[i - 1] += two * result[i];
+            result.pop_back();
+        }
+        auto rounded = result[0].round();
+        //std::cout << "Decoded X-2: " << result[0].toHexString() << "\n";
+        return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
+    }
+
+    static uint32_t decodeBalanced(ZPolynomial input) {
+        auto poly = multiplyRaw(input, getT());
+        // Add each coefficient by 1/2
+        auto half = BigFixedPoint(1, 1, false).scaleTo(z_upper_roots_scale);
+        for (size_t i = 0; i != poly.getCoefficients().size(); ++i) {
+            poly[i] += half;
+        }
 
         // Do Euclidean division by X-2
         auto two                          = BigFixedPoint(2, 0, false).scaleTo(z_upper_roots_scale);

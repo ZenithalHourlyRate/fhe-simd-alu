@@ -151,12 +151,22 @@ void test_natural() {
     }
     std::cout << std::endl;
 
-    auto roundNatural = ZPolynomial::roundBigINatural(encodedZ);
+    auto roundNatural = ZPolynomial::roundBigI(encodedZ);
     std::cout << "Rounded Natural in Z: ";
     for (const auto& val : roundNatural.getCoefficients()) {
         std::cout << val.toHexString() << " ";
     }
     std::cout << std::endl;
+
+    auto multT = ZPolynomial::multiplyRaw(roundNatural, ZPolynomial::getT());
+    std::cout << "Rounded Natural * T in Z: ";
+    for (const auto& val : multT.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto decoded = ZPolynomial::decode(roundNatural);
+    std::cout << "Decoded Rounded Natural * T: " << decoded << "\n";
 }
 
 void test_extractI() {
@@ -164,7 +174,7 @@ void test_extractI() {
     auto encodedZ  = ZPolynomial::encode(input);
     auto mult      = ZPolynomial::multiplyRaw(ZPolynomial::multiplyRaw(encodedZ, encodedZ), ZPolynomial::getT());
 
-    std::cout << "Mult: " << input << "\nEncoded in Z: ";
+    std::cout << "ExtractI: " << input << "\nEncoded in Z: ";
     for (const auto& val : mult.getCoefficients()) {
         std::cout << val.toHexString() << " ";
     }
@@ -177,7 +187,7 @@ void test_extractI() {
     }
     std::cout << std::endl;
 
-    auto multNatural = ZPolynomial::roundBigINatural(mult);
+    auto multNatural = ZPolynomial::roundNOneToOne(mult);
     Ipoly            = ZPolynomial::extractI(multNatural);
     std::cout << "Extracted I in Z after Natural rounding: ";
     for (const auto& val : Ipoly.getCoefficients()) {
@@ -186,13 +196,55 @@ void test_extractI() {
     std::cout << std::endl;
 }
 
+void test_balanced() {
+    std::cout << "Test Balanced Encoding\n";
+    uint32_t input = 255;
+    auto encodedZ  = ZPolynomial::encode(input);
+
+    std::cout << "Input: " << input << "\nEncoded in Z: ";
+    for (const auto& val : encodedZ.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto encodedBalanced = ZPolynomial::toBalanced(encodedZ);
+    std::cout << "Encoded Balanced in Z: ";
+    for (const auto& val : encodedBalanced.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    auto roundBalanced = ZPolynomial::roundNHalfToHalf(encodedBalanced);
+    std::cout << "Rounded Balanced in Z: ";
+    for (const auto& val : roundBalanced.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto multT = ZPolynomial::multiplyRaw(roundBalanced, ZPolynomial::getT());
+    std::cout << "Rounded Balanced * T in Z: ";
+    for (const auto& val : multT.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto roundBalancedToStandard = ZPolynomial::toStandard(roundBalanced);
+    std::cout << "Rounded Balanced to Standard in Z: ";
+    for (const auto& val : roundBalancedToStandard.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+
+    auto decoded = ZPolynomial::decode(roundBalancedToStandard);
+    std::cout << "Decoded Rounded Balanced * T: " << decoded << "\n";
+}
+
 int main() {
     test_encodeInZ();
     test2_encodeInZ();
     test3_encodeInZ();
-    //test_add_mult();
+    test_add_mult();
     test4_encodeInZ();
     test_natural();
     test_extractI();
+    test_balanced();
     return 0;
 }
