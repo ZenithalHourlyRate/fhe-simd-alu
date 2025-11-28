@@ -208,7 +208,7 @@ public:
                 // OpenFHE count from 1???
                 auto rem = temp % 16;
                 std::stringstream ss;
-                ss << std::hex << temp.ConvertToInt();
+                ss << std::hex << rem.ConvertToInt();
                 hexStr = ss.str() + hexStr;
                 temp >>= 4;
             }
@@ -516,7 +516,7 @@ BigCMatrix getZU() {
     // Vandermond matrix
     BigCMatrix zu(zN / 2, std::vector<BigComplex>(zN));
     for (size_t i = 0; i != zN / 2; ++i) {
-        zu[i][0] = BigFixedPoint(1, 0, false);
+        zu[i][0] = BigFixedPoint(1, 0, false).scaleTo(z_upper_roots_scale);
         for (size_t j = 1; j != zN; ++j) {
             zu[i][j] = zu[i][j - 1] * z_upper_roots[i];
         }
@@ -579,7 +579,7 @@ std::vector<BigFixedPoint> multUInverse(const BigCMatrix& UInv, std::vector<BigC
             sum = sum + UInv[i][j] * input[j];
         }
         // z + conj(z) = 2*real(z)
-        auto two = BigFixedPoint(2, 0, false);
+        auto two = BigFixedPoint(2, 0, false).scaleTo(z_upper_roots_scale);
         result.push_back(two * sum.getReal());
     }
     return result;
@@ -637,7 +637,7 @@ BigCMatrix getRU() {
         auto zeta = r_roots[i];
         // build power map
         std::vector<BigComplex> zetaPows;
-        auto one = BigFixedPoint(1, 0, false);
+        auto one = BigFixedPoint(1, 0, false).scaleTo(z_upper_roots_scale);
         zetaPows.push_back(one);
         for (uint32_t p = 1; p != rN; ++p) {
             zetaPows.push_back(zetaPows[p - 1] * zeta);
