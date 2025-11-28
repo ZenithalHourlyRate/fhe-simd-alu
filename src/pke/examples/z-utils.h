@@ -129,7 +129,7 @@ DCRTPoly getDCRTPolyFromFixedPointVec(std::vector<BigFixedPoint> input,
     auto q       = elementParams->GetModulus();
     for (size_t i = 0; i != input.size(); ++i) {
         auto val        = input[i] * scalingFactor;
-        auto valInteger = val.getValue() >> val.getLog2Scale();
+        auto valInteger = (val.round()).getValue() >> val.getLog2Scale();
         if (val.getNeg()) {
             bigPoly[i * (ringDim / (input.size()))] = q - valInteger;
         }
@@ -284,6 +284,14 @@ std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT c
                                                 const std::array<std::vector<DCRTPoly>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
+
+    auto ptxt1  = auxPtxts[0][0];
+    auto values = getFixedPointVecFromDCRTPoly(ptxt1, ct->GetScalingFactor(), 32);
+    auto cSlots = RPolynomial(values).toCSlots();
+    for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
+        std::cout << "  auxPtxts[0][0] values [" << i << "]: " << cSlots[i].toHexString(32) << std::endl;
+    }
+
     auto resultUpper = EvalMultDCRTPoly(ct, auxPtxts[0][0]);
     auto resultDown  = EvalMultDCRTPoly(ct, auxPtxts[1][0]);
     auto startCt     = cc->EvalRotate(ct, 1);

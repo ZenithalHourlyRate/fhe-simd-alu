@@ -208,7 +208,7 @@ public:
                 // OpenFHE count from 1???
                 auto rem = temp % 16;
                 std::stringstream ss;
-                ss << std::hex << rem.ConvertToInt();
+                ss << std::hex << static_cast<int64_t>(rem.ConvertToInt());
                 hexStr = ss.str() + hexStr;
                 temp >>= 4;
             }
@@ -232,7 +232,7 @@ public:
                 frac *= 16;                            // Multiply by 10 to get next decimal digit
                 BigInteger digit = frac >> log2Scale;  // Extract the digit
                 std::stringstream ss;
-                ss << std::hex << digit.ConvertToInt();
+                ss << std::hex << static_cast<int64_t>(digit.ConvertToInt());
                 fracStr += ss.str();
                 frac = frac - (digit << log2Scale);  // Remainder for next iteration
 

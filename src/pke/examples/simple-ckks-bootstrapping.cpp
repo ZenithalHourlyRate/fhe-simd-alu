@@ -68,13 +68,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto cSlots = values.toCSlots();
     if (msg == "Upper" || msg == "Down" || msg == "Aux" || msg == "AuxI" || msg == "AuxJ") {
         for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
+            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(32) << std::endl;
         }
     }
     ZPolynomial zValues = values.toZPolynomial();
     if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
-            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(16) << std::endl;
+            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(32) << std::endl;
         }
         auto decoded = ZPolynomial::decode(zValues);
         std::cout << msg << "  Decoded: " << decoded << std::endl;
@@ -83,13 +83,80 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
     if (msg == "Encode") {
         std::vector<BigComplex> encodeZCoeffsToSlots(zN);
-
         auto zUInverse = getZUInverse();
-        for (size_t i = 0; i != zN; ++i) {
-            for (size_t j = 0; j != zN / 2; ++j) {
-                encodeZCoeffsToSlots[i] = encodeZCoeffsToSlots[i] + zUInverse[i][j] * cSlots[j];
+
+        unsigned halfSize = 16;
+        std::vector<std::vector<BigComplex>> results1;
+        std::vector<std::vector<BigComplex>> results2;
+
+        for (size_t i = 0; i != halfSize; ++i) {
+            auto diagonal = std::vector<BigComplex>(halfSize, BigComplex());
+            for (size_t j = 0; j != halfSize; ++j) {
+                diagonal[j] = zUInverse[j][(i + j) % halfSize];
             }
+            results1.push_back(diagonal);
         }
+        for (size_t i = 0; i != halfSize; ++i) {
+            auto diagonal = std::vector<BigComplex>(halfSize, BigComplex());
+            for (size_t j = 0; j != halfSize; ++j) {
+                diagonal[j] = zUInverse[j + 16][(i + j) % halfSize];
+            }
+            results2.push_back(diagonal);
+        }
+
+        auto ptxt1 = results1[0];
+        for (size_t i = 0; i != ptxt1.size(); ++i) {
+            std::cout << msg << "  results1[0] [" << i << "]: " << ptxt1[i].toHexString(32) << std::endl;
+        }
+
+        auto elementParams = cc_global->GetCryptoParameters()->GetElementParams();
+        auto scalingFactor = BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(sf)), 0, false);
+        auto auxPtxts      = getZCoeffToSlotsAuxDCRTPoly(elementParams, scalingFactor);
+        auto auxPtxts0     = auxPtxts[0];
+        for (size_t i = 0; i != 16; ++i) {
+            auto diagR     = auxPtxts0[i];
+            auto diagRPoly = getFixedPointVecFromDCRTPoly(diagR, scalingFactor, 32);
+            auto diagRInC  = RPolynomial(diagRPoly).toCSlots();
+            results1[i]    = diagRInC.getSlots();
+        }
+
+        auto cVecMult = [](std::vector<BigComplex> a, std::vector<BigComplex> b) {
+            std::vector<BigComplex> result(16);
+            for (size_t i = 0; i != 16; ++i) {
+                result[i] = a[i] * b[i];
+            }
+            return result;
+        };
+        auto cVecAdd = [](std::vector<BigComplex> a, std::vector<BigComplex> b) {
+            std::vector<BigComplex> result(16);
+            for (size_t i = 0; i != 16; ++i) {
+                result[i] = a[i] + b[i];
+            }
+            return result;
+        };
+        auto cVecRotate = [](std::vector<BigComplex> a, size_t r) {
+            std::vector<BigComplex> result(16);
+            for (size_t i = 0; i != 16; ++i) {
+                result[i] = a[(i + r) % 16];
+            }
+            return result;
+        };
+
+        auto start = cVecMult(results1[0], cSlots.getSlots());
+        for (size_t i = 1; i != 16; ++i) {
+            auto rotated = cVecRotate(cSlots.getSlots(), i);
+            auto mult    = cVecMult(results1[i], rotated);
+            start        = cVecAdd(start, mult);
+        }
+        for (size_t i = 0; i != 16; ++i) {
+            encodeZCoeffsToSlots[i] = start[i];
+        }
+
+        //for (size_t i = 0; i != zN; ++i) {
+        //    for (size_t j = 0; j != zN / 2; ++j) {
+        //        encodeZCoeffsToSlots[i] = encodeZCoeffsToSlots[i] + zUInverse[i][j] * cSlots[j];
+        //    }
+        //}
         for (size_t i = 0; i != encodeZCoeffsToSlots.size(); ++i) {
             encodeZCoeffsToSlots[i] = encodeZCoeffsToSlots[i] + encodeZCoeffsToSlots[i].conj();
         }
@@ -165,11 +232,11 @@ void SimpleBootstrapExample() {
     * below unless you are an FHE expert.
     */
 #if NATIVEINT == 128
-    ScalingTechnique rescaleTech = FIXEDAUTO;
+    ScalingTechnique rescaleTech = FIXEDMANUAL;
     uint32_t dcrtBits            = 78;
     uint32_t firstMod            = 89;
 #else
-    ScalingTechnique rescaleTech = FIXEDAUTO;
+    ScalingTechnique rescaleTech = FIXEDMANUAL;
     uint32_t dcrtBits            = 59;
     uint32_t firstMod            = 60;
 #endif
@@ -285,20 +352,20 @@ void SimpleBootstrapExample() {
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
     {
         auto zC2S = ZCoeffsToSlots(cc, encoded);
-        zC2S[0]->SetScalingFactor(sf * sf * 32);
-        zC2S[1]->SetScalingFactor(sf * sf * 32);
+        zC2S[0]->SetScalingFactor(sf * sf * 32 / std::pow(2.0, 19));
+        zC2S[1]->SetScalingFactor(sf * sf * 32 / std::pow(2.0, 19));
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
 
-        ModReduceCustomInPlace(zC2S[0]);
-        ModReduceCustomInPlace(zC2S[1]);
-        // Now SF is sf
+        //ModReduceCustomInPlace(zC2S[0]);
+        //ModReduceCustomInPlace(zC2S[1]);
+        //// Now SF is sf
 
-        auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
-        z2S2z->SetScalingFactor(sf * sf * 32 * 32);
+        //auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
+        //z2S2z->SetScalingFactor(sf * sf * 32 * 32);
 
-        __heir_debug2(z2S2z, "Z2S2Z");
+        //__heir_debug2(z2S2z, "Z2S2Z");
     }
 
     // auto zC2S = ZCoeffToSlots(cc, encoded, zero);
