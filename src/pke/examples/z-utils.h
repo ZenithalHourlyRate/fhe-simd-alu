@@ -284,14 +284,6 @@ std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT c
                                                 const std::array<std::vector<DCRTPoly>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-
-    auto ptxt1  = auxPtxts[0][0];
-    auto values = getFixedPointVecFromDCRTPoly(ptxt1, ct->GetScalingFactor(), 32);
-    auto cSlots = RPolynomial(values).toCSlots();
-    for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-        std::cout << "  auxPtxts[0][0] values [" << i << "]: " << cSlots[i].toHexString(32) << std::endl;
-    }
-
     auto resultUpper = EvalMultDCRTPoly(ct, auxPtxts[0][0]);
     auto resultDown  = EvalMultDCRTPoly(ct, auxPtxts[1][0]);
     auto startCt     = cc->EvalRotate(ct, 1);
@@ -300,10 +292,10 @@ std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT c
         cc->EvalAddInPlace(resultUpper, diagonalUpper);
         auto diagonalDown = EvalMultDCRTPoly(startCt, auxPtxts[1][i]);
         cc->EvalAddInPlace(resultDown, diagonalDown);
-        //if (i + 1 < auxPtxts[0].size()) {
-        // rotate one more
-        startCt = cc->EvalRotate(ct, i + 1);
-        //}
+        if (i + 1 < auxPtxts[0].size()) {
+            //rotate one more
+            startCt = cc->EvalRotate(ct, i + 1);
+        }
     }
     cc->EvalAddInPlace(resultUpper, Conjugate(resultUpper, cc->GetEvalAutomorphismKeyMap(resultUpper->GetKeyTag())));
     cc->EvalAddInPlace(resultDown, Conjugate(resultDown, cc->GetEvalAutomorphismKeyMap(resultDown->GetKeyTag())));
@@ -336,24 +328,30 @@ Ciphertext<DCRTPoly> SlotsToCoeffs(CryptoContextT cc, CiphertextT ctLeft, Cipher
 // NOTE: should pre-compute ptxts outside
 std::vector<Ciphertext<DCRTPoly>> ZCoeffsToSlots(CryptoContextT cc, CiphertextT ct) {
     auto elementParams = ct->GetElements()[0].GetParams();
-    auto scalingFactor = ct->GetScalingFactor();
-    return CoeffsToSlots(cc, ct, getZCoeffToSlotsAuxDCRTPoly(elementParams, scalingFactor));
+    auto sfBigFP =
+        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ct->GetScalingFactor())), 0, false).scaleTo(128);
+    return CoeffsToSlots(cc, ct, getZCoeffToSlotsAuxDCRTPoly(elementParams, sfBigFP));
 }
 
 std::vector<Ciphertext<DCRTPoly>> RCoeffsToSlots(CryptoContextT cc, CiphertextT ct) {
     auto elementParams = ct->GetElements()[0].GetParams();
-    auto scalingFactor = ct->GetScalingFactor();
-    return CoeffsToSlots(cc, ct, getRCoeffToSlotsAuxDCRTPoly(elementParams, scalingFactor));
+    auto sfBigFP =
+        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ct->GetScalingFactor())), 0, false).scaleTo(128);
+    return CoeffsToSlots(cc, ct, getRCoeffToSlotsAuxDCRTPoly(elementParams, sfBigFP));
 }
 
 Ciphertext<DCRTPoly> SlotsToZCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight) {
     auto elementParams = ctLeft->GetElements()[0].GetParams();
-    auto scalingFactor = ctRight->GetScalingFactor();
-    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToZCoeffsAuxDCRTPoly(elementParams, scalingFactor));
+    auto sfBigFP =
+        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ctLeft->GetScalingFactor())), 0, false)
+            .scaleTo(128);
+    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToZCoeffsAuxDCRTPoly(elementParams, sfBigFP));
 }
 
 Ciphertext<DCRTPoly> SlotsToRCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight) {
     auto elementParams = ctLeft->GetElements()[0].GetParams();
-    auto scalingFactor = ctLeft->GetScalingFactor();
-    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToRCoeffsAuxDCRTPoly(elementParams, scalingFactor));
+    auto sfBigFP =
+        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ctLeft->GetScalingFactor())), 0, false)
+            .scaleTo(128);
+    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToRCoeffsAuxDCRTPoly(elementParams, sfBigFP));
 }

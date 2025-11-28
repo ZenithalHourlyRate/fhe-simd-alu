@@ -2,8 +2,8 @@
 #include "high-prec-complex.h"
 
 void test_big_fixed_point() {
-    BigFixedPoint a = BigFixedPoint(-3.75).scaleTo(128);
-    BigFixedPoint b = BigFixedPoint(2.5).scaleTo(128);
+    BigFixedPoint a = BigFixedPoint::fromDouble(-3.75).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint::fromDouble(2.5).scaleTo(128);
 
     BigFixedPoint c = a + b;
     BigFixedPoint d = a - b;
@@ -42,7 +42,15 @@ void test_zu1() {
 }
 
 void test_zu() {
-    std::vector<BigFixedPoint> input = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto one                         = BigFixedPoint::positive(1);
+    auto two                         = BigFixedPoint::positive(2);
+    auto three                       = BigFixedPoint::positive(3);
+    auto four                        = BigFixedPoint::positive(4);
+    auto five                        = BigFixedPoint::positive(5);
+    auto six                         = BigFixedPoint::positive(6);
+    auto seven                       = BigFixedPoint::positive(7);
+    auto eight                       = BigFixedPoint::positive(8);
+    std::vector<BigFixedPoint> input = {one, two, three, four, five, six, seven, eight};
     input.resize(zN, BigFixedPoint(0, 0, false));
     auto ZU          = getZU();
     auto ZUInv       = getZUInverse();
@@ -78,7 +86,15 @@ void test_ru() {
         }
     }
 
-    std::vector<BigFixedPoint> input = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto one                         = BigFixedPoint::positive(1);
+    auto two                         = BigFixedPoint::positive(2);
+    auto three                       = BigFixedPoint::positive(3);
+    auto four                        = BigFixedPoint::positive(4);
+    auto five                        = BigFixedPoint::positive(5);
+    auto six                         = BigFixedPoint::positive(6);
+    auto seven                       = BigFixedPoint::positive(7);
+    auto eight                       = BigFixedPoint::positive(8);
+    std::vector<BigFixedPoint> input = {one, two, three, four, five, six, seven, eight};
     input.resize(rN, BigFixedPoint(0, 0, false));
 
     auto uResult    = multU(U, input);
@@ -98,13 +114,13 @@ void test_ru() {
 }
 
 void test_round() {
-    BigFixedPoint a = BigFixedPoint(-3.5).scaleTo(128);
-    BigFixedPoint b = BigFixedPoint(2.5).scaleTo(128);
-    BigFixedPoint c = BigFixedPoint(3.5).scaleTo(128);
-    BigFixedPoint d = BigFixedPoint(-2.5).scaleTo(128);
-    BigFixedPoint e = BigFixedPoint(-2.1).scaleTo(128);
-    BigFixedPoint f = BigFixedPoint(-0).scaleTo(128);
-    BigFixedPoint g = BigFixedPoint(0).scaleTo(128);
+    BigFixedPoint a = BigFixedPoint::fromDouble(-3.5).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint::fromDouble(2.5).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint::fromDouble(3.5).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint::fromDouble(-2.5).scaleTo(128);
+    BigFixedPoint e = BigFixedPoint::fromDouble(-2.1).scaleTo(128);
+    BigFixedPoint f = BigFixedPoint::fromDouble(-0).scaleTo(128);
+    BigFixedPoint g = BigFixedPoint::fromDouble(0).scaleTo(128);
 
     std::cout << "a: " << a.toString() << " rounded: " << a.round().toString() << "\n";
     std::cout << "b: " << b.toString() << " rounded: " << b.round().toString() << "\n";
@@ -116,11 +132,11 @@ void test_round() {
 }
 
 void test_ceil() {
-    BigFixedPoint a = BigFixedPoint(-3.2).scaleTo(128);
-    BigFixedPoint b = BigFixedPoint(2.3).scaleTo(128);
-    BigFixedPoint c = BigFixedPoint(3.0).scaleTo(128);
-    BigFixedPoint d = BigFixedPoint(-2.7).scaleTo(128);
-    BigFixedPoint e = BigFixedPoint(-3.0).scaleTo(128);
+    BigFixedPoint a = BigFixedPoint::fromDouble(-3.2).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint::fromDouble(2.3).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint::fromDouble(3.0).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint::fromDouble(-2.7).scaleTo(128);
+    BigFixedPoint e = BigFixedPoint::fromDouble(-3.0).scaleTo(128);
 
     std::cout << "a: " << a.toString() << " ceil: " << a.ceil().toString() << "\n";
     std::cout << "b: " << b.toString() << " ceil: " << b.ceil().toString() << "\n";
@@ -130,11 +146,11 @@ void test_ceil() {
 }
 
 void test_floor() {
-    BigFixedPoint a = BigFixedPoint(-3.8).scaleTo(128);
-    BigFixedPoint b = BigFixedPoint(2.7).scaleTo(128);
-    BigFixedPoint c = BigFixedPoint(3.0).scaleTo(128);
-    BigFixedPoint d = BigFixedPoint(-2.1).scaleTo(128);
-    BigFixedPoint e = BigFixedPoint(-3.0).scaleTo(128);
+    BigFixedPoint a = BigFixedPoint::fromDouble(-3.8).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint::fromDouble(2.7).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint::fromDouble(3.0).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint::fromDouble(-2.1).scaleTo(128);
+    BigFixedPoint e = BigFixedPoint::fromDouble(-3.0).scaleTo(128);
 
     std::cout << "a: " << a.toString() << " floor: " << a.floor().toString() << "\n";
     std::cout << "b: " << b.toString() << " floor: " << b.floor().toString() << "\n";

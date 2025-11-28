@@ -10,25 +10,42 @@ struct BigFixedPoint {
 public:
     BigFixedPoint() : value(0), log2Scale(0), neg(false) {}
     BigFixedPoint(const BigInteger& val, int log2S, bool neg) : value(val), log2Scale(log2S), neg(neg) {}
-    BigFixedPoint(int a) {
-        log2Scale = 0;
-        if (a < 0) {
-            value = -a;
-            neg   = true;
-        }
-        else {
-            value = a;
-            neg   = false;
-        }
+    // Should not use.
+    //explicit BigFixedPoint(int a, int log2S = 128) {
+    //    log2Scale = 0;
+    //    if (a < 0) {
+    //        value = -a;
+    //        neg   = true;
+    //    }
+    //    else {
+    //        value = a;
+    //        neg   = false;
+    //    }
+    //}
+
+    static BigFixedPoint zero(int log2S = 128) {
+        return BigFixedPoint(BigInteger(0), log2S, false);
     }
-    explicit BigFixedPoint(double a) {
-        neg = false;
+    static BigFixedPoint one(int log2S = 128) {
+        return BigFixedPoint(BigInteger(1) << log2S, log2S, false);
+    }
+    static BigFixedPoint two(int log2S = 128) {
+        return BigFixedPoint(BigInteger(2) << log2S, log2S, false);
+    }
+    static BigFixedPoint half(int log2S = 128) {
+        return BigFixedPoint(BigInteger(1) << (log2S - 1), log2S, false);
+    }
+    static BigFixedPoint positive(uint64_t a, int log2S = 128) {
+        return BigFixedPoint(BigInteger(a) << log2S, log2S, false);
+    }
+    static BigFixedPoint fromDouble(double a, int log2S = 128) {
+        auto neg = false;
         if (a < 0) {
             neg = true;
             a   = -a;
         }
         // find log2 scale to represent fractional part
-        log2Scale = 0;
+        auto log2Scale = 0;
         double intpart;
         double fracpart = std::modf(a, &intpart);
         while (fracpart != 0.0 && log2Scale < 128) {
@@ -36,7 +53,8 @@ public:
             fracpart = std::modf(a, &intpart);
             log2Scale++;
         }
-        value = BigInteger(static_cast<int64_t>(std::round(a)));
+        auto value = BigInteger(static_cast<int64_t>(std::round(a)));
+        return BigFixedPoint(value, log2Scale, neg).scaleTo(log2S);
     }
 
     BigInteger getValue() const {
@@ -516,7 +534,7 @@ BigCMatrix getZU() {
     // Vandermond matrix
     BigCMatrix zu(zN / 2, std::vector<BigComplex>(zN));
     for (size_t i = 0; i != zN / 2; ++i) {
-        zu[i][0] = BigFixedPoint(1, 0, false).scaleTo(z_upper_roots_scale);
+        zu[i][0] = BigFixedPoint::one();
         for (size_t j = 1; j != zN; ++j) {
             zu[i][j] = zu[i][j - 1] * z_upper_roots[i];
         }
@@ -531,8 +549,8 @@ BigCMatrix getZUInverse() {
     for (size_t j = 0; j != zN / 2; ++j) {
         auto xi = z_upper_roots[j];
         std::vector<BigComplex> xiPowers;
-        auto one   = BigFixedPoint(1, 0, false).scaleTo(z_upper_roots_scale);
-        auto zNbig = BigFixedPoint(zN, 0, false).scaleTo(z_upper_roots_scale);
+        auto one   = BigFixedPoint::one();
+        auto zNbig = BigFixedPoint::positive(zN);
         xiPowers.push_back(one);
         for (size_t p = 1; p != zN; ++p) {
             xiPowers.push_back(xiPowers[p - 1] * xi);
@@ -579,7 +597,7 @@ std::vector<BigFixedPoint> multUInverse(const BigCMatrix& UInv, std::vector<BigC
             sum = sum + UInv[i][j] * input[j];
         }
         // z + conj(z) = 2*real(z)
-        auto two = BigFixedPoint(2, 0, false).scaleTo(z_upper_roots_scale);
+        auto two = BigFixedPoint::positive(2);
         result.push_back(two * sum.getReal());
     }
     return result;
@@ -637,7 +655,7 @@ BigCMatrix getRU() {
         auto zeta = r_roots[i];
         // build power map
         std::vector<BigComplex> zetaPows;
-        auto one = BigFixedPoint(1, 0, false).scaleTo(z_upper_roots_scale);
+        auto one = BigFixedPoint::one();
         zetaPows.push_back(one);
         for (uint32_t p = 1; p != rN; ++p) {
             zetaPows.push_back(zetaPows[p - 1] * zeta);
@@ -653,8 +671,8 @@ BigCMatrix getRU() {
 BigCMatrix getRUInverse() {
     auto U = getRU();
     BigCMatrix UInverse(rN, std::vector<BigComplex>(rN / 2));
+    auto rNBig = BigFixedPoint::positive(rN);
     for (size_t i = 0; i != rN / 2; ++i) {
-        auto rNBig = BigFixedPoint(BigInteger(rN), 0, false).scaleTo(r_roots_scale);
         for (size_t j = 0; j != rN; ++j) {
             UInverse[j][i] = U[i][j].conj() / rNBig;
         }
