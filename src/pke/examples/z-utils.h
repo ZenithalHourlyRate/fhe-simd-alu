@@ -187,6 +187,17 @@ Ciphertext<DCRTPoly> EvalMultDCRTPoly(ConstCiphertext<DCRTPoly> ct, const DCRTPo
     return ctNew;
 }
 
+Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, uint32_t scalar) {
+    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
+           "Ciphertext and Plaintext size mismatch in EvalMultDCRTPoly");
+    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    auto ctNew = ct->Clone();
+    for (auto& a : ctNew->GetElements()) {
+        a *= BigInteger(scalar);
+    }
+    return ctNew;
+}
+
 void ModReduceCustomInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
 

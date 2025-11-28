@@ -268,7 +268,7 @@ void SimpleBootstrapExample() {
     uint32_t firstMod            = 89;
 #else
     ScalingTechnique rescaleTech = FIXEDMANUAL;
-    uint32_t dcrtBits            = 59;
+    uint32_t dcrtBits            = 58;
     uint32_t firstMod            = 60;
 #endif
 
@@ -290,7 +290,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(5);
+    parameters.SetMultiplicativeDepth(4);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -403,11 +403,12 @@ void SimpleBootstrapExample() {
         zC2S[1]->SetScalingFactor(sf);
 
         // Now SF is sf
+        if (0) {
+            auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
+            z2S2z->SetScalingFactor(sf * sf);
 
-        auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
-        z2S2z->SetScalingFactor(sf * sf);
-
-        __heir_debug2(z2S2z, "Z2S2Z");
+            __heir_debug2(z2S2z, "Z2S2Z");
+        }
     }
 
     // TEST SlotsToRCoeffs and RCoeffsToSlots
@@ -415,6 +416,18 @@ void SimpleBootstrapExample() {
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
         z2S2r->SetScalingFactor(sf * sf);
         __heir_debug2(z2S2r, "S2RC");
+
+        auto z2S2r_1 = EvalMultScalar(z2S2r, 2);
+        z2S2r_1->SetScalingFactor(sf * sf * 2);
+        __heir_debug2(z2S2r_1, "S2RC");
+
+        auto z2S2r_2 = EvalMultScalar(z2S2r, 4);
+        z2S2r_2->SetScalingFactor(sf * sf * 4);
+        __heir_debug2(z2S2r_2, "S2RC");
+
+        auto z2S2r_3 = EvalMultScalar(z2S2r, 8);
+        z2S2r_3->SetScalingFactor(sf * sf * 8);
+        __heir_debug2(z2S2r_3, "S2RC");
     }
 
     // MSBBootstrap(cc, z2S2r);
