@@ -1,6 +1,6 @@
 #include <cassert>
 #include "openfhe.h"
-#include "z-encode.h"
+#include "math/z-encode.h"
 
 using namespace lbcrypto;
 using CiphertextT        = ConstCiphertext<DCRTPoly>;

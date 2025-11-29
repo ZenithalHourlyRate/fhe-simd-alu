@@ -2,8 +2,7 @@
 #define SRC_PKE_EXAMPLES_Z_ENCODE_H_
 
 #include <cassert>
-#include "openfhe.h"
-#include "high-prec-complex.h"
+#include "math/z-constants.h"
 
 struct RPolynomial;
 struct CSlots;
@@ -357,33 +356,5 @@ public:
 private:
     std::vector<BigComplex> slots;
 };
-
-//===
-// Conversion between them
-//===
-
-CSlots ZPolynomial::toCSlots() const {
-    return multU(getZU(), coefficients);
-}
-
-CSlots RPolynomial::toCSlots() const {
-    return multU(getRU(), coefficients);
-}
-
-ZPolynomial CSlots::toZPolynomial() const {
-    return multUInverse(getZUInverse(), slots);
-}
-
-RPolynomial CSlots::toRPolynomial() const {
-    return multUInverse(getRUInverse(), slots);
-}
-
-ZPolynomial RPolynomial::toZPolynomial() const {
-    return toCSlots().toZPolynomial();
-}
-
-RPolynomial ZPolynomial::toRPolynomial() const {
-    return toCSlots().toRPolynomial();
-}
 
 #endif  // SRC_PKE_EXAMPLES_Z_ENCODE_H_

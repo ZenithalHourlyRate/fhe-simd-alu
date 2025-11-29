@@ -1,7 +1,5 @@
 #include <cassert>
-#include "openfhe.h"
-#include "high-prec-complex.h"
-#include "z-encode.h"
+#include "math/z-encode.h"
 
 void test_encodeInZ() {
     auto input   = 255;

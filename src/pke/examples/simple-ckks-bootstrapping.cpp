@@ -267,8 +267,8 @@ void SimpleBootstrapExample() {
     uint32_t dcrtBits            = 78;
     uint32_t firstMod            = 89;
 #else
-    ScalingTechnique rescaleTech = FIXEDMANUAL;
-    uint32_t dcrtBits            = 58;
+    ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
+    uint32_t dcrtBits            = 59;
     uint32_t firstMod            = 60;
 #endif
 

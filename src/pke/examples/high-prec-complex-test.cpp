@@ -1,5 +1,7 @@
-#include "openfhe.h"
-#include "high-prec-complex.h"
+#include "math/hal/bigfixedpoint.h"
+#include "math/z-constants.h"
+#include <iostream>
+#include <iomanip>
 
 void test_big_fixed_point() {
     BigFixedPoint a = BigFixedPoint::fromDouble(-3.75).scaleTo(128);
