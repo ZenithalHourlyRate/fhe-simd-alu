@@ -40,6 +40,7 @@
 #include "cryptoobject.h"
 #include "key/key.h"
 #include "metadata.h"
+#include "math/hal/bigfixedpoint.h"
 
 #include <map>
 #include <memory>
@@ -285,6 +286,20 @@ public:
     }
 
     /**
+   * Custom method for get BigFixedPoint scaling factor
+   */
+    BigFixedPoint GetScalingFactorBFP() const {
+        return m_scalingFactorBFP;
+    }
+
+    /**
+   * Custom method for set BigFixedPoint scaling factor
+   */
+    void SetScalingFactorBFP(BigFixedPoint sf) {
+        m_scalingFactorBFP = sf;
+    }
+
+    /**
    * Get the number of slots of the ciphertext.
    */
     uint32_t GetSlots() const {
@@ -508,6 +523,9 @@ private:
     uint32_t m_noiseScaleDeg{1};
 
     double m_scalingFactor{1.0};
+
+    // Custom field for z-related scaling factor tracking
+    BigFixedPoint m_scalingFactorBFP{BigFixedPoint()};
 
     NativeInteger m_scalingFactorInt{1};
 

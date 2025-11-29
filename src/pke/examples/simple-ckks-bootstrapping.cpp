@@ -51,10 +51,11 @@ std::vector<BigComplex> zC2SVals;
 double __heir_debug2(CiphertextT ct, std::string msg) {
     auto b = DecryptCore(ct->GetElements(), sk_global);
 
-    auto sf      = ct->GetScalingFactor();
-    auto log2sf  = std::log2(sf);
-    auto sfBigFP = BigFixedPoint(BigInteger(1) << log2sf, 0, false).scaleTo(128);
-    //std::cout << msg << "  Scaling factor: " << std::log2(sf) << std::endl;
+    auto sfBigFP = ct->GetScalingFactorBFP();
+    std::cout << msg << "  Ciphertext Scaling Factor BFP: " << sfBigFP.toHexString() << std::endl;
+    auto log2sf = std::log2(sfBigFP.convertToDouble());
+    std::cout << msg << "  Scaling factor: " << log2sf << std::endl;
+    //auto sfBigFP = BigFixedPoint(BigInteger(1) << log2sf, 0, false).scaleTo(128);
 
     // valueSize = zN
     auto valueSize = slots_global * 2;
@@ -112,6 +113,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
         printZPoly(zValues);
     }
+#if 0
     if (msg == "Encode" && false) {
         std::vector<BigComplex> encodeZCoeffsToSlots(16);
         auto zUInverse = getZUInverse();
@@ -141,7 +143,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         //}
 
         auto elementParams = cc_global->GetCryptoParameters()->GetElementParams();
-        auto scalingFactor = BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(sf)), 0, false);
+        //auto scalingFactor = BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(sf)), 0, false);
         auto auxPtxts      = getZCoeffToSlotsAuxDCRTPoly(elementParams, scalingFactor);
         auto auxPtxts0     = auxPtxts[0];
         for (size_t i = 0; i != 16; ++i) {
@@ -196,6 +198,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         //              << std::endl;
         //}
     }
+#endif
 
     //auto rounded   = roundInRe(zValues);
     //auto decodeInR = decodeFromRE(rounded);
@@ -327,8 +330,7 @@ void SimpleBootstrapExample() {
     sk_global    = keyPair.secretKey;
     slots_global = 32 / 2;
 
-    auto sf      = std::pow(2.0, dcrtBits);
-    auto sfBigFP = BigFixedPoint(BigInteger(1) << dcrtBits, 0, false).scaleTo(128);
+    auto sf = BigFixedPoint(BigInteger(1) << dcrtBits, 0, false).scaleTo(128);
 
     auto zero      = EncryptZero(sf, keyPair.publicKey);
     auto elemParam = zero->GetElements()[0].GetParams();
@@ -336,10 +338,10 @@ void SimpleBootstrapExample() {
     //__heir_debug2(zero, "Input");
 
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
-    DCRTPoly ptxt1     = getDCRTPolyFromFixedPointVec(value1.getCoefficients(), elemParam, sfBigFP);
+    DCRTPoly ptxt1     = getDCRTPolyFromFixedPointVec(value1.getCoefficients(), elemParam, sf);
 
     RPolynomial value2 = ZPolynomial::encodeBinary(-2).toRPolynomial();
-    DCRTPoly ptxt2     = getDCRTPolyFromFixedPointVec(value2.getCoefficients(), elemParam, sfBigFP);
+    DCRTPoly ptxt2     = getDCRTPolyFromFixedPointVec(value2.getCoefficients(), elemParam, sf);
 
     /// TEST ENCODE
     auto encoded  = EncryptDCRTPoly(ptxt1, sf, keyPair.publicKey);
@@ -357,14 +359,14 @@ void SimpleBootstrapExample() {
     /// TEST CT-PT-MULT
     RPolynomial t = ZPolynomial::getT().toRPolynomial();
 
-    DCRTPoly tPtxt = getDCRTPolyFromFixedPointVec(t.getCoefficients(), elemParam, sfBigFP);
+    DCRTPoly tPtxt = getDCRTPolyFromFixedPointVec(t.getCoefficients(), elemParam, sf);
 
     if (0) {
         auto ctMul = EvalMultDCRTPoly(encoded, tPtxt);
-        ctMul->SetScalingFactor(sf * sf);
+        ctMul->SetScalingFactorBFP(sf * sf);
         __heir_debug2(ctMul, "Mult");
         ModReduceCustomInPlace(ctMul);
-        ctMul->SetScalingFactor(sf);
+        //ctMul->SetScalingFactorBFP(sf);
         __heir_debug2(ctMul, "Mult");
     }
 
@@ -378,11 +380,9 @@ void SimpleBootstrapExample() {
 
         //auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
         //ctMulRawT->SetScalingFactor(sf * sf);
-        ctMulRaw->SetScalingFactor(sf * sf);
+        ctMulRaw->SetScalingFactorBFP(sf * sf);
+        ModReduceCustomInPlace(ctMulRaw);
         __heir_debug2(ctMulRaw, "CMult");
-
-        //ModReduceCustomInPlace(ctMulRawT);
-        //ctMulRawT->SetScalingFactor(sf);
         ct = ctMulRaw;
     }
 
@@ -396,9 +396,10 @@ void SimpleBootstrapExample() {
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
     std::vector<Ciphertext<DCRTPoly>> zC2S;
     if (1) {
-        zC2S = ZCoeffsToSlots(cc, ct);
-        zC2S[0]->SetScalingFactor(sf * sf * sf * sf);
-        zC2S[1]->SetScalingFactor(sf * sf * sf * sf);
+        auto oldSf = ct->GetScalingFactorBFP();
+        zC2S       = ZCoeffsToSlots(cc, ct);
+        zC2S[0]->SetScalingFactorBFP(oldSf * oldSf);
+        zC2S[1]->SetScalingFactorBFP(oldSf * oldSf);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
@@ -406,14 +407,14 @@ void SimpleBootstrapExample() {
         if (0) {
             ModReduceCustomInPlace(zC2S[0]);
             ModReduceCustomInPlace(zC2S[1]);
-            zC2S[0]->SetScalingFactor(sf);
-            zC2S[1]->SetScalingFactor(sf);
+            //zC2S[0]->SetScalingFactor(sf);
+            //zC2S[1]->SetScalingFactor(sf);
         }
 
         // Now SF is sf
         if (0) {
             auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
-            z2S2z->SetScalingFactor(sf * sf);
+            //z2S2z->SetScalingFactor(sf * sf);
 
             __heir_debug2(z2S2z, "Z2S2Z");
         }
@@ -422,19 +423,19 @@ void SimpleBootstrapExample() {
     // TEST SlotsToRCoeffs and RCoeffsToSlots
     if (0) {
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
-        z2S2r->SetScalingFactor(sf * sf);
+        //z2S2r->SetScalingFactor(sf * sf);
         __heir_debug2(z2S2r, "S2RC");
 
         auto z2S2r_1 = EvalMultScalar(z2S2r, 2);
-        z2S2r_1->SetScalingFactor(sf * sf * 2);
+        //z2S2r_1->SetScalingFactor(sf * sf * 2);
         __heir_debug2(z2S2r_1, "S2RC");
 
         auto z2S2r_2 = EvalMultScalar(z2S2r, 4);
-        z2S2r_2->SetScalingFactor(sf * sf * 4);
+        //z2S2r_2->SetScalingFactor(sf * sf * 4);
         __heir_debug2(z2S2r_2, "S2RC");
 
         auto z2S2r_3 = EvalMultScalar(z2S2r, 8);
-        z2S2r_3->SetScalingFactor(sf * sf * 8);
+        //z2S2r_3->SetScalingFactor(sf * sf * 8);
         __heir_debug2(z2S2r_3, "S2RC");
     }
 

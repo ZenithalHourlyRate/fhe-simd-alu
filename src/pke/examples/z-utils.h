@@ -100,34 +100,35 @@ std::shared_ptr<std::vector<DCRTPoly>> EncryptZeroCore(const PrivateKey<DCRTPoly
     return std::make_shared<std::vector<DCRTPoly>>(std::initializer_list<DCRTPoly>({std::move(b), std::move(a)}));
 }
 
-Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, double scalingFactor, const PublicKey<DCRTPoly> publicKey) {
+Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, BigFixedPoint scalingFactor, const PublicKey<DCRTPoly> publicKey) {
     auto ba = EncryptZeroCore(publicKey);
     (*ba)[0] += ptxt;
 
     auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(publicKey);
     ctxt->SetElements(std::move(*ba));
     ctxt->SetNoiseScaleDeg(1);
-    ctxt->SetScalingFactor(scalingFactor);
+    ctxt->SetScalingFactorBFP(scalingFactor);
     return ctxt;
 }
 
-Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, double scalingFactor, const PrivateKey<DCRTPoly> privateKey) {
+Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, BigFixedPoint scalingFactor,
+                                     const PrivateKey<DCRTPoly> privateKey) {
     auto ba = EncryptZeroCore(privateKey);
     (*ba)[0] += ptxt;
 
     auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(privateKey);
     ctxt->SetElements(std::move(*ba));
     ctxt->SetNoiseScaleDeg(1);
-    ctxt->SetScalingFactor(scalingFactor);
+    ctxt->SetScalingFactorBFP(scalingFactor);
     return ctxt;
 }
 
-Ciphertext<DCRTPoly> EncryptZero(double scalingFactor, const PublicKey<DCRTPoly> publicKey) {
+Ciphertext<DCRTPoly> EncryptZero(BigFixedPoint scalingFactor, const PublicKey<DCRTPoly> publicKey) {
     return EncryptDCRTPoly(DCRTPoly(publicKey->GetCryptoParameters()->GetElementParams(), Format::EVALUATION, true),
                            scalingFactor, publicKey);
 }
 
-Ciphertext<DCRTPoly> EncryptZero(double scalingFactor, const PrivateKey<DCRTPoly> privateKey) {
+Ciphertext<DCRTPoly> EncryptZero(BigFixedPoint scalingFactor, const PrivateKey<DCRTPoly> privateKey) {
     return EncryptDCRTPoly(DCRTPoly(privateKey->GetCryptoParameters()->GetElementParams(), Format::EVALUATION, true),
                            scalingFactor, privateKey);
 }
@@ -247,6 +248,11 @@ void ModReduceCustomInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1)
             dcrtpoly.DropLastElementAndScale(cryptoParams->GetQlQlInvModqlDivqlModq(diffQl + i),
                                              cryptoParams->GetqlInvModq(diffQl + i));
         // We manually track scaling factor
+        auto ql      = cryptoParams->GetElementParams()->GetParams()[sizeQl - 1 - i]->GetModulus();
+        auto qlBigFP = BigFixedPoint(ql, 0, false).scaleTo(128);
+        ciphertext->SetScalingFactorBFP(ciphertext->GetScalingFactorBFP() / qlBigFP);
+
+        // Old code from OpenFHE
         // double modReduceFactor = cryptoParams->GetModReduceFactor(sizeQl - 1 - i);
         // ciphertext->SetScalingFactor(ciphertext->GetScalingFactor() / modReduceFactor);
     }
@@ -370,32 +376,38 @@ Ciphertext<DCRTPoly> SlotsToCoeffs(CryptoContextT cc, CiphertextT ctLeft, Cipher
 }
 
 // NOTE: should pre-compute ptxts outside
-std::vector<Ciphertext<DCRTPoly>> ZCoeffsToSlots(CryptoContextT cc, CiphertextT ct) {
+std::vector<Ciphertext<DCRTPoly>> ZCoeffsToSlots(CryptoContextT cc, CiphertextT ct,
+                                                 BigFixedPoint sf = BigFixedPoint::zero()) {
     auto elementParams = ct->GetElements()[0].GetParams();
-    auto sfBigFP =
-        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ct->GetScalingFactor())), 0, false).scaleTo(128);
-    return CoeffsToSlots(cc, ct, getZCoeffToSlotsAuxDCRTPoly(elementParams, sfBigFP));
+    if (sf.equalZero()) {
+        sf = ct->GetScalingFactorBFP();
+    }
+    return CoeffsToSlots(cc, ct, getZCoeffToSlotsAuxDCRTPoly(elementParams, sf));
 }
 
-std::vector<Ciphertext<DCRTPoly>> RCoeffsToSlots(CryptoContextT cc, CiphertextT ct) {
+std::vector<Ciphertext<DCRTPoly>> RCoeffsToSlots(CryptoContextT cc, CiphertextT ct,
+                                                 BigFixedPoint sf = BigFixedPoint::zero()) {
     auto elementParams = ct->GetElements()[0].GetParams();
-    auto sfBigFP =
-        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ct->GetScalingFactor())), 0, false).scaleTo(128);
-    return CoeffsToSlots(cc, ct, getRCoeffToSlotsAuxDCRTPoly(elementParams, sfBigFP));
+    if (sf.equalZero()) {
+        sf = ct->GetScalingFactorBFP();
+    }
+    return CoeffsToSlots(cc, ct, getRCoeffToSlotsAuxDCRTPoly(elementParams, sf));
 }
 
-Ciphertext<DCRTPoly> SlotsToZCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight) {
+Ciphertext<DCRTPoly> SlotsToZCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight,
+                                    BigFixedPoint sf = BigFixedPoint::zero()) {
     auto elementParams = ctLeft->GetElements()[0].GetParams();
-    auto sfBigFP =
-        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ctLeft->GetScalingFactor())), 0, false)
-            .scaleTo(128);
-    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToZCoeffsAuxDCRTPoly(elementParams, sfBigFP));
+    if (sf.equalZero()) {
+        sf = ctLeft->GetScalingFactorBFP();
+    }
+    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToZCoeffsAuxDCRTPoly(elementParams, sf));
 }
 
-Ciphertext<DCRTPoly> SlotsToRCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight) {
+Ciphertext<DCRTPoly> SlotsToRCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight,
+                                    BigFixedPoint sf = BigFixedPoint::zero()) {
     auto elementParams = ctLeft->GetElements()[0].GetParams();
-    auto sfBigFP =
-        BigFixedPoint(BigInteger(1) << static_cast<uint32_t>(std::log2(ctLeft->GetScalingFactor())), 0, false)
-            .scaleTo(128);
-    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToRCoeffsAuxDCRTPoly(elementParams, sfBigFP));
+    if (sf.equalZero()) {
+        sf = ctLeft->GetScalingFactorBFP();
+    }
+    return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToRCoeffsAuxDCRTPoly(elementParams, sf));
 }
