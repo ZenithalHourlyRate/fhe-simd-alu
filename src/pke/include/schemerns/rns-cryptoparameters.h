@@ -608,7 +608,8 @@ public:
    */
     double GetScalingFactorReal(uint32_t l = 0) const {
         if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
-            m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
+            m_scalTechnique == FLEXIBLEMANUAL || m_scalTechnique == COMPOSITESCALINGAUTO ||
+            m_scalTechnique == COMPOSITESCALINGMANUAL) {
             if (l >= m_scalingFactorsReal.size()) {
                 // TODO: Return an error here.
                 return m_approxSF;
@@ -622,7 +623,8 @@ public:
 
     double GetScalingFactorRealBig(uint32_t l = 0) const {
         if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
-            m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
+            m_scalTechnique == FLEXIBLEMANUAL || m_scalTechnique == COMPOSITESCALINGAUTO ||
+            m_scalTechnique == COMPOSITESCALINGMANUAL) {
             if (l >= m_scalingFactorsRealBig.size()) {
                 // TODO: Return an error here.
                 return m_approxSF;
@@ -642,7 +644,8 @@ public:
    */
     double GetModReduceFactor(uint32_t l = 0) const {
         if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
-            m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
+            m_scalTechnique == FLEXIBLEMANUAL || m_scalTechnique == COMPOSITESCALINGAUTO ||
+            m_scalTechnique == COMPOSITESCALINGMANUAL) {
             return m_dmoduliQ[l];
         }
 
@@ -967,7 +970,8 @@ public:
 
     NativeInteger GetScalingFactorInt(uint32_t l) const {
         if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
-            m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
+            m_scalTechnique == FLEXIBLEMANUAL || m_scalTechnique == COMPOSITESCALINGAUTO ||
+            m_scalTechnique == COMPOSITESCALINGMANUAL) {
             if (l >= m_scalingFactorsInt.size()) {
                 // TODO: Return an error here.
                 return m_fixedSF;
@@ -979,7 +983,8 @@ public:
 
     NativeInteger GetScalingFactorIntBig(uint32_t l) const {
         if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
-            m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
+            m_scalTechnique == FLEXIBLEMANUAL || m_scalTechnique == COMPOSITESCALINGAUTO ||
+            m_scalTechnique == COMPOSITESCALINGMANUAL) {
             if (l >= m_scalingFactorsIntBig.size()) {
                 // TODO: Return an error here.
                 return m_fixedSF;
@@ -991,7 +996,8 @@ public:
 
     NativeInteger GetModReduceFactorInt(uint32_t l = 0) const {
         if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
-            m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
+            m_scalTechnique == FLEXIBLEMANUAL || m_scalTechnique == COMPOSITESCALINGAUTO ||
+            m_scalTechnique == COMPOSITESCALINGMANUAL) {
             return m_qModt[l];
         }
         return m_fixedSF;

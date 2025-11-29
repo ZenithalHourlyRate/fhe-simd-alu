@@ -1849,7 +1849,8 @@ void FHECKKSRNS::AdjustCiphertextFBT(Ciphertext<DCRTPoly>& ciphertext, double co
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
 
     if (cryptoParams->GetScalingTechnique() == FLEXIBLEAUTO || cryptoParams->GetScalingTechnique() == FLEXIBLEAUTOEXT)
-        OPENFHE_THROW("This version of AdjustCiphertext is supported for FIXEDMANUAL and FIXEDAUTO methods only.");
+        OPENFHE_THROW(
+            "This version of AdjustCiphertext is supported for FIXEDMANUAL, FIXEDAUTO and FLEXIBLEMANUAL methods only.");
 #if NATIVEINT != 128
     // Scaling down the message by a correction factor to emulate using a larger q0.
     // This step is needed so we could use a scaling factor of up to 2^59 with q9 ~= 2^60.
@@ -2396,7 +2397,8 @@ void FHECKKSRNS::EvalFBTSetupInternal(const CryptoContextImpl<DCRTPoly>& cc, con
                                       uint32_t lvlsAfterBoot, uint32_t depthLeveledComputation, size_t order) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
     if (cryptoParams->GetScalingTechnique() == FLEXIBLEAUTO || cryptoParams->GetScalingTechnique() == FLEXIBLEAUTOEXT)
-        OPENFHE_THROW("CKKS Functional Bootstrapping is supported for FIXEDMANUAL and FIXEDAUTO methods only.");
+        OPENFHE_THROW(
+            "CKKS Functional Bootstrapping is supported for FIXEDMANUAL, FIXEDAUTO and FLEXIBLEMANUAL methods only.");
     if (cryptoParams->GetKeySwitchTechnique() != HYBRID)
         OPENFHE_THROW("CKKS Functional Bootstrapping is only supported for the Hybrid key switching method.");
 
@@ -2549,7 +2551,7 @@ Ciphertext<DCRTPoly> FHECKKSRNS::EvalHomDecoding(ConstCiphertext<DCRTPoly>& ciph
     //------------------------------------------------------------------------------
 
     // In the case of FLEXIBLEAUTO, we need one extra tower
-    if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL)
+    if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL && cryptoParams->GetScalingTechnique() != FLEXIBLEMANUAL)
         cc->GetScheme()->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
 
     // linear transform for decoding
@@ -2796,7 +2798,8 @@ std::shared_ptr<seriesPowers<DCRTPoly>> FHECKKSRNS::EvalMVBPrecomputeInternal(
         auto& evalKeyMap = cc->GetEvalAutomorphismKeyMap(ctxtEnc[0]->GetKeyTag());
         cc->EvalAddInPlace(ctxtEnc[0], Conjugate(ctxtEnc[0], evalKeyMap));
 
-        if (cryptoParams->GetScalingTechnique() == FIXEDMANUAL) {
+        if (cryptoParams->GetScalingTechnique() == FIXEDMANUAL ||
+            cryptoParams->GetScalingTechnique() == FLEXIBLEMANUAL) {
             while (ctxtEnc[0]->GetNoiseScaleDeg() > 1)
                 cc->ModReduceInPlace(ctxtEnc[0]);
         }

@@ -424,7 +424,7 @@ void ParameterGenerationCKKSRNS::SinglePrimeModuliGen(std::vector<NativeInteger>
     NativeInteger maxPrime{q};
     NativeInteger minPrime{q};
     if (numPrimes > 1) {
-        if (scalTech != FLEXIBLEAUTO && scalTech != FLEXIBLEAUTOEXT) {
+        if (scalTech != FLEXIBLEAUTO && scalTech != FLEXIBLEAUTOEXT && scalTech != FLEXIBLEMANUAL) {
             NativeInteger qPrev = q;
             NativeInteger qNext = q;
             for (size_t i = numPrimes - 2, cnt = 0; i >= 1; --i, ++cnt) {
