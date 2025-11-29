@@ -83,6 +83,23 @@ std::shared_ptr<std::vector<DCRTPoly>> EncryptZeroCore(const PublicKey<DCRTPoly>
     return std::make_shared<std::vector<DCRTPoly>>(std::initializer_list<DCRTPoly>({std::move(b), std::move(a)}));
 }
 
+std::shared_ptr<std::vector<DCRTPoly>> EncryptZeroCore(const PrivateKey<DCRTPoly> privateKey) {
+    const auto cryptoParams =
+        std::dynamic_pointer_cast<CryptoParametersRLWE<DCRTPoly>>(privateKey->GetCryptoParameters());
+    const auto elementParams = cryptoParams->GetElementParams();
+
+    DCRTPoly::DugType dug;
+    DCRTPoly a(dug, elementParams, Format::EVALUATION);
+
+    DCRTPoly e(cryptoParams->GetDiscreteGaussianGenerator(), elementParams, Format::EVALUATION);
+    NativeInteger ns = cryptoParams->GetNoiseScale();
+
+    // {b = ns * e - a * s, a}
+    DCRTPoly b(std::move((e *= ns) -= (a * privateKey->GetPrivateElement())));
+
+    return std::make_shared<std::vector<DCRTPoly>>(std::initializer_list<DCRTPoly>({std::move(b), std::move(a)}));
+}
+
 Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, double scalingFactor, const PublicKey<DCRTPoly> publicKey) {
     auto ba = EncryptZeroCore(publicKey);
     (*ba)[0] += ptxt;
@@ -94,9 +111,25 @@ Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, double scalingFactor, const 
     return ctxt;
 }
 
+Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, double scalingFactor, const PrivateKey<DCRTPoly> privateKey) {
+    auto ba = EncryptZeroCore(privateKey);
+    (*ba)[0] += ptxt;
+
+    auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(privateKey);
+    ctxt->SetElements(std::move(*ba));
+    ctxt->SetNoiseScaleDeg(1);
+    ctxt->SetScalingFactor(scalingFactor);
+    return ctxt;
+}
+
 Ciphertext<DCRTPoly> EncryptZero(double scalingFactor, const PublicKey<DCRTPoly> publicKey) {
     return EncryptDCRTPoly(DCRTPoly(publicKey->GetCryptoParameters()->GetElementParams(), Format::EVALUATION, true),
                            scalingFactor, publicKey);
+}
+
+Ciphertext<DCRTPoly> EncryptZero(double scalingFactor, const PrivateKey<DCRTPoly> privateKey) {
+    return EncryptDCRTPoly(DCRTPoly(privateKey->GetCryptoParameters()->GetElementParams(), Format::EVALUATION, true),
+                           scalingFactor, privateKey);
 }
 
 Ciphertext<DCRTPoly> Conjugate(ConstCiphertext<DCRTPoly> ciphertext,

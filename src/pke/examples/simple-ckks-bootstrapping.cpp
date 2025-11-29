@@ -317,6 +317,11 @@ void SimpleBootstrapExample() {
     cc->EvalAutomorphismKeyGen(keyPair.secretKey, {2 * ringDim - 1});
     //cc->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
 
+    std::cout << *(cc->GetCryptoParameters()) << std::endl;
+
+    std::cout << *(std::static_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters())->GetParamsP())
+              << " primes in the special prime modulus." << std::endl;
+
     cc_global    = cc;
     pk_global    = keyPair.publicKey;
     sk_global    = keyPair.secretKey;
@@ -333,7 +338,7 @@ void SimpleBootstrapExample() {
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
     DCRTPoly ptxt1     = getDCRTPolyFromFixedPointVec(value1.getCoefficients(), elemParam, sfBigFP);
 
-    RPolynomial value2 = ZPolynomial::encode(-2).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encodeBinary(-2).toRPolynomial();
     DCRTPoly ptxt2     = getDCRTPolyFromFixedPointVec(value2.getCoefficients(), elemParam, sfBigFP);
 
     /// TEST ENCODE
@@ -367,17 +372,18 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> ct;
     if (1) {
         auto ctMulRaw = cc->EvalMult(encoded, encoded2);
-        ModReduceCustomInPlace(ctMulRaw);
-        ctMulRaw->SetScalingFactor(sf);
+        //ModReduceCustomInPlace(ctMulRaw);
+        //ctMulRaw->SetScalingFactor(sf);
         //__heir_debug2(ctMulRaw, "CMult");
 
-        auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
-        ctMulRawT->SetScalingFactor(sf * sf);
-        __heir_debug2(ctMulRawT, "CMult");
+        //auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
+        //ctMulRawT->SetScalingFactor(sf * sf);
+        ctMulRaw->SetScalingFactor(sf * sf);
+        __heir_debug2(ctMulRaw, "CMult");
 
-        ModReduceCustomInPlace(ctMulRawT);
-        ctMulRawT->SetScalingFactor(sf);
-        ct = ctMulRawT;
+        //ModReduceCustomInPlace(ctMulRawT);
+        //ctMulRawT->SetScalingFactor(sf);
+        ct = ctMulRaw;
     }
 
     /// TEST Rotate
@@ -389,18 +395,20 @@ void SimpleBootstrapExample() {
 
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
     std::vector<Ciphertext<DCRTPoly>> zC2S;
-    {
+    if (1) {
         zC2S = ZCoeffsToSlots(cc, ct);
-        zC2S[0]->SetScalingFactor(sf * sf);
-        zC2S[1]->SetScalingFactor(sf * sf);
+        zC2S[0]->SetScalingFactor(sf * sf * sf * sf);
+        zC2S[1]->SetScalingFactor(sf * sf * sf * sf);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
 
-        ModReduceCustomInPlace(zC2S[0]);
-        ModReduceCustomInPlace(zC2S[1]);
-        zC2S[0]->SetScalingFactor(sf);
-        zC2S[1]->SetScalingFactor(sf);
+        if (0) {
+            ModReduceCustomInPlace(zC2S[0]);
+            ModReduceCustomInPlace(zC2S[1]);
+            zC2S[0]->SetScalingFactor(sf);
+            zC2S[1]->SetScalingFactor(sf);
+        }
 
         // Now SF is sf
         if (0) {
@@ -412,7 +420,7 @@ void SimpleBootstrapExample() {
     }
 
     // TEST SlotsToRCoeffs and RCoeffsToSlots
-    {
+    if (0) {
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
         z2S2r->SetScalingFactor(sf * sf);
         __heir_debug2(z2S2r, "S2RC");

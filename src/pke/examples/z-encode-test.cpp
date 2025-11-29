@@ -207,8 +207,8 @@ void test_balanced() {
     }
     std::cout << std::endl;
 
-    auto encodedBalanced = ZPolynomial::toBalanced(encodedZ);
-    std::cout << "Encoded Balanced in Z: ";
+    auto encodedBalanced = ZPolynomial::toBalancedTInv(encodedZ);
+    std::cout << "Encoded Balanced TInv in Z: ";
     for (const auto& val : encodedBalanced.getCoefficients()) {
         std::cout << val.toHexString() << " ";
     }

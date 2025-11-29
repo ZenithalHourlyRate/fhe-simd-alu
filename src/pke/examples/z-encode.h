@@ -87,11 +87,12 @@ public:
         return result;
     }
 
-    static ZPolynomial encode(uint32_t input) {
+    // Binary
+    static ZPolynomial encodeBinary(uint32_t input) {
         auto one  = BigFixedPoint::one();
         auto zero = BigFixedPoint::zero();
         std::vector<BigFixedPoint> bits;
-        // get bits of input in bits
+        // get bits of input in {0, 1}
         for (size_t i = 0; i != zN; ++i) {
             auto flag = (input & (1 << i)) >> i;
             if (flag) {
@@ -101,9 +102,15 @@ public:
                 bits.push_back(zero);
             }
         }
-        return multiplyRaw(bits, getTInv());
+        return bits;
     }
 
+    // Standard
+    static ZPolynomial encode(uint32_t input) {
+        return multiplyRaw(encodeBinary(input), getTInv());
+    }
+
+    // Balanced
     static ZPolynomial encodeBalanced(uint32_t input) {
         auto half    = BigFixedPoint::half();
         auto negHalf = -half;
@@ -111,17 +118,24 @@ public:
         // get bits of input in {-1/2, 1/2}
         // Note that 0 maps to -1/2
         for (size_t i = 0; i != zN; ++i) {
-            if (input & (1ul << i)) {
+            auto flag = (input & (1 << i)) >> i;
+            if (flag) {
                 bits.push_back(half);
             }
             else {
                 bits.push_back(negHalf);
             }
         }
-        return multiplyRaw(bits, getTInv());
+        return bits;
     }
 
-    static ZPolynomial toBalanced(ZPolynomial input) {
+    // Balanced TInv
+    static ZPolynomial encodeBalancedTInv(uint32_t input) {
+        return multiplyRaw(encodeBalanced(input), getTInv());
+    }
+
+    // From standard
+    static ZPolynomial toBalancedTInv(ZPolynomial input) {
         uint32_t offset    = 0xFFFFFFFF;
         auto offsetEncoded = encode(offset);
         auto half          = BigFixedPoint::half();
@@ -132,6 +146,7 @@ public:
         return output;
     }
 
+    // From balanced tinv
     static ZPolynomial toStandard(ZPolynomial input) {
         uint32_t offset    = 0xFFFFFFFF;
         auto offsetEncoded = encode(offset);
