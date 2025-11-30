@@ -221,13 +221,13 @@ Ciphertext<DCRTPoly> EvalMultDCRTPoly(ConstCiphertext<DCRTPoly> ct, const DCRTPo
     return ctNew;
 }
 
-Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, uint32_t scalar) {
+Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar) {
     assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
            "Ciphertext and Plaintext size mismatch in EvalMultDCRTPoly");
     assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
     auto ctNew = ct->Clone();
     for (auto& a : ctNew->GetElements()) {
-        a *= BigInteger(scalar);
+        a *= scalar;
     }
     return ctNew;
 }

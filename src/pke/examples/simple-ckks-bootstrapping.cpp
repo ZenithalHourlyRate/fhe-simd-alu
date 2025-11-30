@@ -54,8 +54,12 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto sfBigFP = ct->GetScalingFactorBFP();
     std::cout << msg << "  Ciphertext Scaling Factor BFP: " << sfBigFP.toHexString() << std::endl;
     auto log2sf = std::log2(sfBigFP.convertToDouble());
-    std::cout << msg << "  Scaling factor: " << log2sf << std::endl;
-    //auto sfBigFP = BigFixedPoint(BigInteger(1) << log2sf, 0, false).scaleTo(128);
+    std::cout << msg << "  Scaling factor log2: " << std::setprecision(20) << log2sf << std::endl;
+    auto q     = ct->GetElements()[0].GetParams()->GetModulus();
+    auto log2q = std::log2(q.ConvertToDouble());
+    std::cout << msg << "  q: " << log2q << std::endl;
+    auto l = ct->GetElements().size();
+    std::cout << msg << "  l: " << l - 1 << std::endl;
 
     // valueSize = zN
     auto valueSize = slots_global * 2;
@@ -79,11 +83,9 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
-        if (msg == "S2RC") {
-            // Directly interpret as ZPolynomial
-            ZPolynomial zPoly(values.getCoefficients());
-            printZPoly(zPoly);
-        }
+        // Directly interpret as ZPolynomial
+        ZPolynomial zPoly(values.getCoefficients());
+        printZPoly(zPoly);
     }
     auto cSlots = values.toCSlots();
     if (msg == "Upper" || msg == "Down" || msg == "Rotate") {
@@ -293,7 +295,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(4);
+    parameters.SetMultiplicativeDepth(5);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -340,7 +342,7 @@ void SimpleBootstrapExample() {
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
     DCRTPoly ptxt1     = getDCRTPolyFromFixedPointVec(value1.getCoefficients(), elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encodeBinary(-2).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(-2).toRPolynomial();
     DCRTPoly ptxt2     = getDCRTPolyFromFixedPointVec(value2.getCoefficients(), elemParam, sf);
 
     /// TEST ENCODE
@@ -374,16 +376,15 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> ct;
     if (1) {
         auto ctMulRaw = cc->EvalMult(encoded, encoded2);
-        //ModReduceCustomInPlace(ctMulRaw);
-        //ctMulRaw->SetScalingFactor(sf);
-        //__heir_debug2(ctMulRaw, "CMult");
-
-        //auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
-        //ctMulRawT->SetScalingFactor(sf * sf);
         ctMulRaw->SetScalingFactorBFP(sf * sf);
         ModReduceCustomInPlace(ctMulRaw);
-        __heir_debug2(ctMulRaw, "CMult");
-        ct = ctMulRaw;
+
+        auto sfNow     = ctMulRaw->GetScalingFactorBFP();
+        auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
+        ctMulRawT->SetScalingFactorBFP(sfNow * sf);
+        ModReduceCustomInPlace(ctMulRawT);
+        __heir_debug2(ctMulRawT, "CMult");
+        ct = ctMulRawT;
     }
 
     /// TEST Rotate
@@ -400,13 +401,13 @@ void SimpleBootstrapExample() {
         zC2S       = ZCoeffsToSlots(cc, ct);
         zC2S[0]->SetScalingFactorBFP(oldSf * oldSf);
         zC2S[1]->SetScalingFactorBFP(oldSf * oldSf);
+        ModReduceCustomInPlace(zC2S[0]);
+        ModReduceCustomInPlace(zC2S[1]);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
 
         if (0) {
-            ModReduceCustomInPlace(zC2S[0]);
-            ModReduceCustomInPlace(zC2S[1]);
             //zC2S[0]->SetScalingFactor(sf);
             //zC2S[1]->SetScalingFactor(sf);
         }
@@ -420,23 +421,45 @@ void SimpleBootstrapExample() {
         }
     }
 
-    // TEST SlotsToRCoeffs and RCoeffsToSlots
-    if (0) {
+    // TEST SlotsToRCoeffs
+    Ciphertext<DCRTPoly> s2rc;
+    if (1) {
+        auto sfNow = zC2S[0]->GetScalingFactorBFP();
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
-        //z2S2r->SetScalingFactor(sf * sf);
+        z2S2r->SetScalingFactorBFP(sfNow * sfNow);
+        ModReduceCustomInPlace(z2S2r);
+        s2rc = z2S2r;
         __heir_debug2(z2S2r, "S2RC");
 
-        auto z2S2r_1 = EvalMultScalar(z2S2r, 2);
-        //z2S2r_1->SetScalingFactor(sf * sf * 2);
-        __heir_debug2(z2S2r_1, "S2RC");
+        //auto z2S2r_1 = EvalMultScalar(z2S2r, 2);
+        ////z2S2r_1->SetScalingFactor(sf * sf * 2);
+        //__heir_debug2(z2S2r_1, "S2RC");
 
-        auto z2S2r_2 = EvalMultScalar(z2S2r, 4);
-        //z2S2r_2->SetScalingFactor(sf * sf * 4);
-        __heir_debug2(z2S2r_2, "S2RC");
+        //auto z2S2r_2 = EvalMultScalar(z2S2r, 4);
+        ////z2S2r_2->SetScalingFactor(sf * sf * 4);
+        //__heir_debug2(z2S2r_2, "S2RC");
 
-        auto z2S2r_3 = EvalMultScalar(z2S2r, 8);
-        //z2S2r_3->SetScalingFactor(sf * sf * 8);
-        __heir_debug2(z2S2r_3, "S2RC");
+        //auto z2S2r_3 = EvalMultScalar(z2S2r, 8);
+        ////z2S2r_3->SetScalingFactor(sf * sf * 8);
+        //__heir_debug2(z2S2r_3, "S2RC");
+    }
+
+    // TEST Scale to MSB
+    if (1) {
+        auto q     = s2rc->GetElements()[0].GetModulus();
+        auto sfNow = s2rc->GetScalingFactorBFP();
+        auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
+        auto two   = BigFixedPoint::two();
+        // q / (2 * Delta)
+        auto div       = (qBFP / sfNow / two).round();
+        auto divScalar = div.getValue() >> div.getLog2Scale();
+        auto ct2       = EvalMultScalar(s2rc, divScalar);
+        ModReduceCustomInPlace(ct2);
+        auto q0     = ct2->GetElements()[0].GetModulus();
+        auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
+        auto sfNow2 = q0BFP / two;
+        ct2->SetScalingFactorBFP(sfNow2);
+        __heir_debug2(ct2, "MSB");
     }
 
     // MSBBootstrap(cc, z2S2r);
