@@ -1,6 +1,6 @@
 #include <cassert>
 #include "openfhe.h"
-#include "math/z-encode.h"
+#include "encoding/z-encode.h"
 
 using namespace lbcrypto;
 using CiphertextT        = ConstCiphertext<DCRTPoly>;
@@ -100,37 +100,25 @@ std::shared_ptr<std::vector<DCRTPoly>> EncryptZeroCore(const PrivateKey<DCRTPoly
     return std::make_shared<std::vector<DCRTPoly>>(std::initializer_list<DCRTPoly>({std::move(b), std::move(a)}));
 }
 
-Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, BigFixedPoint scalingFactor, const PublicKey<DCRTPoly> publicKey) {
+Ciphertext<DCRTPoly> Encrypt(Plaintext ptxt, const PublicKey<DCRTPoly> publicKey) {
+    ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
+    auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
+
     auto ba = EncryptZeroCore(publicKey);
-    (*ba)[0] += ptxt;
+    (*ba)[0] += zEncDCRTPoly;
 
     auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(publicKey);
     ctxt->SetElements(std::move(*ba));
     ctxt->SetNoiseScaleDeg(1);
-    ctxt->SetScalingFactorBFP(scalingFactor);
+    ctxt->SetScalingFactorBFP(zEnc->GetScalingFactorBFP());
     return ctxt;
 }
 
-Ciphertext<DCRTPoly> EncryptDCRTPoly(DCRTPoly ptxt, BigFixedPoint scalingFactor,
-                                     const PrivateKey<DCRTPoly> privateKey) {
-    auto ba = EncryptZeroCore(privateKey);
-    (*ba)[0] += ptxt;
-
-    auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(privateKey);
+Ciphertext<DCRTPoly> EncryptZero(const PublicKey<DCRTPoly> publicKey) {
+    auto ba   = EncryptZeroCore(publicKey);
+    auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(publicKey);
     ctxt->SetElements(std::move(*ba));
-    ctxt->SetNoiseScaleDeg(1);
-    ctxt->SetScalingFactorBFP(scalingFactor);
     return ctxt;
-}
-
-Ciphertext<DCRTPoly> EncryptZero(BigFixedPoint scalingFactor, const PublicKey<DCRTPoly> publicKey) {
-    return EncryptDCRTPoly(DCRTPoly(publicKey->GetCryptoParameters()->GetElementParams(), Format::EVALUATION, true),
-                           scalingFactor, publicKey);
-}
-
-Ciphertext<DCRTPoly> EncryptZero(BigFixedPoint scalingFactor, const PrivateKey<DCRTPoly> privateKey) {
-    return EncryptDCRTPoly(DCRTPoly(privateKey->GetCryptoParameters()->GetElementParams(), Format::EVALUATION, true),
-                           scalingFactor, privateKey);
 }
 
 Ciphertext<DCRTPoly> Conjugate(ConstCiphertext<DCRTPoly> ciphertext,
@@ -151,72 +139,33 @@ Ciphertext<DCRTPoly> Conjugate(ConstCiphertext<DCRTPoly> ciphertext,
 }
 
 //=============================================================================
-// Encode Utils
-//=============================================================================
-
-DCRTPoly getDCRTPolyFromFixedPointVec(std::vector<BigFixedPoint> input,
-                                      const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                      BigFixedPoint scalingFactor) {
-    DCRTPoly newPoly(elementParams, Format::COEFFICIENT, true);
-    auto bigPoly = newPoly.CRTInterpolate();
-    auto ringDim = elementParams->GetRingDimension();
-    auto q       = elementParams->GetModulus();
-    for (size_t i = 0; i != input.size(); ++i) {
-        auto val        = input[i] * scalingFactor;
-        auto valInteger = (val.round()).getValue() >> val.getLog2Scale();
-        if (val.getNeg()) {
-            bigPoly[i * (ringDim / (input.size()))] = q - valInteger;
-        }
-        else {
-            bigPoly[i * (ringDim / (input.size()))] = valInteger;
-        }
-    }
-    DCRTPoly finalPoly(bigPoly, elementParams);
-    finalPoly.SetFormat(Format::EVALUATION);
-    return finalPoly;
-}
-
-std::vector<BigFixedPoint> getFixedPointVecFromDCRTPoly(DCRTPoly input, BigFixedPoint scalingFactor,
-                                                        size_t outputSize) {
-    input.SetFormat(Format::COEFFICIENT);
-    auto bigPoly = input.CRTInterpolate();
-    std::vector<BigFixedPoint> output;
-    auto ringDim = input.GetParams()->GetRingDimension();
-    auto q       = input.GetParams()->GetModulus();
-    for (size_t i = 0; i != outputSize; ++i) {
-        auto valInteger = bigPoly[i * (ringDim / outputSize)];
-        bool neg        = false;
-        if (valInteger > q / 2) {
-            neg        = true;
-            valInteger = q - valInteger;
-        }
-        auto valFixedPoint = BigFixedPoint(valInteger, 0, neg).scaleTo(z_upper_roots_scale);
-        output.push_back(valFixedPoint / scalingFactor);
-    }
-    return output;
-}
-
-//=============================================================================
 // Custom Evals
 //=============================================================================
 
-Ciphertext<DCRTPoly> EvalAddDCRTPoly(ConstCiphertext<DCRTPoly> ct, const DCRTPoly& ptxt) {
+Ciphertext<DCRTPoly> EvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
     assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalAddDCRTPoly");
+           "Ciphertext and Plaintext size mismatch in EvalAdd");
     assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
+    auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
+
     auto ctNew = ct->Clone();
     auto& b    = ctNew->GetElements()[0];
-    b += ptxt;
+    b += zEncDCRTPoly;
     return ctNew;
 }
 
-Ciphertext<DCRTPoly> EvalMultDCRTPoly(ConstCiphertext<DCRTPoly> ct, const DCRTPoly& ptxt) {
-    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalMultDCRTPoly");
-    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
+    ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
+    auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
+    assert(ct->GetElements().size() == zEncDCRTPoly.GetParams()->GetParams().size() &&
+           "Ciphertext and Plaintext size mismatch in EvalMult");
+    assert(zEncDCRTPoly.GetFormat() == Format::EVALUATION &&
+           "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+
     auto ctNew = ct->Clone();
     for (auto& a : ctNew->GetElements()) {
-        a *= ptxt;
+        a *= zEncDCRTPoly;
     }
     return ctNew;
 }
@@ -262,9 +211,9 @@ void ModReduceCustomInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1)
 // Linear Transform Auxiliaries
 //=============================================================================
 
-std::array<std::vector<DCRTPoly>, 2> getAuxLTDCRTPoly(BigCMatrix T, bool inverse,
-                                                      const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                                      BigFixedPoint scalingFactor) {
+std::array<std::vector<Plaintext>, 2> getAuxLTPtxt(BigCMatrix T, bool inverse,
+                                                   const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                                   BigFixedPoint scalingFactor) {
     // Tinverse is of shape zN * (zN / 2)
     // T of is of (zN / 2) * zN
     auto halfSize = T.size();
@@ -280,8 +229,8 @@ std::array<std::vector<DCRTPoly>, 2> getAuxLTDCRTPoly(BigCMatrix T, bool inverse
         columnOffset = halfSize;
     }
 
-    std::vector<DCRTPoly> results1;
-    std::vector<DCRTPoly> results2;
+    std::vector<Plaintext> results1;
+    std::vector<Plaintext> results2;
 
     for (size_t i = 0; i != halfSize; ++i) {
         auto diagonal = std::vector<BigComplex>(halfSize, BigComplex());
@@ -289,8 +238,8 @@ std::array<std::vector<DCRTPoly>, 2> getAuxLTDCRTPoly(BigCMatrix T, bool inverse
             diagonal[j] = T[j][(i + j) % halfSize];
         }
         auto diagonalInR = CSlots(diagonal).toRPolynomial();
-        auto dcrtPoly    = getDCRTPolyFromFixedPointVec(diagonalInR.getCoefficients(), elementParams, scalingFactor);
-        results1.push_back(dcrtPoly);
+        Plaintext ptxt   = ZEncodingImpl::encodeR(diagonalInR.getCoefficients(), elementParams, scalingFactor);
+        results1.push_back(ptxt);
     }
     for (size_t i = 0; i != halfSize; ++i) {
         auto diagonal = std::vector<BigComplex>(halfSize, BigComplex());
@@ -298,30 +247,30 @@ std::array<std::vector<DCRTPoly>, 2> getAuxLTDCRTPoly(BigCMatrix T, bool inverse
             diagonal[j] = T[j + rowOffset][(i + j) % halfSize + columnOffset];
         }
         auto diagonalInR = CSlots(diagonal).toRPolynomial();
-        auto dcrtPoly    = getDCRTPolyFromFixedPointVec(diagonalInR.getCoefficients(), elementParams, scalingFactor);
-        results2.push_back(dcrtPoly);
+        Plaintext ptxt   = ZEncodingImpl::encodeR(diagonalInR.getCoefficients(), elementParams, scalingFactor);
+        results2.push_back(ptxt);
     }
     return {results1, results2};
 }
 
-std::array<std::vector<DCRTPoly>, 2> getZCoeffToSlotsAuxDCRTPoly(
+std::array<std::vector<Plaintext>, 2> getZCoeffToSlotsAuxDCRTPoly(
     const std::shared_ptr<typename DCRTPoly::Params>& elementParams, BigFixedPoint scalingFactor) {
-    return getAuxLTDCRTPoly(getZUInverse(), true, elementParams, scalingFactor);
+    return getAuxLTPtxt(getZUInverse(), true, elementParams, scalingFactor);
 }
 
-std::array<std::vector<DCRTPoly>, 2> getRCoeffToSlotsAuxDCRTPoly(
+std::array<std::vector<Plaintext>, 2> getRCoeffToSlotsAuxDCRTPoly(
     const std::shared_ptr<typename DCRTPoly::Params>& elementParams, BigFixedPoint scalingFactor) {
-    return getAuxLTDCRTPoly(getRUInverse(), true, elementParams, scalingFactor);
+    return getAuxLTPtxt(getRUInverse(), true, elementParams, scalingFactor);
 }
 
-std::array<std::vector<DCRTPoly>, 2> getSlotsToZCoeffsAuxDCRTPoly(
+std::array<std::vector<Plaintext>, 2> getSlotsToZCoeffsAuxDCRTPoly(
     const std::shared_ptr<typename DCRTPoly::Params>& elementParams, BigFixedPoint scalingFactor) {
-    return getAuxLTDCRTPoly(getZU(), false, elementParams, scalingFactor);
+    return getAuxLTPtxt(getZU(), false, elementParams, scalingFactor);
 }
 
-std::array<std::vector<DCRTPoly>, 2> getSlotsToRCoeffsAuxDCRTPoly(
+std::array<std::vector<Plaintext>, 2> getSlotsToRCoeffsAuxDCRTPoly(
     const std::shared_ptr<typename DCRTPoly::Params>& elementParams, BigFixedPoint scalingFactor) {
-    return getAuxLTDCRTPoly(getRU(), false, elementParams, scalingFactor);
+    return getAuxLTPtxt(getRU(), false, elementParams, scalingFactor);
 }
 
 //=============================================================================
@@ -331,16 +280,16 @@ std::array<std::vector<DCRTPoly>, 2> getSlotsToRCoeffsAuxDCRTPoly(
 // We now do not exploit sparse encoding
 
 std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT ct,
-                                                const std::array<std::vector<DCRTPoly>, 2>& auxPtxts) {
+                                                const std::array<std::vector<Plaintext>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-    auto resultUpper = EvalMultDCRTPoly(ct, auxPtxts[0][0]);
-    auto resultDown  = EvalMultDCRTPoly(ct, auxPtxts[1][0]);
+    auto resultUpper = EvalMult(ct, auxPtxts[0][0]);
+    auto resultDown  = EvalMult(ct, auxPtxts[1][0]);
     auto startCt     = cc->EvalRotate(ct, 1);
     for (size_t i = 1; i != auxPtxts[0].size(); ++i) {
-        auto diagonalUpper = EvalMultDCRTPoly(startCt, auxPtxts[0][i]);
+        auto diagonalUpper = EvalMult(startCt, auxPtxts[0][i]);
         cc->EvalAddInPlace(resultUpper, diagonalUpper);
-        auto diagonalDown = EvalMultDCRTPoly(startCt, auxPtxts[1][i]);
+        auto diagonalDown = EvalMult(startCt, auxPtxts[1][i]);
         cc->EvalAddInPlace(resultDown, diagonalDown);
         if (i + 1 < auxPtxts[0].size()) {
             //rotate one more
@@ -354,17 +303,17 @@ std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT c
 }
 
 Ciphertext<DCRTPoly> SlotsToCoeffs(CryptoContextT cc, CiphertextT ctLeft, CiphertextT ctRight,
-                                   const std::array<std::vector<DCRTPoly>, 2>& auxPtxts) {
+                                   const std::array<std::vector<Plaintext>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-    auto result = EvalMultDCRTPoly(ctLeft, auxPtxts[0][0]);
-    cc->EvalAddInPlace(result, EvalMultDCRTPoly(ctRight, auxPtxts[1][0]));
+    auto result = EvalMult(ctLeft, auxPtxts[0][0]);
+    cc->EvalAddInPlace(result, EvalMult(ctRight, auxPtxts[1][0]));
     auto startCtLeft  = cc->EvalRotate(ctLeft, 1);
     auto startCtRight = cc->EvalRotate(ctRight, 1);
     for (size_t i = 1; i != auxPtxts[0].size(); ++i) {
-        auto diagonalLeft = EvalMultDCRTPoly(startCtLeft, auxPtxts[0][i]);
+        auto diagonalLeft = EvalMult(startCtLeft, auxPtxts[0][i]);
         cc->EvalAddInPlace(result, diagonalLeft);
-        auto diagonalRight = EvalMultDCRTPoly(startCtRight, auxPtxts[1][i]);
+        auto diagonalRight = EvalMult(startCtRight, auxPtxts[1][i]);
         cc->EvalAddInPlace(result, diagonalRight);
         // rotate one more
         if (i + 1 < auxPtxts[0].size()) {

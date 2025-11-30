@@ -1,4 +1,4 @@
-#include "math/z-encode.h"
+#include "math/z-encode-utils.h"
 
 CSlots ZPolynomial::toCSlots() const {
     return multU(getZU(), coefficients);

@@ -1,5 +1,5 @@
-#ifndef SRC_PKE_EXAMPLES_Z_ENCODE_H_
-#define SRC_PKE_EXAMPLES_Z_ENCODE_H_
+#ifndef SRC_PKE_EXAMPLES_Z_ENCODE_UTILS_H_
+#define SRC_PKE_EXAMPLES_Z_ENCODE_UTILS_H_
 
 #include <cassert>
 #include "math/z-constants.h"
@@ -357,4 +357,4 @@ private:
     std::vector<BigComplex> slots;
 };
 
-#endif  // SRC_PKE_EXAMPLES_Z_ENCODE_H_
+#endif  // SRC_PKE_EXAMPLES_Z_ENCODE_UTILS_H_

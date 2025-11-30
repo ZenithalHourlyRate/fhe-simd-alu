@@ -64,7 +64,9 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     // valueSize = zN
     auto valueSize = slots_global * 2;
 
-    RPolynomial values = getFixedPointVecFromDCRTPoly(b, sfBigFP, valueSize);
+    auto zEncode = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize, sfBigFP);
+
+    RPolynomial values = ZEncodingImpl::decodeR(zEncode);
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
@@ -334,37 +336,36 @@ void SimpleBootstrapExample() {
 
     auto sf = BigFixedPoint(BigInteger(1) << dcrtBits, 0, false).scaleTo(128);
 
-    auto zero      = EncryptZero(sf, keyPair.publicKey);
+    auto zero      = EncryptZero(keyPair.publicKey);
     auto elemParam = zero->GetElements()[0].GetParams();
-
+    //
     //__heir_debug2(zero, "Input");
 
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
-    DCRTPoly ptxt1     = getDCRTPolyFromFixedPointVec(value1.getCoefficients(), elemParam, sf);
+    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
     RPolynomial value2 = ZPolynomial::encode(-2).toRPolynomial();
-    DCRTPoly ptxt2     = getDCRTPolyFromFixedPointVec(value2.getCoefficients(), elemParam, sf);
+    Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE
-    auto encoded  = EncryptDCRTPoly(ptxt1, sf, keyPair.publicKey);
-    auto encoded2 = EncryptDCRTPoly(ptxt2, sf, keyPair.publicKey);
+    auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
+    auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
     __heir_debug2(encoded, "Encode");
 
     /// TEST ADD
     if (0) {
-        auto ctAdd = EvalAddDCRTPoly(encoded, ptxt2);
+        auto ctAdd = EvalAdd(encoded, ptxt2);
 
         __heir_debug2(ctAdd, "Add");
     }
 
     /// TEST CT-PT-MULT
-    RPolynomial t = ZPolynomial::getT().toRPolynomial();
-
-    DCRTPoly tPtxt = getDCRTPolyFromFixedPointVec(t.getCoefficients(), elemParam, sf);
+    RPolynomial t   = ZPolynomial::getT().toRPolynomial();
+    Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
     if (0) {
-        auto ctMul = EvalMultDCRTPoly(encoded, tPtxt);
+        auto ctMul = EvalMult(encoded, tPtxt);
         ctMul->SetScalingFactorBFP(sf * sf);
         __heir_debug2(ctMul, "Mult");
         ModReduceCustomInPlace(ctMul);
@@ -380,7 +381,7 @@ void SimpleBootstrapExample() {
         ModReduceCustomInPlace(ctMulRaw);
 
         auto sfNow     = ctMulRaw->GetScalingFactorBFP();
-        auto ctMulRawT = EvalMultDCRTPoly(ctMulRaw, tPtxt);
+        auto ctMulRawT = EvalMult(ctMulRaw, tPtxt);
         ctMulRawT->SetScalingFactorBFP(sfNow * sf);
         ModReduceCustomInPlace(ctMulRawT);
         __heir_debug2(ctMulRawT, "CMult");
@@ -445,6 +446,7 @@ void SimpleBootstrapExample() {
     }
 
     // TEST Scale to MSB
+    Ciphertext<DCRTPoly> ctMSB;
     if (1) {
         auto q     = s2rc->GetElements()[0].GetModulus();
         auto sfNow = s2rc->GetScalingFactorBFP();
@@ -454,12 +456,14 @@ void SimpleBootstrapExample() {
         auto div       = (qBFP / sfNow / two).round();
         auto divScalar = div.getValue() >> div.getLog2Scale();
         auto ct2       = EvalMultScalar(s2rc, divScalar);
-        ModReduceCustomInPlace(ct2);
+        // Reduce all the way to the bottom
+        ModReduceCustomInPlace(ct2, ct2->GetElements().size() - 1);
         auto q0     = ct2->GetElements()[0].GetModulus();
         auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
         auto sfNow2 = q0BFP / two;
         ct2->SetScalingFactorBFP(sfNow2);
         __heir_debug2(ct2, "MSB");
+        ctMSB = ct2;
     }
 
     // MSBBootstrap(cc, z2S2r);
