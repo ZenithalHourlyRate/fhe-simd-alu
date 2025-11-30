@@ -80,19 +80,38 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         std::cout << msg << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
     };
 
+    auto extractErrorRoly = [&](const RPolynomial rPoly, size_t bits) {
+        std::vector<BigFixedPoint> errors;
+        auto scalarBFP = BigFixedPoint(BigInteger(1) << bits, 0, false).scaleTo(128);
+        for (auto& coeff : rPoly.getCoefficients()) {
+            auto integerPart = (coeff * scalarBFP).round() / scalarBFP;
+            auto fracPart    = coeff - integerPart;
+            errors.push_back(fracPart);
+            //std::cout << msg << "  rPoly error: " << fracPart.toHexString(16) << std::endl;
+        }
+        // Use the ZPolynomial method to get log2Norm
+        // Not thinking it is ZPolynomial here
+        std::cout << msg << "  rPoly error log2Norm: " << ZPolynomial(errors).getLog2Norm() << std::endl;
+    };
+
     // Check the slot encoding?
-    if (msg == "S2RC" || msg == "MSB") {
+    if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
-        // Directly interpret as ZPolynomial
-        ZPolynomial zPoly(values.getCoefficients());
-        printZPoly(zPoly);
+        if (msg == "S2RC" || msg == "MSB") {
+            // Directly interpret as ZPolynomial
+            ZPolynomial zPoly(values.getCoefficients());
+            printZPoly(zPoly);
+        }
+        if (msg == "Low4" || msg == "ModRaise") {
+            extractErrorRoly(values, 4);
+        }
     }
     auto cSlots = values.toCSlots();
     if (msg == "Upper" || msg == "Down" || msg == "Rotate") {
         for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(32) << std::endl;
+            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
         if (msg == "Upper") {
             zC2SVals.clear();
@@ -113,7 +132,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     ZPolynomial zValues = values.toZPolynomial();
     if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
-            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(32) << std::endl;
+            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(16) << std::endl;
         }
         printZPoly(zValues);
     }
@@ -203,31 +222,72 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         //}
     }
 #endif
-
-    //auto rounded   = roundInRe(zValues);
-    //auto decodeInR = decodeFromRE(rounded);
-    //std::cout << "Z: " << decodeInR << std::endl;
-
-    //if (msg != "Input" && msg != "ModRaise") {
-    //    for (size_t i = 0; i != 1; ++i) {
-    //        std::cout << msg << "  complexValues [" << i << "]: " << complexValues[i] << std::endl;
-    //    }
-    //}
     return 0;
 }
 
-//void MSBBootstrap(CryptoContextT cc, CiphertextT ct) {
-//    auto q      = ct->GetElements()[0].GetModulus();
-//    auto sf     = ct->GetScalingFactor();
-//    auto log2sf = std::log2(sf);
-//    std::cout << "q: " << q.GetMSB() << " log2sf: " << log2sf << std::endl;
-//    auto multBy = q >> (log2sf - 1);
-//    auto ct2    = ct->Clone();
-//    auto& cv    = ct2->GetElements();
-//    cv[0] *= BigInteger(64);
-//    cv[1] *= BigInteger(64);
-//    __heir_debug2(ct2, "MSB");
-//}
+void MSBBootstrap(CiphertextT ct) {
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
+
+    auto paramsQ   = cryptoParams->GetElementParams()->GetParams();
+    uint32_t sizeQ = paramsQ.size();
+    std::vector<NativeInteger> moduli(sizeQ);
+    std::vector<NativeInteger> roots(sizeQ);
+    for (uint32_t i = 0; i < sizeQ; ++i) {
+        moduli[i] = paramsQ[i]->GetModulus();
+        roots[i]  = paramsQ[i]->GetRootOfUnity();
+    }
+
+    auto cc = ct->GetCryptoContext();
+    auto M  = cc->GetCyclotomicOrder();
+    auto N  = cc->GetRingDimension();
+
+    auto elementParamsRaisedPtr = std::make_shared<ILDCRTParams<DCRTPoly::Integer>>(M, moduli, roots);
+
+    //------------------------------------------------------------------------------
+    // RAISING THE MODULUS
+    //------------------------------------------------------------------------------
+
+    auto raised = ct->Clone();
+    auto algo   = cc->GetScheme();
+
+    uint32_t L0 = cryptoParams->GetElementParams()->GetParams().size();
+
+    if (cryptoParams->GetSecretKeyDist() == SPARSE_ENCAPSULATED) {
+        auto evalKeyMap = cc->GetEvalAutomorphismKeyMap(raised->GetKeyTag());
+
+        // transform from a denser secret to a sparser one
+        raised = FHECKKSRNS::KeySwitchSparse(raised, evalKeyMap.at(2 * N - 4));
+
+        // Only level 0 ciphertext used here. Other towers ignored to make CKKS bootstrapping faster.
+        auto& ctxtDCRTs = raised->GetElements();
+
+        for (auto& dcrt : ctxtDCRTs) {
+            dcrt.SetFormat(COEFFICIENT);
+            DCRTPoly tmp(dcrt.GetElementAtIndex(0), elementParamsRaisedPtr);
+            tmp.SetFormat(EVALUATION);
+            dcrt = std::move(tmp);
+        }
+        raised->SetLevel(L0 - ctxtDCRTs[0].GetNumOfElements());
+
+        // go back to a denser secret
+        algo->KeySwitchInPlace(raised, evalKeyMap.at(2 * N - 2));
+    }
+    else {
+        // Only level 0 ciphertext used here. Other towers ignored to make CKKS bootstrapping faster.
+        auto& ctxtDCRTs = raised->GetElements();
+
+        for (auto& dcrt : ctxtDCRTs) {
+            dcrt.SetFormat(COEFFICIENT);
+            DCRTPoly tmp(dcrt.GetElementAtIndex(0), elementParamsRaisedPtr);
+            tmp.SetFormat(EVALUATION);
+            dcrt = std::move(tmp);
+        }
+        raised->SetLevel(L0 - ctxtDCRTs[0].GetNumOfElements());
+    }
+
+    raised->SetScalingFactorBFP(ct->GetScalingFactorBFP());
+    __heir_debug2(raised, "ModRaise");
+}
 
 void SimpleBootstrapExample();
 
@@ -248,7 +308,7 @@ void SimpleBootstrapExample() {
     * but in this example, we use UNIFORM_TERNARY because this is included in the homomorphic
     * encryption standard.
     */
-    SecretKeyDist secretKeyDist = lbcrypto::UNIFORM_TERNARY;
+    SecretKeyDist secretKeyDist = lbcrypto::SPARSE_ENCAPSULATED;
     parameters.SetSecretKeyDist(secretKeyDist);
 
     /*  A2) Desired security level based on FHE standards.
@@ -321,8 +381,10 @@ void SimpleBootstrapExample() {
         rotateIndices.push_back(i);
     }
     cc->EvalRotateKeyGen(keyPair.secretKey, rotateIndices);
+    // 2 * N - 1 for conjugdate
     cc->EvalAutomorphismKeyGen(keyPair.secretKey, {2 * ringDim - 1});
-    //cc->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
+    EvalSparseEncapsulatedKeyGen(keyPair.secretKey);
+    //cc->EvalBootstrapKeyGen(keyPair.secretKey, 16);
 
     std::cout << *(cc->GetCryptoParameters()) << std::endl;
 
@@ -464,6 +526,16 @@ void SimpleBootstrapExample() {
         ct2->SetScalingFactorBFP(sfNow2);
         __heir_debug2(ct2, "MSB");
         ctMSB = ct2;
+    }
+
+    if (1) {
+        // Get low 4 bit
+        auto low4Scalar = BigInteger(1) << 28;
+        auto ctLow4     = EvalMultScalar(ctMSB, low4Scalar);
+        // Just a different interpretation...
+        ctLow4->SetScalingFactorBFP(ctMSB->GetScalingFactorBFP());
+        __heir_debug2(ctLow4, "Low4");
+        MSBBootstrap(ctLow4);
     }
 
     // MSBBootstrap(cc, z2S2r);

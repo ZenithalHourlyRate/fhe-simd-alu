@@ -208,6 +208,38 @@ void ModReduceCustomInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1)
 }
 
 //=============================================================================
+// KeyGen Related
+//=============================================================================
+
+std::shared_ptr<std::map<uint32_t, EvalKey<DCRTPoly>>> EvalSparseEncapsulatedKeyGen(
+    const PrivateKey<DCRTPoly> privateKey) {
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(privateKey->GetCryptoParameters());
+
+    auto cc   = privateKey->GetCryptoContext();
+    auto algo = cc->GetScheme();
+    auto M    = cc->GetCyclotomicOrder();
+
+    // computing all indices for baby-step giant-step procedure
+    auto evalKeys = std::make_shared<std::map<uint32_t, EvalKey<DCRTPoly>>>();
+
+    if (cryptoParams->GetSecretKeyDist() == SPARSE_ENCAPSULATED) {
+        DCRTPoly::TugType tug;
+
+        // sparse key used for the modraising step
+        auto skNew = std::make_shared<PrivateKeyImpl<DCRTPoly>>(cc);
+        skNew->SetPrivateElement(DCRTPoly(tug, cryptoParams->GetElementParams(), Format::EVALUATION, 32));
+
+        // we reserve M-4 and M-2 for the sparse encapsulation switching keys
+        // Even autorphism indices are not possible, so there will not be any conflict
+        (*evalKeys)[M - 4] = lbcrypto::FHECKKSRNS::KeySwitchGenSparse(privateKey, skNew);
+        (*evalKeys)[M - 2] = algo->KeySwitchGen(skNew, privateKey);
+    }
+
+    cc->InsertEvalAutomorphismKey(evalKeys, privateKey->GetKeyTag());
+    return evalKeys;
+}
+
+//=============================================================================
 // Linear Transform Auxiliaries
 //=============================================================================
 
