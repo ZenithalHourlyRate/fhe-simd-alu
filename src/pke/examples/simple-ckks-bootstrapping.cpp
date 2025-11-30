@@ -35,6 +35,7 @@ Example for CKKS bootstrapping with full packing
 
 */
 
+#include "math/chebyshev.h"
 #include "openfhe.h"
 #include "z-utils.h"
 
@@ -287,16 +288,75 @@ void MSBBootstrap(CiphertextT ct) {
 
     raised->SetScalingFactorBFP(ct->GetScalingFactorBFP());
     __heir_debug2(raised, "ModRaise");
+
+    //------------------------------------------------------------------------------
+    // SPARSELY PACKED CASE
+    //------------------------------------------------------------------------------
+
+    //------------------------------------------------------------------------------
+    // Running PartialSum
+    //------------------------------------------------------------------------------
+
+    const uint32_t limit = N / 32;
+    for (uint32_t j = 1; j < limit; j <<= 1)
+        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * 32));
+    __heir_debug2(raised, "PSum");
+
+    //------------------------------------------------------------------------------
+    // Running CoeffsToSlots
+    //------------------------------------------------------------------------------
+
+    auto raisedRC2S = RCoeffsToSlots(cc, raised);
+    raisedRC2S[0]->SetScalingFactorBFP(ct->GetScalingFactorBFP() * ct->GetScalingFactorBFP());
+    raisedRC2S[1]->SetScalingFactorBFP(ct->GetScalingFactorBFP() * ct->GetScalingFactorBFP());
+    __heir_debug2(raisedRC2S[0], "MSBC2S");
+
+    //------------------------------------------------------------------------------
+    // Running Approximate Mod Reduction
+    //------------------------------------------------------------------------------
+
+    //auto& coeff_exp = coeff_exp_16_double_46;
 }
 
 void SimpleBootstrapExample();
+
+void testChebyShev() {
+    // Chebyshev series coefficients for the SPARSE ENCAPSULATED case (degree 32)
+    static const std::vector<double> g_coefficientsSparseEncapsulated{
+        0.24554573401685137,    -0.047919064883347899,   0.28388702040840819,      -0.029944538735513584,
+        0.35576522619036460,    0.015106561885073030,    0.29532946674499999,      0.071203602333739374,
+        -0.10347347339668074,   0.044997590512555294,    -0.42750712431925747,     -0.090342129729094875,
+        0.36762876269324946,    0.049318066039335348,    -0.14535986272411980,     -0.015106938483063579,
+        0.035951935499240355,   0.0031036582188686437,   -0.0062644606607068463,   -0.00046609430477154916,
+        0.00082128798852385086, 0.000053910533892372678, -0.000084551549768927401, -4.9773801787288514e-6,
+        7.0466620439083618e-6,  3.7659807574103204e-7,   -4.8648510153626034e-7,   -2.3830267651437146e-8,
+        2.8329709716159918e-8,  1.2817720050334158e-9,   -1.4122220430105397e-9,   -5.9306213139085216e-11,
+        6.3298928388417848e-11};
+    //auto f = [](double x) {
+    //    return std::exp(1i * M_PI / 2.0 * x);
+    //};
+    // In [-16, 16]
+    auto K = 16.0;
+    auto R = 3.0;
+    auto f = [&](double x) {
+        return (1.0 / std::pow(2 * M_PI, std::pow(2.0, -R))) * std::cos(2 * M_PI * (K * x - 0.25) / std::pow(2.0, R));
+    };
+    auto coeffs = EvalChebyshevCoefficients(f, -1.0, 1.0, 32);
+    std::cout << "Chebyshev Coefficients: " << std::endl;
+    for (size_t i = 0; i != coeffs.size(); ++i) {
+        std::cout << "  coeffs[" << i << "] = " << std::setprecision(20) << coeffs[i] << std::endl;
+        std::cout << "  g_coefficientsSparseEncapsulated[" << i << "] = " << std::setprecision(20)
+                  << g_coefficientsSparseEncapsulated[i] << std::endl;
+    }
+}
 
 int main(int argc, char* argv[]) {
     //test4_encodeInRE();
     //test_UInverse();
     //test_zu();
     //test4_encodeInRE();
-    SimpleBootstrapExample();
+    testChebyShev();
+    //SimpleBootstrapExample();
 }
 
 void SimpleBootstrapExample() {
