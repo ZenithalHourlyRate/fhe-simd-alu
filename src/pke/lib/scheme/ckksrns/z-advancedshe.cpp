@@ -1,5 +1,6 @@
 #include "cryptocontext.h"
 #include "scheme/ckksrns/ckksrns-utils.h"
+#include "scheme/ckksrns/z-leveledshe.h"
 #include "scheme/ckksrns/z-advancedshe.h"
 
 namespace lbcrypto {
@@ -21,12 +22,14 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalChebyPolysPS(ConstCiphertex
     }
     else {
         // linear transformation is needed
-        double alpha = 2 / (b - a);
-        double beta  = a * alpha;
+        BigFixedPoint bBFP  = BigFixedPoint::fromDouble(b);
+        BigFixedPoint aBFP  = BigFixedPoint::fromDouble(a);
+        BigFixedPoint alpha = BigFixedPoint::two() / (bBFP - aBFP);
+        BigFixedPoint beta  = aBFP * alpha;
 
-        T[0] = cc->EvalMult(x, alpha);
-        cc->ModReduceInPlace(T[0]);
-        cc->EvalAddInPlace(T[0], -1.0 - beta);
+        T[0] = cEvalMult(x, alpha);
+        gModReduceInPlace(T[0]);
+        T[0] = cEvalAdd(T[0], -BigFixedPoint::one() - beta);
     }
 
     // Computes Chebyshev polynomials up to degree k

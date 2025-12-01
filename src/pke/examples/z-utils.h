@@ -248,13 +248,13 @@ std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT c
                                                 const std::array<std::vector<Plaintext>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-    auto resultUpper = zEvalMult(ct, auxPtxts[0][0]);
-    auto resultDown  = zEvalMult(ct, auxPtxts[1][0]);
+    auto resultUpper = gEvalMult(ct, auxPtxts[0][0]);
+    auto resultDown  = gEvalMult(ct, auxPtxts[1][0]);
     auto startCt     = cc->EvalRotate(ct, 1);
     for (size_t i = 1; i != auxPtxts[0].size(); ++i) {
-        auto diagonalUpper = zEvalMult(startCt, auxPtxts[0][i]);
+        auto diagonalUpper = gEvalMult(startCt, auxPtxts[0][i]);
         cc->EvalAddInPlace(resultUpper, diagonalUpper);
-        auto diagonalDown = zEvalMult(startCt, auxPtxts[1][i]);
+        auto diagonalDown = gEvalMult(startCt, auxPtxts[1][i]);
         cc->EvalAddInPlace(resultDown, diagonalDown);
         if (i + 1 < auxPtxts[0].size()) {
             //rotate one more
@@ -271,14 +271,14 @@ Ciphertext<DCRTPoly> SlotsToCoeffs(CryptoContextT cc, CiphertextT ctLeft, Cipher
                                    const std::array<std::vector<Plaintext>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-    auto result = zEvalMult(ctLeft, auxPtxts[0][0]);
-    cc->EvalAddInPlace(result, zEvalMult(ctRight, auxPtxts[1][0]));
+    auto result = gEvalMult(ctLeft, auxPtxts[0][0]);
+    cc->EvalAddInPlace(result, gEvalMult(ctRight, auxPtxts[1][0]));
     auto startCtLeft  = cc->EvalRotate(ctLeft, 1);
     auto startCtRight = cc->EvalRotate(ctRight, 1);
     for (size_t i = 1; i != auxPtxts[0].size(); ++i) {
-        auto diagonalLeft = zEvalMult(startCtLeft, auxPtxts[0][i]);
+        auto diagonalLeft = gEvalMult(startCtLeft, auxPtxts[0][i]);
         cc->EvalAddInPlace(result, diagonalLeft);
-        auto diagonalRight = zEvalMult(startCtRight, auxPtxts[1][i]);
+        auto diagonalRight = gEvalMult(startCtRight, auxPtxts[1][i]);
         cc->EvalAddInPlace(result, diagonalRight);
         // rotate one more
         if (i + 1 < auxPtxts[0].size()) {

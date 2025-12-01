@@ -473,7 +473,7 @@ void SimpleBootstrapExample() {
 
     /// TEST ADD
     if (1) {
-        auto ctAdd = zEvalAdd(encoded, ptxt2);
+        auto ctAdd = gEvalAdd(encoded, ptxt2);
 
         __heir_debug2(ctAdd, "Add");
     }
@@ -483,24 +483,18 @@ void SimpleBootstrapExample() {
     Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
     if (1) {
-        auto ctMul = zEvalMult(encoded, tPtxt);
+        auto ctMul = gEvalMult(encoded, tPtxt);
         __heir_debug2(ctMul, "Mult");
-        zModReduceInPlace(ctMul);
-        //ctMul->SetScalingFactorBFP(sf);
+        gModReduceInPlace(ctMul);
         __heir_debug2(ctMul, "Mult");
     }
 
     /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct;
     if (1) {
-        auto ctMulRaw = zEvalMult(encoded, encoded2);
-        zModReduceInPlace(ctMulRaw);
-
-        auto sfNow     = ctMulRaw->GetScalingFactorBFP();
-        auto ctMulRawT = zEvalMult(ctMulRaw, tPtxt);
-        zModReduceInPlace(ctMulRawT);
-        __heir_debug2(ctMulRawT, "CMult");
-        ct = ctMulRawT;
+        auto ctMul = zEvalMultFull(encoded, encoded2, tPtxt);
+        __heir_debug2(ctMul, "CMult");
+        ct = ctMul;
     }
 
     /// TEST Rotate
@@ -514,8 +508,8 @@ void SimpleBootstrapExample() {
     std::vector<Ciphertext<DCRTPoly>> zC2S;
     if (0) {
         zC2S = ZCoeffsToSlots(cc, ct);
-        zModReduceInPlace(zC2S[0]);
-        zModReduceInPlace(zC2S[1]);
+        gModReduceInPlace(zC2S[0]);
+        gModReduceInPlace(zC2S[1]);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
@@ -539,7 +533,7 @@ void SimpleBootstrapExample() {
     if (0) {
         auto sfNow = zC2S[0]->GetScalingFactorBFP();
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
-        zModReduceInPlace(z2S2r);
+        gModReduceInPlace(z2S2r);
         s2rc = z2S2r;
         __heir_debug2(z2S2r, "S2RC");
 
@@ -566,9 +560,9 @@ void SimpleBootstrapExample() {
         // q / (2 * Delta)
         auto div       = (qBFP / sfNow / two).round();
         auto divScalar = div.getValue() >> div.getLog2Scale();
-        auto ct2       = zEvalMultScalar(s2rc, divScalar);
+        auto ct2       = gEvalMultScalar(s2rc, divScalar);
         // Reduce all the way to the bottom
-        zModReduceInPlace(ct2, ct2->GetElements().size() - 1);
+        gModReduceInPlace(ct2, ct2->GetElements().size() - 1);
         auto q0     = ct2->GetElements()[0].GetModulus();
         auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
         auto sfNow2 = q0BFP / two;
@@ -580,7 +574,7 @@ void SimpleBootstrapExample() {
     if (0) {
         // Get low 4 bit
         auto low4Scalar = BigInteger(1) << 28;
-        auto ctLow4     = zEvalMultScalar(ctMSB, low4Scalar);
+        auto ctLow4     = gEvalMultScalar(ctMSB, low4Scalar);
         // Just a different interpretation...
         ctLow4->SetScalingFactorBFP(ctMSB->GetScalingFactorBFP());
         __heir_debug2(ctLow4, "Low4");
