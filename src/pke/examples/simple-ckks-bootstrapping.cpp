@@ -59,7 +59,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto q     = ct->GetElements()[0].GetParams()->GetModulus();
     auto log2q = std::log2(q.ConvertToDouble());
     std::cout << msg << "  q: " << log2q << std::endl;
-    auto l = ct->GetElements().size();
+    auto l = ct->GetElements()[0].GetParams()->GetParams().size();
     std::cout << msg << "  l: " << l - 1 << std::endl;
 
     // valueSize = zN
@@ -351,12 +351,8 @@ void testChebyShev() {
 }
 
 int main(int argc, char* argv[]) {
-    //test4_encodeInRE();
-    //test_UInverse();
-    //test_zu();
-    //test4_encodeInRE();
-    testChebyShev();
-    //SimpleBootstrapExample();
+    //testChebyShev();
+    SimpleBootstrapExample();
 }
 
 void SimpleBootstrapExample() {
@@ -476,8 +472,8 @@ void SimpleBootstrapExample() {
     __heir_debug2(encoded, "Encode");
 
     /// TEST ADD
-    if (0) {
-        auto ctAdd = EvalAdd(encoded, ptxt2);
+    if (1) {
+        auto ctAdd = zEvalAdd(encoded, ptxt2);
 
         __heir_debug2(ctAdd, "Add");
     }
@@ -486,11 +482,10 @@ void SimpleBootstrapExample() {
     RPolynomial t   = ZPolynomial::getT().toRPolynomial();
     Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
-    if (0) {
-        auto ctMul = EvalMult(encoded, tPtxt);
-        ctMul->SetScalingFactorBFP(sf * sf);
+    if (1) {
+        auto ctMul = zEvalMult(encoded, tPtxt);
         __heir_debug2(ctMul, "Mult");
-        ModReduceCustomInPlace(ctMul);
+        zModReduceInPlace(ctMul);
         //ctMul->SetScalingFactorBFP(sf);
         __heir_debug2(ctMul, "Mult");
     }
@@ -498,14 +493,12 @@ void SimpleBootstrapExample() {
     /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct;
     if (1) {
-        auto ctMulRaw = cc->EvalMult(encoded, encoded2);
-        ctMulRaw->SetScalingFactorBFP(sf * sf);
-        ModReduceCustomInPlace(ctMulRaw);
+        auto ctMulRaw = zEvalMult(encoded, encoded2);
+        zModReduceInPlace(ctMulRaw);
 
         auto sfNow     = ctMulRaw->GetScalingFactorBFP();
-        auto ctMulRawT = EvalMult(ctMulRaw, tPtxt);
-        ctMulRawT->SetScalingFactorBFP(sfNow * sf);
-        ModReduceCustomInPlace(ctMulRawT);
+        auto ctMulRawT = zEvalMult(ctMulRaw, tPtxt);
+        zModReduceInPlace(ctMulRawT);
         __heir_debug2(ctMulRawT, "CMult");
         ct = ctMulRawT;
     }
@@ -519,13 +512,10 @@ void SimpleBootstrapExample() {
 
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
     std::vector<Ciphertext<DCRTPoly>> zC2S;
-    if (1) {
-        auto oldSf = ct->GetScalingFactorBFP();
-        zC2S       = ZCoeffsToSlots(cc, ct);
-        zC2S[0]->SetScalingFactorBFP(oldSf * oldSf);
-        zC2S[1]->SetScalingFactorBFP(oldSf * oldSf);
-        ModReduceCustomInPlace(zC2S[0]);
-        ModReduceCustomInPlace(zC2S[1]);
+    if (0) {
+        zC2S = ZCoeffsToSlots(cc, ct);
+        zModReduceInPlace(zC2S[0]);
+        zModReduceInPlace(zC2S[1]);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
@@ -546,11 +536,10 @@ void SimpleBootstrapExample() {
 
     // TEST SlotsToRCoeffs
     Ciphertext<DCRTPoly> s2rc;
-    if (1) {
+    if (0) {
         auto sfNow = zC2S[0]->GetScalingFactorBFP();
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
-        z2S2r->SetScalingFactorBFP(sfNow * sfNow);
-        ModReduceCustomInPlace(z2S2r);
+        zModReduceInPlace(z2S2r);
         s2rc = z2S2r;
         __heir_debug2(z2S2r, "S2RC");
 
@@ -569,7 +558,7 @@ void SimpleBootstrapExample() {
 
     // TEST Scale to MSB
     Ciphertext<DCRTPoly> ctMSB;
-    if (1) {
+    if (0) {
         auto q     = s2rc->GetElements()[0].GetModulus();
         auto sfNow = s2rc->GetScalingFactorBFP();
         auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
@@ -577,9 +566,9 @@ void SimpleBootstrapExample() {
         // q / (2 * Delta)
         auto div       = (qBFP / sfNow / two).round();
         auto divScalar = div.getValue() >> div.getLog2Scale();
-        auto ct2       = EvalMultScalar(s2rc, divScalar);
+        auto ct2       = zEvalMultScalar(s2rc, divScalar);
         // Reduce all the way to the bottom
-        ModReduceCustomInPlace(ct2, ct2->GetElements().size() - 1);
+        zModReduceInPlace(ct2, ct2->GetElements().size() - 1);
         auto q0     = ct2->GetElements()[0].GetModulus();
         auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
         auto sfNow2 = q0BFP / two;
@@ -588,10 +577,10 @@ void SimpleBootstrapExample() {
         ctMSB = ct2;
     }
 
-    if (1) {
+    if (0) {
         // Get low 4 bit
         auto low4Scalar = BigInteger(1) << 28;
-        auto ctLow4     = EvalMultScalar(ctMSB, low4Scalar);
+        auto ctLow4     = zEvalMultScalar(ctMSB, low4Scalar);
         // Just a different interpretation...
         ctLow4->SetScalingFactorBFP(ctMSB->GetScalingFactorBFP());
         __heir_debug2(ctLow4, "Low4");

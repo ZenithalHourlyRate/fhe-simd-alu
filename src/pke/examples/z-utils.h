@@ -1,6 +1,8 @@
 #include <cassert>
 #include "openfhe.h"
 #include "encoding/z-encode.h"
+#include "scheme/ckksrns/z-leveledshe.h"
+#include "scheme/ckksrns/z-advancedshe.h"
 
 using namespace lbcrypto;
 using CiphertextT        = ConstCiphertext<DCRTPoly>;
@@ -139,75 +141,6 @@ Ciphertext<DCRTPoly> Conjugate(ConstCiphertext<DCRTPoly> ciphertext,
 }
 
 //=============================================================================
-// Custom Evals
-//=============================================================================
-
-Ciphertext<DCRTPoly> EvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
-    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalAdd");
-    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
-    ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
-    auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
-
-    auto ctNew = ct->Clone();
-    auto& b    = ctNew->GetElements()[0];
-    b += zEncDCRTPoly;
-    return ctNew;
-}
-
-Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
-    ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
-    auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
-    assert(ct->GetElements().size() == zEncDCRTPoly.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalMult");
-    assert(zEncDCRTPoly.GetFormat() == Format::EVALUATION &&
-           "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
-
-    auto ctNew = ct->Clone();
-    for (auto& a : ctNew->GetElements()) {
-        a *= zEncDCRTPoly;
-    }
-    return ctNew;
-}
-
-Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar) {
-    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalMultDCRTPoly");
-    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
-    auto ctNew = ct->Clone();
-    for (auto& a : ctNew->GetElements()) {
-        a *= scalar;
-    }
-    return ctNew;
-}
-
-void ModReduceCustomInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1) {
-    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
-
-    auto& cv = ciphertext->GetElements();
-
-    size_t sizeQ  = cryptoParams->GetElementParams()->GetParams().size();
-    size_t sizeQl = cv[0].GetNumOfElements();
-    size_t diffQl = sizeQ - sizeQl;
-
-    ciphertext->SetLevel(ciphertext->GetLevel() + levels);
-
-    for (size_t i = 0; i < levels; ++i) {
-        for (auto& dcrtpoly : cv)
-            dcrtpoly.DropLastElementAndScale(cryptoParams->GetQlQlInvModqlDivqlModq(diffQl + i),
-                                             cryptoParams->GetqlInvModq(diffQl + i));
-        // We manually track scaling factor
-        auto ql      = cryptoParams->GetElementParams()->GetParams()[sizeQl - 1 - i]->GetModulus();
-        auto qlBigFP = BigFixedPoint(ql, 0, false).scaleTo(128);
-        ciphertext->SetScalingFactorBFP(ciphertext->GetScalingFactorBFP() / qlBigFP);
-
-        // Old code from OpenFHE
-        // double modReduceFactor = cryptoParams->GetModReduceFactor(sizeQl - 1 - i);
-        // ciphertext->SetScalingFactor(ciphertext->GetScalingFactor() / modReduceFactor);
-    }
-}
-
-//=============================================================================
 // KeyGen Related
 //=============================================================================
 
@@ -315,13 +248,13 @@ std::vector<Ciphertext<DCRTPoly>> CoeffsToSlots(CryptoContextT cc, CiphertextT c
                                                 const std::array<std::vector<Plaintext>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-    auto resultUpper = EvalMult(ct, auxPtxts[0][0]);
-    auto resultDown  = EvalMult(ct, auxPtxts[1][0]);
+    auto resultUpper = zEvalMult(ct, auxPtxts[0][0]);
+    auto resultDown  = zEvalMult(ct, auxPtxts[1][0]);
     auto startCt     = cc->EvalRotate(ct, 1);
     for (size_t i = 1; i != auxPtxts[0].size(); ++i) {
-        auto diagonalUpper = EvalMult(startCt, auxPtxts[0][i]);
+        auto diagonalUpper = zEvalMult(startCt, auxPtxts[0][i]);
         cc->EvalAddInPlace(resultUpper, diagonalUpper);
-        auto diagonalDown = EvalMult(startCt, auxPtxts[1][i]);
+        auto diagonalDown = zEvalMult(startCt, auxPtxts[1][i]);
         cc->EvalAddInPlace(resultDown, diagonalDown);
         if (i + 1 < auxPtxts[0].size()) {
             //rotate one more
@@ -338,14 +271,14 @@ Ciphertext<DCRTPoly> SlotsToCoeffs(CryptoContextT cc, CiphertextT ctLeft, Cipher
                                    const std::array<std::vector<Plaintext>, 2>& auxPtxts) {
     // Halevi-Shoup
     // Peel the first loop
-    auto result = EvalMult(ctLeft, auxPtxts[0][0]);
-    cc->EvalAddInPlace(result, EvalMult(ctRight, auxPtxts[1][0]));
+    auto result = zEvalMult(ctLeft, auxPtxts[0][0]);
+    cc->EvalAddInPlace(result, zEvalMult(ctRight, auxPtxts[1][0]));
     auto startCtLeft  = cc->EvalRotate(ctLeft, 1);
     auto startCtRight = cc->EvalRotate(ctRight, 1);
     for (size_t i = 1; i != auxPtxts[0].size(); ++i) {
-        auto diagonalLeft = EvalMult(startCtLeft, auxPtxts[0][i]);
+        auto diagonalLeft = zEvalMult(startCtLeft, auxPtxts[0][i]);
         cc->EvalAddInPlace(result, diagonalLeft);
-        auto diagonalRight = EvalMult(startCtRight, auxPtxts[1][i]);
+        auto diagonalRight = zEvalMult(startCtRight, auxPtxts[1][i]);
         cc->EvalAddInPlace(result, diagonalRight);
         // rotate one more
         if (i + 1 < auxPtxts[0].size()) {
@@ -392,58 +325,3 @@ Ciphertext<DCRTPoly> SlotsToRCoeffs(CryptoContextT cc, CiphertextT ctLeft, Ciphe
     }
     return SlotsToCoeffs(cc, ctLeft, ctRight, getSlotsToRCoeffsAuxDCRTPoly(elementParams, sf));
 }
-
-//=============================================================================
-// Pre-defined Chebyshev Series Coefficients
-//=============================================================================
-
-// Coefficients for the function std::exp(1i * Pi/2.0 * x) in [-16, 16] of degree 46
-// Need two double-angle iterations to get std::exp(1i * 2Pi * x)
-static const inline std::vector<std::complex<double>> coeff_exp_16_double_46{
-    0.22393566906777329084,
-    4.72e-18 - 0.22176384914036376128i,
-    0.24158307546266130639 - 7.09e-18i,
-    -0.18331470851313935722i,
-    0.28534623846463541552 + 5.91e-18i,
-    -2.362e-18 - 0.092486179824488604084i,
-    0.32214532018151836867 - 4.72e-18i,
-    0.061326880477941263237i,
-    0.28798365357787297780 - 4.72e-18i,
-    1.417e-17 + 0.24466296846427090794i,
-    0.112756709876059055264 - 7.087e-18i,
-    0.33439190718203853914i,
-    -0.17995397739265364678 + 2.36e-18i,
-    9.45e-18 + 0.16254851699551037258i,
-    -0.34811157721125479680 - 2.36e-18i,
-    2.95e-18 - 0.22527723082929962395i,
-    -0.079206690817228031509 - 3.543e-18i,
-    9.45e-18 - 0.32612632178540534866i,
-    0.36198254675123692214 - 4.13e-18i,
-    -4.72e-18 + 0.19237548287066727482i,
-    0.071116210979946081761 - 9.449e-18i,
-    -7.09e-18 + 0.30556044798491310832i,
-    -0.43951407397686892420 + 2.36e-18i,
-    4.72e-18 - 0.46389876376571992367i,
-    0.40955141151976887093 - 3.54e-18i,
-    0.31828681535788988510i,
-    -0.22366008829505132360 - 4.72e-18i,
-    4.72e-18 - 0.14446909676096356123i,
-    0.086745018497585937856 - 7.087e-18i,
-    2.362e-18 + 0.048813481993878263254i,
-    -0.025904132260782003483 - 2.362e-18i,
-    2.3622e-18 - 0.0130280784432669702322i,
-    0.0062348555293589751417 - 7.0865e-18i,
-    -1.41731e-17 + 0.0028488507881147717878i,
-    -0.00124638777412581667689 + 6.49599e-18i,
-    -1.77163e-18 - 0.00052341839132928819674i,
-    0.00021144315086689963591 - 2.36218e-18i,
-    -4.724353e-18 + 0.000082321616249500458072i,
-    -0.000030941853907365078754,
-    -9.4487066e-18 - 0.0000112448146643207249387i,
-    3.9566691190946415917e-6 + 4.7243533e-18i,
-    -4.72435330e-18 + 1.34965353351963424859e-6i,
-    -4.4681665430474632002e-7 - 7.08652994e-18i,
-    3.54326497e-18 - 1.4370869470312489006e-7i,
-    4.4978580236218894379e-8 + 2.362176648e-18i,
-    -4.7243532963e-18 + 1.35960019696524527036e-8i,
-    -4.3910916203385461663e-9 - 4.7243532963e-18i};
