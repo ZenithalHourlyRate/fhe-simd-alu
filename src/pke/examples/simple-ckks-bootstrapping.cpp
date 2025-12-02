@@ -124,7 +124,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
     }
     auto cSlots = values.toCSlots();
-    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S") {
+    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S" || msg == "LUT") {
         for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
             std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
@@ -142,6 +142,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
                 zCoeffs[i] = zC2SVals[i].getReal();
             }
             printZPoly(zCoeffs);
+        }
+        if (msg == "LUT") {
+            RPolynomial rPoly;
+            for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
+                rPoly[i] = cSlots[i].getReal();
+            }
+            extractErrorRoly(rPoly, 4);
         }
     }
     if (msg == "MSBC2S" || msg == "Cheby1" || msg == "Cheby2" || msg == "Cheby3" || msg == "Cheby4" ||
@@ -245,6 +252,55 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
 #endif
     return 0;
+}
+
+std::vector<BigComplex> another_interpolate(int order = 1) {
+    size_t p = 16;
+
+    auto f = [&](auto x) {
+        return double(x) / p;
+    };
+
+    auto omega = std::exp(2i * M_PI / double(p));
+
+    std::vector<std::complex<double>> beta;
+
+    for (size_t m = 0; m != p; ++m) {
+        std::complex<double> ret = 0;
+        for (size_t ell = 0; ell != p; ++ell) {
+            ret += double(f(ell)) * std::pow(omega, -double(ell) * m);
+        }
+        ret /= double(p);
+        beta.push_back(ret);
+    }
+    std::vector<std::complex<double>> alpha;
+
+    if (order == 1) {
+        for (size_t m = 0; m != p; ++m) {
+            alpha.push_back((1.0 + double(m) / p) * beta[m]);
+        }
+        for (size_t m = p; m != 2 * p; ++m) {
+            alpha.push_back((1.0 - double(m) / p) * beta[m - p]);
+        }
+    }
+    if (order == 2) {
+        for (size_t m = 0; m != p; ++m) {
+            alpha.push_back((1.0 + double(m) * (double(m) + 3 * p) / (2.0 * p * p)) * beta[m]);
+        }
+        for (size_t m = p; m != 2 * p; ++m) {
+            alpha.push_back((-double(m - p) * (double(m - p) + 2 * p) / (double(p) * p)) * beta[m - p]);
+        }
+        for (size_t m = 2 * p; m != 3 * p; ++m) {
+            alpha.push_back((double(m - p - p) * (double(m - p - p) + p) / (2.0 * double(p) * p)) * beta[m - p - p]);
+        }
+    }
+
+    std::vector<BigComplex> alphaBigComplex(alpha.size());
+    for (size_t i = 0; i != alpha.size(); ++i) {
+        alphaBigComplex[i] =
+            BigComplex(BigFixedPoint::fromDouble(alpha[i].real()), BigFixedPoint::fromDouble(alpha[i].imag()));
+    }
+    return alphaBigComplex;
 }
 
 void MSBBootstrap(CiphertextT ct) {
@@ -358,14 +414,33 @@ void MSBBootstrap(CiphertextT ct) {
 
     auto& coeff_exp = coeff_exp_16_big_complex_58;
     auto res        = EvalChebyshevSeriesPS(raisedRC2S[0], coeff_exp);
-    __heir_debug2(res, "Cheby1");
+    auto resI       = EvalChebyshevSeriesPS(raisedRC2S[1], coeff_exp);
 
     // Double angle-iterations to get exp(2*Pi*i*x)
     res = gEvalMult(res, res);
     gModReduceInPlace(res);
     res = gEvalMult(res, res);
     gModReduceInPlace(res);
-    __heir_debug2(res, "Cheby2");
+
+    resI = gEvalMult(resI, resI);
+    gModReduceInPlace(resI);
+    resI = gEvalMult(resI, resI);
+    gModReduceInPlace(resI);
+
+    __heir_debug2(res, "Cheby1");
+
+    //------------------------------------------------------------------------------
+    // Running LUT
+    //------------------------------------------------------------------------------
+
+    auto lutCoeffs = another_interpolate(2);
+    auto powers    = EvalPowers(res, lutCoeffs);
+    auto lut       = EvalPolyWithPrecomp(powers, lutCoeffs);
+    __heir_debug2(lut, "LUT");
+
+    auto powersI = EvalPowers(resI, lutCoeffs);
+    auto lutI    = EvalPolyWithPrecomp(powersI, lutCoeffs);
+    __heir_debug2(lutI, "LUT");
 }
 
 void SimpleBootstrapExample();
@@ -485,7 +560,7 @@ void SimpleBootstrapExample() {
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(-2).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(-3).toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE

@@ -136,6 +136,12 @@ static const inline std::vector<BigComplex> coeff_exp_16_big_complex_58 = {
 
 Ciphertext<DCRTPoly> EvalChebyshevSeriesPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coeffs);
 
+std::shared_ptr<seriesPowers<DCRTPoly>> EvalPowers(ConstCiphertext<DCRTPoly>& ciphertext,
+                                                   const std::vector<BigComplex>& coefficients);
+
+Ciphertext<DCRTPoly> EvalPolyWithPrecomp(std::shared_ptr<seriesPowers<DCRTPoly>> ctxtPowers,
+                                         const std::vector<BigComplex>& coeffs);
+
 }  // namespace lbcrypto
 
 #endif  //SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_ADVANCEDSHE_H_

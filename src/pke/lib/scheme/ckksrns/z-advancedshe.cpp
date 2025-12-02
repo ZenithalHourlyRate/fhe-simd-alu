@@ -16,6 +16,10 @@ uint32_t Degree(const std::vector<BigComplex>& coefficients) {
     return i;
 }
 
+//===================================================================================
+// Chebyshev related
+//===================================================================================
+
 /* f and g are vectors of Chebyshev interpolation coefficients of the two polynomials.
 We assume their dominant coefficient is not zero. LongDivisionChebyshev returns the
 vector of Chebyshev interpolation coefficients for the quotient and remainder of the
@@ -360,11 +364,237 @@ Ciphertext<DCRTPoly> internalEvalChebyshevSeriesPSWithPrecomp(const std::shared_
     f2.resize(2 * k2m2k + k + 1);
     f2.back() = BigFixedPoint::one();
 
-    return T[0]->GetCryptoContext()->EvalSub(InnerEvalChebyshevPS(T[0], f2, k, m, T, T2), T2km1);
+    return gEvalSubWithAdjust(InnerEvalChebyshevPS(T[0], f2, k, m, T, T2), T2km1);
 }
 
 Ciphertext<DCRTPoly> EvalChebyshevSeriesPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coeffs) {
     return internalEvalChebyshevSeriesPSWithPrecomp(zInternalEvalChebyPolysPS(x, Degree(coeffs)), coeffs);
+}
+
+//===================================================================================
+// PolyPS related
+//===================================================================================
+
+std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalPowersPS(ConstCiphertext<DCRTPoly>& x, uint32_t degree) {
+    auto degs  = ComputeDegreesPS(degree);
+    uint32_t k = degs[0];
+    uint32_t m = degs[1];
+
+    std::vector<Ciphertext<DCRTPoly>> powers(k);
+    powers[0] = x->Clone();
+
+    // computes all powers up to k for x
+    uint32_t powerOf2 = 2;
+    uint32_t rem      = 0;
+    for (uint32_t i = 2; i <= k; ++i) {
+        if (rem == 0) {
+            powers[i - 1] = gEvalMult(powers[(powerOf2 >> 1) - 1], powers[(powerOf2 >> 1) - 1]);
+        }
+        else {
+            powers[i - 1] = gEvalMultWithAdjust(powers[powerOf2 - 1], powers[rem - 1]);
+        }
+
+        if (++rem == powerOf2) {
+            powerOf2 <<= 1;
+            rem = 0;
+        }
+        gModReduceInPlace(powers[i - 1]);
+    }
+
+    // Adjust them to have same depth and scaling factor
+    for (uint32_t i = 1; i < k; ++i) {
+        if (powers[i - 1]->GetLevel() != powers[k - 1]->GetLevel()) {
+            powers[i - 1] = gAdjustCiphertext(powers[i - 1], powers[k - 1]);
+        }
+        else {
+            assert(powers[i - 1]->GetScalingFactorBFP().almostEqual(powers[k - 1]->GetScalingFactorBFP()) &&
+                   "Scaling factors are not equal!");
+        }
+    }
+
+    // computes powers of form k*2^i for x and the product of the powers in power2, that yield x^{k(2*m - 1)}
+    std::vector<Ciphertext<DCRTPoly>> powers2(m);
+    powers2[0] = powers.back();
+
+    auto power2km1 = powers.back();
+
+    for (uint32_t i = 1; i < m; ++i) {
+        powers2[i] = gEvalMult(powers2[i - 1], powers2[i - 1]);
+        gModReduceInPlace(powers2[i]);
+        power2km1 = gEvalMultWithAdjust(powers2[i], power2km1);
+        gModReduceInPlace(power2km1);
+    }
+
+    return std::make_shared<seriesPowers<DCRTPoly>>(std::move(powers), std::move(powers2), std::move(power2km1), k, m);
+}
+
+std::shared_ptr<longDiv<BigComplex>> LongDivisionPoly(const std::vector<BigComplex>& f,
+                                                      const std::vector<BigComplex>& g) {
+    auto n = Degree(f);
+    if (n != f.size() - 1)
+        OPENFHE_THROW("The dominant coefficient of the divident is zero");
+    auto k = Degree(g);
+    if (k != g.size() - 1)
+        OPENFHE_THROW("The dominant coefficient of the divisor is zero");
+    if (n < k)
+        return std::make_shared<longDiv<BigComplex>>(std::vector<BigComplex>(1), f);
+
+    auto res = std::make_shared<longDiv<BigComplex>>();
+
+    auto& q = res->q;
+    q.resize(n - k + 1);
+
+    auto& r = res->r;
+    r       = f;
+
+    std::vector<BigComplex> d;
+    d.reserve(g.size() + n);
+
+    while (n >= k) {
+        // d is g padded with zeros before up to n
+        d.clear();
+        d.resize(n - k);
+        d.insert(d.end(), g.begin(), g.end());
+
+        q[n - k] = r.back();
+        if (IsNotEqualOne(g[k].convertToComplex()))
+            q[n - k] /= g.back();
+
+        // d *= q[n - k]
+        std::transform(d.begin(), d.end(), d.begin(),
+                       std::bind(std::multiplies<BigComplex>(), std::placeholders::_1, q[n - k]));
+        // f-=d
+        std::transform(r.begin(), r.end(), d.begin(), r.begin(), std::minus<BigComplex>());
+        if (r.size() > 1) {
+            n = Degree(r);
+            r.resize(n + 1);
+        }
+    }
+    return res;
+}
+
+Ciphertext<DCRTPoly> zInnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coefficients,
+                                      uint32_t k, uint32_t m, const std::vector<Ciphertext<DCRTPoly>>& powers,
+                                      const std::vector<Ciphertext<DCRTPoly>>& powers2) {
+    // Compute k*2^m because we use it often
+    uint32_t k2m2k = k * (1 << (m - 1)) - k;
+
+    // Divide coefficients by x^{k*2^{m-1}}
+    std::vector<BigComplex> xkm(k2m2k + k + 1);
+    xkm.back() = BigFixedPoint::one();
+    auto divqr = LongDivisionPoly(coefficients, xkm);
+
+    // Subtract x^{k(2^{m-1} - 1)} from r
+    auto& r2 = divqr->r;
+    if (auto n = Degree(r2); static_cast<int32_t>(k2m2k - n) <= 0) {
+        r2.resize(n + 1);
+        r2[k2m2k] -= BigFixedPoint::one();
+    }
+    else {
+        r2.resize(k2m2k + 1);
+        r2.back() = -BigFixedPoint::one();
+    }
+
+    auto divcs = LongDivisionPoly(r2, divqr->q);
+    auto cc    = x->GetCryptoContext();
+
+    Ciphertext<DCRTPoly> cu, qu, su;
+
+#pragma omp task shared(qu)
+    {
+        // Evaluate q and s2 at u.
+        // If their degrees are larger than k, then recursively apply the Paterson-Stockmeyer algorithm.
+
+        if (Degree(divqr->q) > k) {
+            qu = zInnerEvalPolyPS(x, divqr->q, k, m - 1, powers, powers2);
+        }
+        else {
+            qu = cEvalAdd(powers[k - 1], divqr->q.front());
+            divqr->q.resize(k);
+            if (uint32_t n = Degree(divqr->q); n > 0)
+                gEvalAddWithAdjustInPlace(qu, EvalPartialLinearWSum(powers, divqr->q, n));
+        }
+    }
+
+#pragma omp task shared(su)
+    {
+        // Add x^{k(2^{m-1} - 1)} to s
+        auto& s2 = divcs->r;
+        s2.resize(k2m2k + 1);
+        s2.back() = BigFixedPoint::one();
+
+        if (Degree(s2) > k) {
+            su = zInnerEvalPolyPS(x, s2, k, m - 1, powers, powers2);
+        }
+        else {
+            su = cEvalAdd(powers[k - 1], s2.front());
+            s2.resize(k);
+            if (uint32_t n = Degree(s2); n > 0)
+                gEvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(powers, s2, n));
+        }
+    }
+
+    if (uint32_t n = Degree(divcs->q); n == 0) {
+        cu = cEvalAdd(powers2[m - 1], divcs->q.front());
+    }
+    else if (n == 1) {
+        if (IsNotEqualOne(divcs->q[1].convertToComplex())) {
+            cu = cEvalMult(powers.front(), divcs->q[1]);
+            gModReduceInPlace(cu);
+            cu = gEvalAddWithAdjust(cu, powers2[m - 1]);
+        }
+        else {
+            cu = gEvalAddWithAdjust(powers2[m - 1], powers.front());
+        }
+        cEvalAddInPlace(cu, divcs->q.front());
+    }
+    else {
+        cu = gEvalAddWithAdjust(powers2[m - 1], EvalPartialLinearWSum(powers, divcs->q, n));
+        cEvalAddInPlace(cu, divcs->q.front());
+    }
+
+#pragma omp taskwait
+
+    auto result = gEvalMultWithAdjust(cu, qu);
+    gModReduceInPlace(result);
+    gEvalAddWithAdjustInPlace(result, su);
+    return result;
+}
+
+Ciphertext<DCRTPoly> internalEvalPolyPSWithPrecomp(const std::shared_ptr<seriesPowers<DCRTPoly>>& ctxtPowers,
+                                                   const std::vector<BigComplex>& coefficients) {
+    auto& powers    = ctxtPowers->powersRe;
+    auto& powers2   = ctxtPowers->powers2Re;
+    auto& power2km1 = ctxtPowers->power2km1Re;
+    auto k          = ctxtPowers->k;
+    auto m          = ctxtPowers->m;
+
+    // Compute k*2^{m-1}-k because we use it a lot
+    uint32_t k2m2k = k * (1 << (m - 1)) - k;
+
+    // Add T^{k(2^m - 1)}(y) to the polynomial that has to be evaluated
+    auto f2 = coefficients;
+    f2.resize(Degree(f2) + 1);
+    f2.resize(2 * k2m2k + k + 1);
+    f2.back() = BigFixedPoint::one();
+
+    Ciphertext<DCRTPoly> result;
+#pragma omp parallel num_threads(OpenFHEParallelControls.GetThreadLimit(6 * m + 2))
+    {
+#pragma omp single
+        result = gEvalSubWithAdjust(zInnerEvalPolyPS(powers[0], f2, k, m, powers, powers2), power2km1);
+    }
+    return result;
+}
+
+std::shared_ptr<seriesPowers<DCRTPoly>> EvalPowers(ConstCiphertext<DCRTPoly>& ciphertext,
+                                                   const std::vector<BigComplex>& coefficients) {
+    return zInternalEvalPowersPS(ciphertext, Degree(coefficients));
+}
+
+Ciphertext<DCRTPoly> EvalPolyWithPrecomp(std::shared_ptr<seriesPowers<DCRTPoly>> ctxtPowers,
+                                         const std::vector<BigComplex>& coeffs) {
+    return internalEvalPolyPSWithPrecomp(ctxtPowers, coeffs);
 }
 
 }  // namespace lbcrypto
