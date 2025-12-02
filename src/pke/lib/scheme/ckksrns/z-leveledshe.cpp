@@ -41,6 +41,31 @@ void gEvalAddInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
         cv1[i] += cv2[i];
 }
 
+Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
+    auto ctNew = ct->Clone();
+    gEvalAddInPlace(ctNew, ct2);
+    return ctNew;
+}
+
+void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
+    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
+           "Ciphertext and Plaintext size mismatch in EvalAdd");
+    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    ZEncoding zEnc = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
+    assert(zEnc->GetScalingFactorBFP() == ct->GetScalingFactorBFP() &&
+           "Ciphertext and Plaintext scaling factor mismatch in EvalAdd");
+    auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
+
+    auto& b = ct->GetElements()[0];
+    b -= zEncDCRTPoly;
+}
+
+Ciphertext<DCRTPoly> gEvalSub(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
+    auto ctNew = ct->Clone();
+    gEvalAddInPlace(ctNew, ptxt);
+    return ctNew;
+}
+
 void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
     assert(ct->GetElements().size() == ct2->GetElements().size() && "Ciphertext size mismatch in EvalAddInplace");
     assert(ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
@@ -50,6 +75,12 @@ void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
     uint32_t n = cv1.size();
     for (uint32_t i = 0; i < n; ++i)
         cv1[i] -= cv2[i];
+}
+
+Ciphertext<DCRTPoly> gEvalSub(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
+    auto ctNew = ct->Clone();
+    gEvalSubInPlace(ctNew, ct2);
+    return ctNew;
 }
 
 void gEvalMultInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
@@ -83,6 +114,98 @@ Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DC
     auto ctNew = cc->EvalMult(ct1, ct2);
     ctNew->SetScalingFactorBFP(sfBFP1 * sfBFP2);
     return ctNew;
+}
+
+Ciphertext<DCRTPoly> gEvalMultWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    // GetLevel() at qL is 0...
+    // GetLevel() at q0 is L...
+    if (ct1->GetLevel() < ct2->GetLevel()) {
+        auto ct1Adjusted = gAdjustCiphertext(ct1, ct2);
+        return gEvalMult(ct1Adjusted, ct2);
+    }
+    else if (ct1->GetLevel() > ct2->GetLevel()) {
+        auto ct2Adjusted = gAdjustCiphertext(ct2, ct1);
+        return gEvalMult(ct1, ct2Adjusted);
+    }
+    else {
+        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+               "Scaling factors are not equal in gEvalMultWithAdjust");
+        return gEvalMult(ct1, ct2);
+    }
+}
+
+Ciphertext<DCRTPoly> gEvalAddWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    // GetLevel() at qL is 0...
+    // GetLevel() at q0 is L...
+    if (ct1->GetLevel() < ct2->GetLevel()) {
+        auto ct1Adjusted = gAdjustCiphertext(ct1, ct2);
+        return gEvalAdd(ct1Adjusted, ct2);
+    }
+    else if (ct1->GetLevel() > ct2->GetLevel()) {
+        auto ct2Adjusted = gAdjustCiphertext(ct2, ct1);
+        return gEvalAdd(ct1, ct2Adjusted);
+    }
+    else {
+        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+               "Scaling factors are not equal in gEvalMultWithAdjust");
+        return gEvalAdd(ct1, ct2);
+    }
+}
+
+void gEvalAddWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    if (ct2->GetLevel() < ct1->GetLevel()) {
+        auto ct2Adjusted = gAdjustCiphertext(ct2, ct1);
+        gEvalAddInPlace(ct1, ct2Adjusted);
+    }
+    else if (ct1->GetLevel() < ct2->GetLevel()) {
+        auto ct1Adjusted = gAdjustCiphertext(ct1, ct2);
+        ct1->SetElements(ct1Adjusted->GetElements());
+        ct1->SetLevel(ct1Adjusted->GetLevel());
+        ct1->SetScalingFactorBFP(ct1Adjusted->GetScalingFactorBFP());
+        gEvalAddInPlace(ct1, ct2);
+    }
+    else {
+        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+               "Scaling factors are not equal in gEvalMultWithAdjust");
+        gEvalAddInPlace(ct1, ct2);
+    }
+}
+
+Ciphertext<DCRTPoly> gEvalSubWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    // GetLevel() at qL is 0...
+    // GetLevel() at q0 is L...
+    if (ct1->GetLevel() < ct2->GetLevel()) {
+        auto ct1Adjusted = gAdjustCiphertext(ct1, ct2);
+        return gEvalSub(ct1Adjusted, ct2);
+    }
+    else if (ct1->GetLevel() > ct2->GetLevel()) {
+        auto ct2Adjusted = gAdjustCiphertext(ct2, ct1);
+        return gEvalSub(ct1, ct2Adjusted);
+    }
+    else {
+        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+               "Scaling factors are not equal in gEvalMultWithAdjust");
+        return gEvalSub(ct1, ct2);
+    }
+}
+
+void gEvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    if (ct2->GetLevel() < ct1->GetLevel()) {
+        auto ct2Adjusted = gAdjustCiphertext(ct2, ct1);
+        gEvalSubInPlace(ct1, ct2Adjusted);
+    }
+    else if (ct1->GetLevel() < ct2->GetLevel()) {
+        auto ct1Adjusted = gAdjustCiphertext(ct1, ct2);
+        ct1->SetElements(ct1Adjusted->GetElements());
+        ct1->SetLevel(ct1Adjusted->GetLevel());
+        ct1->SetScalingFactorBFP(ct1Adjusted->GetScalingFactorBFP());
+        gEvalSubInPlace(ct1, ct2);
+    }
+    else {
+        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+               "Scaling factors are not equal in gEvalMultWithAdjust");
+        gEvalSubInPlace(ct1, ct2);
+    }
 }
 
 void gEvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar) {
@@ -236,17 +359,17 @@ Ciphertext<DCRTPoly> cEvalAdd(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt) {
     return ctNew;
 }
 
-//Ciphertext<DCRTPoly> cEvalMult(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt, BigFixedPoint scalingFactor) {
-//    auto elemParam = ct->GetElements()[0].GetParams();
-//    if (scalingFactor.equalZero()) {
-//        scalingFactor = ct->GetScalingFactorBFP();
-//    }
-//    // TODO: remove the 16 requirement
-//    CSlots cslots(std::vector<BigComplex>(16, ptxt));
-//    Is not this just a constant???
-//    RPolynomial value1 = cslots.toRPolynomial();
-//    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, scalingFactor);
-//    return gEvalMult(ct, ptxt1);
-//}
+Ciphertext<DCRTPoly> cEvalMult(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt, BigFixedPoint scalingFactor) {
+    auto elemParam = ct->GetElements()[0].GetParams();
+    if (scalingFactor.equalZero()) {
+        scalingFactor = ct->GetScalingFactorBFP();
+    }
+    // TODO: remove the 16 requirement
+    CSlots cslots(std::vector<BigComplex>(16, ptxt));
+    //Is not this just a constant? We can optimize it.
+    RPolynomial value1 = cslots.toRPolynomial();
+    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, scalingFactor);
+    return gEvalMult(ct, ptxt1);
+}
 
 }  // namespace lbcrypto

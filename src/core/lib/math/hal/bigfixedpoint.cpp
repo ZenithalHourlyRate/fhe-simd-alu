@@ -88,3 +88,20 @@ BigComplex operator/(const BigComplex& a, const BigComplex& b) {
     BigFixedPoint imPart = ((a.getImag() * b.getReal()) - (a.getReal() * b.getImag())) / denom;
     return BigComplex(rePart, imPart);
 }
+
+BigComplex& BigComplex::operator+=(const BigComplex& a) {
+    *this = *this + a;
+    return *this;
+}
+BigComplex& BigComplex::operator-=(const BigComplex& a) {
+    *this = *this - a;
+    return *this;
+}
+BigComplex& BigComplex::operator*=(const BigComplex& a) {
+    *this = *this * a;
+    return *this;
+}
+BigComplex& BigComplex::operator/=(const BigComplex& a) {
+    *this = *this / a;
+    return *this;
+}

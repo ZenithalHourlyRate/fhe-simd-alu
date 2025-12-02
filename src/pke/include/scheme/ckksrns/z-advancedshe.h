@@ -2,6 +2,9 @@
 #define SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_ADVANCEDSHE_H_
 
 #include "math/hal/bigfixedpoint.h"
+#include "cryptocontext.h"
+
+namespace lbcrypto {
 
 //=============================================================================
 // Pre-defined Chebyshev Series Coefficients
@@ -130,5 +133,9 @@ static const inline std::vector<BigComplex> coeff_exp_16_big_complex_58 = {
     BigComplex(BigFixedPoint(BigInteger("111346816677428262205798"), 128, true),
                BigFixedPoint(BigInteger("0"), 128, true)),
 };
+
+Ciphertext<DCRTPoly> EvalChebyshevSeriesPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coeffs);
+
+}  // namespace lbcrypto
 
 #endif  //SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_ADVANCEDSHE_H_

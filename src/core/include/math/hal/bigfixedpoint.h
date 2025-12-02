@@ -426,6 +426,15 @@ public:
         return "(" + real.toBinary(prec) + ", " + imag.toBinary(prec) + ")";
     }
 
+    BigComplex& operator+=(const BigComplex& a);
+    BigComplex& operator-=(const BigComplex& a);
+    BigComplex& operator*=(const BigComplex& a);
+    BigComplex& operator/=(const BigComplex& a);
+
+    bool equalZero() const {
+        return real.equalZero() && imag.equalZero();
+    }
+
 private:
     BigFixedPoint real;
     BigFixedPoint imag;
