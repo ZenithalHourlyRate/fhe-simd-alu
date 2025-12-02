@@ -158,6 +158,7 @@ Ciphertext<DCRTPoly> gAdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCipher
     auto ctBFPLog2       = std::log2(ctBFP.convertToDouble());
     auto ctTargetBFPLog2 = std::log2(ctBFP.convertToDouble());
     // The case of Noise Deg = 2 is not handled now.
+    // Should track noise degree...
     if (ctBFPLog2 > 100 || ctTargetBFPLog2 > 100) {
         OPENFHE_THROW("Can not Adjust Ciphertext with large scaling factor");
     }
@@ -184,6 +185,7 @@ Ciphertext<DCRTPoly> gAdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCipher
     auto adjustFactorBFP = ctTargetBFP * qlTargetPlusOneBFP / ctBFP;
     auto adjustFactor    = adjustFactorBFP.round().getValue() >> adjustFactorBFP.getLog2Scale();
     gEvalMultScalarInPlace(ctNew, adjustFactor);
+    gModReduceInPlace(ctNew);
     ctNew->SetScalingFactorBFP(ctTargetBFP);
     return ctNew;
 }
