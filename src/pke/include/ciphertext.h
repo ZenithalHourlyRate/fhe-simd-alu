@@ -410,6 +410,7 @@ public:
         ct->m_noiseScaleDeg    = m_noiseScaleDeg;
         ct->m_scalingFactor    = m_scalingFactor;
         ct->m_scalingFactorInt = m_scalingFactorInt;
+        ct->m_scalingFactorBFP  = m_scalingFactorBFP;
         *(ct->m_metadataMap)   = *(m_metadataMap);
         return ct;
     }

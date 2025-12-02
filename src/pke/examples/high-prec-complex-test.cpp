@@ -161,6 +161,17 @@ void test_floor() {
     std::cout << "e: " << e.toString() << " floor: " << e.floor().toString() << "\n";
 }
 
+void test_almost_equal() {
+    BigFixedPoint a = BigFixedPoint::fromDouble(3.0).scaleTo(128);
+    BigFixedPoint b = BigFixedPoint::fromDouble(3.000000000000001).scaleTo(128);
+    BigFixedPoint c = BigFixedPoint::fromDouble(3.0).scaleTo(128);
+    BigFixedPoint d = BigFixedPoint::fromDouble(3.000000000000000000000001).scaleTo(128);
+
+    std::cout << "a == b? " << a.almostEqual(b) << std::endl;
+    std::cout << "a == c? " << a.almostEqual(c) << std::endl;
+    std::cout << "a == d? " << a.almostEqual(d) << std::endl;
+}
+
 int main() {
     test_big_fixed_point();
     test_zu1();
@@ -169,5 +180,6 @@ int main() {
     test_round();
     test_ceil();
     test_floor();
+    test_almost_equal();
     return 0;
 }

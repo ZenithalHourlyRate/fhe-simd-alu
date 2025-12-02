@@ -96,7 +96,8 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     };
 
     // Check the slot encoding?
-    if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise") {
+    if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise" || msg == "PSum" || msg == "Normalize" ||
+        msg == "Cheby1" || msg == "Cheby2") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
@@ -108,9 +109,12 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         if (msg == "Low4" || msg == "ModRaise") {
             extractErrorRoly(values, 4);
         }
+        if (msg == "Normalize") {
+            extractErrorRoly(values, 8);
+        }
     }
     auto cSlots = values.toCSlots();
-    if (msg == "Upper" || msg == "Down" || msg == "Rotate") {
+    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S") {
         for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
             std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
@@ -226,6 +230,44 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     return 0;
 }
 
+void tmp(ConstCiphertext<DCRTPoly>& x, uint32_t degree) {
+    auto degs  = ComputeDegreesPS(degree);
+    uint32_t k = degs[0];
+    //uint32_t m = degs[1];
+
+    // computes linear transformation y = -1 + 2 (x-a)/(b-a)
+    // consumes one level when a <> -1 && b <> 1
+    auto cc = x->GetCryptoContext();
+    std::vector<Ciphertext<DCRTPoly>> T(k);
+    // no linear transformation is needed if a = -1, b = 1
+    // T_1(y) = y
+    T[0] = x->Clone();
+
+    // Computes Chebyshev polynomials up to degree k
+    // for y: T_1(y) = y, T_2(y), ... , T_k(y)
+    // uses binary tree multiplication
+    for (uint32_t i = 2; i <= k; ++i) {
+        if (i & 0x1) {  // if i is odd
+            // compute T_{2i+1}(y) = 2*T_i(y)*T_{i+1}(y) - y
+            T[i - 1] = gEvalMult(T[i / 2 - 1], T[i / 2]);
+            gEvalAddInPlace(T[i - 1], T[i - 1]);
+            gModReduceInPlace(T[i - 1]);
+            auto T0Adjusted = gAdjustCiphertext(T[0], T[i - 1]);
+            gEvalSubInPlace(T[i - 1], T0Adjusted);
+        }
+        else {
+            // compute T_{2i}(y) = 2*T_i(y)^2 - 1
+            T[i - 1] = gEvalMult(T[i / 2 - 1], T[i / 2 - 1]);
+            gEvalAddInPlace(T[i - 1], T[i - 1]);
+            gModReduceInPlace(T[i - 1]);
+            auto one = BigFixedPoint::one();
+            cEvalAddInPlace(T[i - 1], -one);
+        }
+    }
+    __heir_debug2(T[1], "Cheby1");
+    __heir_debug2(T[2], "Cheby2");
+}
+
 void MSBBootstrap(CiphertextT ct) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
 
@@ -297,61 +339,52 @@ void MSBBootstrap(CiphertextT ct) {
     // Running PartialSum
     //------------------------------------------------------------------------------
 
+    // Here 32 is rPoly.size()
     const uint32_t limit = N / 32;
-    for (uint32_t j = 1; j < limit; j <<= 1)
-        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * 32));
+    for (uint32_t j = 1; j < limit; j <<= 1) {
+        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * 16));
+    }
+    // Now the message is multplied by N/32
     __heir_debug2(raised, "PSum");
+
+    // Normalize to [-1, 1] from [-16, 16]
+    // Multiply by 2/N * Delta, so the result is m / 16 * Delta^2
+    // NOTE: two here should be changed.
+    auto raisedSF                    = raised->GetScalingFactorBFP();
+    auto NBigFP                      = BigFixedPoint::positive(N);
+    auto two                         = BigFixedPoint::two();
+    BigFixedPoint normalizeFactorBFP = raisedSF * two / NBigFP;
+    BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
+    raised                           = gEvalMultScalar(raised, normalizeFactor);
+    raised->SetScalingFactorBFP(raisedSF * raisedSF);
+    gModReduceInPlace(raised);
+    __heir_debug2(raised, "Normalize");
+    // Note that there are other ways...some work first multiply by 1 / N
+    // Then PartialSum
+    // Then use CoeffsToSlots matrix to do the /16
 
     //------------------------------------------------------------------------------
     // Running CoeffsToSlots
     //------------------------------------------------------------------------------
 
     auto raisedRC2S = RCoeffsToSlots(cc, raised);
-    raisedRC2S[0]->SetScalingFactorBFP(ct->GetScalingFactorBFP() * ct->GetScalingFactorBFP());
-    raisedRC2S[1]->SetScalingFactorBFP(ct->GetScalingFactorBFP() * ct->GetScalingFactorBFP());
     __heir_debug2(raisedRC2S[0], "MSBC2S");
+    __heir_debug2(raisedRC2S[1], "MSBC2S");
+
+    gModReduceInPlace(raisedRC2S[0]);
+    gModReduceInPlace(raisedRC2S[1]);
 
     //------------------------------------------------------------------------------
     // Running Approximate Mod Reduction
     //------------------------------------------------------------------------------
 
-    //auto& coeff_exp = coeff_exp_16_double_46;
+    auto& coeff_exp = coeff_exp_16_big_complex_58;
+    tmp(raisedRC2S[0], coeff_exp.size() - 1);
 }
 
 void SimpleBootstrapExample();
 
-void testChebyShev() {
-    // Chebyshev series coefficients for the SPARSE ENCAPSULATED case (degree 32)
-    static const std::vector<double> g_coefficientsSparseEncapsulated{
-        0.24554573401685137,    -0.047919064883347899,   0.28388702040840819,      -0.029944538735513584,
-        0.35576522619036460,    0.015106561885073030,    0.29532946674499999,      0.071203602333739374,
-        -0.10347347339668074,   0.044997590512555294,    -0.42750712431925747,     -0.090342129729094875,
-        0.36762876269324946,    0.049318066039335348,    -0.14535986272411980,     -0.015106938483063579,
-        0.035951935499240355,   0.0031036582188686437,   -0.0062644606607068463,   -0.00046609430477154916,
-        0.00082128798852385086, 0.000053910533892372678, -0.000084551549768927401, -4.9773801787288514e-6,
-        7.0466620439083618e-6,  3.7659807574103204e-7,   -4.8648510153626034e-7,   -2.3830267651437146e-8,
-        2.8329709716159918e-8,  1.2817720050334158e-9,   -1.4122220430105397e-9,   -5.9306213139085216e-11,
-        6.3298928388417848e-11};
-    //auto f = [](double x) {
-    //    return std::exp(1i * M_PI / 2.0 * x);
-    //};
-    // In [-16, 16]
-    auto K = 16.0;
-    auto R = 3.0;
-    auto f = [&](double x) {
-        return (1.0 / std::pow(2 * M_PI, std::pow(2.0, -R))) * std::cos(2 * M_PI * (K * x - 0.25) / std::pow(2.0, R));
-    };
-    auto coeffs = EvalChebyshevCoefficients(f, -1.0, 1.0, 32);
-    std::cout << "Chebyshev Coefficients: " << std::endl;
-    for (size_t i = 0; i != coeffs.size(); ++i) {
-        std::cout << "  coeffs[" << i << "] = " << std::setprecision(20) << coeffs[i] << std::endl;
-        std::cout << "  g_coefficientsSparseEncapsulated[" << i << "] = " << std::setprecision(20)
-                  << g_coefficientsSparseEncapsulated[i] << std::endl;
-    }
-}
-
 int main(int argc, char* argv[]) {
-    //testChebyShev();
     SimpleBootstrapExample();
 }
 
@@ -413,7 +446,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(5);
+    parameters.SetMultiplicativeDepth(10);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -435,6 +468,10 @@ void SimpleBootstrapExample() {
     std::vector<int> rotateIndices = {};
     for (int i = 1; i <= 31; ++i) {
         rotateIndices.push_back(i);
+    }
+    const uint32_t limit = ringDim / 32;
+    for (uint32_t j = 1; j < limit; j <<= 1) {
+        rotateIndices.push_back(j * 16);
     }
     cc->EvalRotateKeyGen(keyPair.secretKey, rotateIndices);
     // 2 * N - 1 for conjugdate
@@ -472,7 +509,7 @@ void SimpleBootstrapExample() {
     __heir_debug2(encoded, "Encode");
 
     /// TEST ADD
-    if (1) {
+    if (0) {
         auto ctAdd = gEvalAdd(encoded, ptxt2);
 
         __heir_debug2(ctAdd, "Add");
@@ -482,7 +519,7 @@ void SimpleBootstrapExample() {
     RPolynomial t   = ZPolynomial::getT().toRPolynomial();
     Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
-    if (1) {
+    if (0) {
         auto ctMul = gEvalMult(encoded, tPtxt);
         __heir_debug2(ctMul, "Mult");
         gModReduceInPlace(ctMul);
@@ -493,6 +530,7 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> ct;
     if (1) {
         auto ctMul = zEvalMultFull(encoded, encoded2, tPtxt);
+        gModReduceInPlace(ctMul, 2);
         __heir_debug2(ctMul, "CMult");
         ct = ctMul;
     }
@@ -506,7 +544,7 @@ void SimpleBootstrapExample() {
 
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
     std::vector<Ciphertext<DCRTPoly>> zC2S;
-    if (0) {
+    if (1) {
         zC2S = ZCoeffsToSlots(cc, ct);
         gModReduceInPlace(zC2S[0]);
         gModReduceInPlace(zC2S[1]);
@@ -514,15 +552,9 @@ void SimpleBootstrapExample() {
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
 
-        if (0) {
-            //zC2S[0]->SetScalingFactor(sf);
-            //zC2S[1]->SetScalingFactor(sf);
-        }
-
         // Now SF is sf
         if (0) {
             auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
-            //z2S2z->SetScalingFactor(sf * sf);
 
             __heir_debug2(z2S2z, "Z2S2Z");
         }
@@ -530,8 +562,7 @@ void SimpleBootstrapExample() {
 
     // TEST SlotsToRCoeffs
     Ciphertext<DCRTPoly> s2rc;
-    if (0) {
-        auto sfNow = zC2S[0]->GetScalingFactorBFP();
+    if (1) {
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
         gModReduceInPlace(z2S2r);
         s2rc = z2S2r;
@@ -552,7 +583,7 @@ void SimpleBootstrapExample() {
 
     // TEST Scale to MSB
     Ciphertext<DCRTPoly> ctMSB;
-    if (0) {
+    if (1) {
         auto q     = s2rc->GetElements()[0].GetModulus();
         auto sfNow = s2rc->GetScalingFactorBFP();
         auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
@@ -561,17 +592,21 @@ void SimpleBootstrapExample() {
         auto div       = (qBFP / sfNow / two).round();
         auto divScalar = div.getValue() >> div.getLog2Scale();
         auto ct2       = gEvalMultScalar(s2rc, divScalar);
+        ct2->SetScalingFactorBFP(qBFP / two);
+        __heir_debug2(ct2, "MSB");
         // Reduce all the way to the bottom
-        gModReduceInPlace(ct2, ct2->GetElements().size() - 1);
-        auto q0     = ct2->GetElements()[0].GetModulus();
-        auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
-        auto sfNow2 = q0BFP / two;
-        ct2->SetScalingFactorBFP(sfNow2);
+        std::cout << "scalar: " << std::log2(divScalar.ConvertToDouble()) << std::endl;
+        std::cout << "Reduced Levels : " << ct2->GetElements()[0].GetNumOfElements() - 1 << std::endl;
+        gModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
+        //auto q0     = ct2->GetElements()[0].GetModulus();
+        //auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
+        //auto sfNow2 = q0BFP / two;
+        //ct2->SetScalingFactorBFP(sfNow2);
         __heir_debug2(ct2, "MSB");
         ctMSB = ct2;
     }
 
-    if (0) {
+    if (1) {
         // Get low 4 bit
         auto low4Scalar = BigInteger(1) << 28;
         auto ctLow4     = gEvalMultScalar(ctMSB, low4Scalar);

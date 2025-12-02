@@ -11,7 +11,7 @@ namespace lbcrypto {
 // Generic methods
 //=============================================================================
 
-Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
+void gEvalAddInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
     assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
            "Ciphertext and Plaintext size mismatch in EvalAdd");
     assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
@@ -20,14 +20,39 @@ Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
            "Ciphertext and Plaintext scaling factor mismatch in EvalAdd");
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
 
-    auto ctNew = ct->Clone();
-    auto& b    = ctNew->GetElements()[0];
+    auto& b = ct->GetElements()[0];
     b += zEncDCRTPoly;
-    ctNew->SetScalingFactorBFP(ct->GetScalingFactorBFP());
+}
+
+Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
+    auto ctNew = ct->Clone();
+    gEvalAddInPlace(ctNew, ptxt);
     return ctNew;
 }
 
-Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
+void gEvalAddInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
+    assert(ct->GetElements().size() == ct2->GetElements().size() && "Ciphertext size mismatch in EvalAddInplace");
+    assert(ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+           "Ciphertext scaling factor mismatch in EvalAddInplace");
+    auto& cv1  = ct->GetElements();
+    auto& cv2  = ct2->GetElements();
+    uint32_t n = cv1.size();
+    for (uint32_t i = 0; i < n; ++i)
+        cv1[i] += cv2[i];
+}
+
+void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
+    assert(ct->GetElements().size() == ct2->GetElements().size() && "Ciphertext size mismatch in EvalAddInplace");
+    assert(ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
+           "Ciphertext scaling factor mismatch in EvalAddInplace");
+    auto& cv1  = ct->GetElements();
+    auto& cv2  = ct2->GetElements();
+    uint32_t n = cv1.size();
+    for (uint32_t i = 0; i < n; ++i)
+        cv1[i] -= cv2[i];
+}
+
+void gEvalMultInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
     ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
     assert(ct->GetElements().size() == zEncDCRTPoly.GetParams()->GetParams().size() &&
@@ -37,11 +62,15 @@ Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
     auto ctSFBFP   = ct->GetScalingFactorBFP();
     auto ptxtSFBFP = zEnc->GetScalingFactorBFP();
 
-    auto ctNew = ct->Clone();
-    for (auto& a : ctNew->GetElements()) {
+    for (auto& a : ct->GetElements()) {
         a *= zEncDCRTPoly;
     }
-    ctNew->SetScalingFactorBFP(ctSFBFP * ptxtSFBFP);
+    ct->SetScalingFactorBFP(ctSFBFP * ptxtSFBFP);
+}
+
+Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
+    auto ctNew = ct->Clone();
+    gEvalMultInPlace(ctNew, ptxt);
     return ctNew;
 }
 
@@ -56,15 +85,44 @@ Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DC
     return ctNew;
 }
 
-Ciphertext<DCRTPoly> gEvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar) {
-    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalMultDCRTPoly");
-    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
-    auto ctNew = ct->Clone();
-    for (auto& a : ctNew->GetElements()) {
-        a *= scalar;
+void gEvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar) {
+    // NOTE: the limit here requires RNS with more than 40 bits moduli
+    auto limit = BigInteger(1) << 40;
+    if (scalar > limit) {
+        auto elemParams = ct->GetElements()[0].GetParams();
+        auto scalarBFP  = BigFixedPoint(scalar, 0, false).scaleTo(128);
+        RPolynomial rPoly;
+        rPoly[0]       = scalarBFP;
+        Plaintext ptxt = ZEncodingImpl::encodeR(rPoly, elemParams, BigFixedPoint::one());
+        auto ctOldBFP  = ct->GetScalingFactorBFP();
+        gEvalMultInPlace(ct, ptxt);
+        // gEvalMultInPlace updates scaling factor
+        // We need to restore it
+        ct->SetScalingFactorBFP(ctOldBFP);
     }
+    else {
+        for (auto& a : ct->GetElements()) {
+            a *= scalar;
+        }
+    }
+}
+
+Ciphertext<DCRTPoly> gEvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar) {
+    auto ctNew = ct->Clone();
+    gEvalMultScalarInPlace(ctNew, scalar);
     return ctNew;
+}
+
+void gLevelReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels) {
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
+
+    auto& cv = ciphertext->GetElements();
+
+    ciphertext->SetLevel(ciphertext->GetLevel() + levels);
+    for (size_t i = 0; i < levels; ++i) {
+        for (auto& dcrtpoly : cv)
+            dcrtpoly.DropLastElement();
+    }
 }
 
 void gModReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels) {
@@ -91,6 +149,43 @@ void gModReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels) {
         // double modReduceFactor = cryptoParams->GetModReduceFactor(sizeQl - 1 - i);
         // ciphertext->SetScalingFactor(ciphertext->GetScalingFactor() / modReduceFactor);
     }
+}
+
+Ciphertext<DCRTPoly> gAdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ctTarget) {
+    auto ctBFP       = ct->GetScalingFactorBFP();
+    auto ctTargetBFP = ctTarget->GetScalingFactorBFP();
+
+    auto ctBFPLog2       = std::log2(ctBFP.convertToDouble());
+    auto ctTargetBFPLog2 = std::log2(ctBFP.convertToDouble());
+    // The case of Noise Deg = 2 is not handled now.
+    if (ctBFPLog2 > 100 || ctTargetBFPLog2 > 100) {
+        OPENFHE_THROW("Can not Adjust Ciphertext with large scaling factor");
+    }
+
+    auto sizeQl       = ct->GetElements()[0].GetNumOfElements();
+    auto sizeQlTarget = ctTarget->GetElements()[0].GetNumOfElements();
+    if (sizeQl == sizeQlTarget) {
+        if (!ctBFP.almostEqual(ctTargetBFP)) {
+            OPENFHE_THROW("Can not Adjust Ciphertext");
+        }
+        return ct->Clone();
+    }
+    if (sizeQl < sizeQlTarget) {
+        OPENFHE_THROW("Can not Adjust Ciphertext to larger size");
+    }
+    auto ctNew = ct->Clone();
+
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
+    auto qlTargetPlusOne    = cryptoParams->GetElementParams()->GetParams()[sizeQlTarget]->GetModulus();
+    auto qlTargetPlusOneBFP = BigFixedPoint(qlTargetPlusOne, 0, false).scaleTo(128);
+
+    gLevelReduceInPlace(ctNew, sizeQl - sizeQlTarget - 1);
+
+    auto adjustFactorBFP = ctTargetBFP * qlTargetPlusOneBFP / ctBFP;
+    auto adjustFactor    = adjustFactorBFP.round().getValue() >> adjustFactorBFP.getLog2Scale();
+    gEvalMultScalarInPlace(ctNew, adjustFactor);
+    ctNew->SetScalingFactorBFP(ctTargetBFP);
+    return ctNew;
 }
 
 //=============================================================================
@@ -123,26 +218,33 @@ Ciphertext<DCRTPoly> zEvalMult(ConstCiphertext<DCRTPoly> ct, uint32_t ptxt, BigF
     return gEvalMult(ct, ptxt1);
 }
 
-Ciphertext<DCRTPoly> cEvalAdd(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt) {
+void cEvalAddInPlace(Ciphertext<DCRTPoly> ct, BigComplex ptxt) {
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
     // TODO: remove the 16 requirement
     CSlots cslots(std::vector<BigComplex>(16, ptxt));
     RPolynomial value1 = cslots.toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
-    return gEvalAdd(ct, ptxt1);
+    gEvalAddInPlace(ct, ptxt1);
 }
 
-Ciphertext<DCRTPoly> cEvalMult(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt, BigFixedPoint scalingFactor) {
-    auto elemParam = ct->GetElements()[0].GetParams();
-    if (scalingFactor.equalZero()) {
-        scalingFactor = ct->GetScalingFactorBFP();
-    }
-    // TODO: remove the 16 requirement
-    CSlots cslots(std::vector<BigComplex>(16, ptxt));
-    RPolynomial value1 = cslots.toRPolynomial();
-    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, scalingFactor);
-    return gEvalMult(ct, ptxt1);
+Ciphertext<DCRTPoly> cEvalAdd(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt) {
+    auto ctNew = ct->Clone();
+    cEvalAddInPlace(ctNew, ptxt);
+    return ctNew;
 }
+
+//Ciphertext<DCRTPoly> cEvalMult(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt, BigFixedPoint scalingFactor) {
+//    auto elemParam = ct->GetElements()[0].GetParams();
+//    if (scalingFactor.equalZero()) {
+//        scalingFactor = ct->GetScalingFactorBFP();
+//    }
+//    // TODO: remove the 16 requirement
+//    CSlots cslots(std::vector<BigComplex>(16, ptxt));
+//    Is not this just a constant???
+//    RPolynomial value1 = cslots.toRPolynomial();
+//    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, scalingFactor);
+//    return gEvalMult(ct, ptxt1);
+//}
 
 }  // namespace lbcrypto

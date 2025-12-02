@@ -27,7 +27,7 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalChebyPolysPS(ConstCiphertex
         BigFixedPoint alpha = BigFixedPoint::two() / (bBFP - aBFP);
         BigFixedPoint beta  = aBFP * alpha;
 
-        T[0] = cEvalMult(x, alpha);
+        //T[0] = cEvalMult(x, alpha);
         gModReduceInPlace(T[0]);
         T[0] = cEvalAdd(T[0], -BigFixedPoint::one() - beta);
     }

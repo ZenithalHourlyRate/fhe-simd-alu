@@ -88,6 +88,19 @@ public:
         return (value == BigInteger(0));
     }
 
+    bool almostEqual(const BigFixedPoint& other, int maxLog2Diff = -60) const {
+        auto a = this->scaleTo(std::max(this->getLog2Scale(), other.getLog2Scale()));
+        auto b = other.scaleTo(std::max(this->getLog2Scale(), other.getLog2Scale()));
+        if (a.getNeg() != b.getNeg()) {
+            return false;
+        }
+        auto scale  = a.getLog2Scale();
+        auto aValue = a.getValue();
+        auto bValue = b.getValue();
+        auto diff   = aValue > bValue ? aValue - bValue : bValue - aValue;
+        return diff <= (BigInteger(1) << (scale + maxLog2Diff));
+    }
+
     BigFixedPoint floor() const {
         auto intPart  = getValue() >> getLog2Scale();
         auto intBFP   = BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
