@@ -103,12 +103,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         std::cout << msg << "  rPoly error log2Norm: " << ZPolynomial(errors).getLog2Norm() << std::endl;
     };
 
-    // Check the slot encoding?
-    if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise" || msg == "PSum" || msg == "Normalize") {
+    // Check the r encoding?
+    if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise" || msg == "PSum" || msg == "Normalize" ||
+        msg == "LUTR" || msg.find("MSB") != std::string::npos || msg == "Reconstructed") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
-        if (msg == "S2RC" || msg == "MSB") {
+        if (msg == "S2RC" || msg == "MSB" || msg == "Reconstructed") {
             // Directly interpret as ZPolynomial
             ZPolynomial zPoly(values.getCoefficients());
             printZPoly(zPoly);
@@ -150,13 +151,6 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             }
             extractErrorRoly(rPoly, 4);
         }
-    }
-    if (msg == "MSBC2S" || msg == "Cheby1" || msg == "Cheby2" || msg == "Cheby3" || msg == "Cheby4" ||
-        msg == "Cheby5") {
-        std::cout << msg << "  complexValues [" << 0 << "]: " << cSlots[0].toString(24) << std::endl;
-        std::cout << msg << "  complexValues [" << 1 << "]: " << cSlots[1].toString(24) << std::endl;
-        //for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-        //}
     }
     ZPolynomial zValues = values.toZPolynomial();
     if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
@@ -303,7 +297,7 @@ std::vector<BigComplex> another_interpolate(int order = 1) {
     return alphaBigComplex;
 }
 
-void MSBBootstrap(CiphertextT ct) {
+Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
 
     auto paramsQ   = cryptoParams->GetElementParams()->GetParams();
@@ -364,7 +358,7 @@ void MSBBootstrap(CiphertextT ct) {
     }
 
     raised->SetScalingFactorBFP(ct->GetScalingFactorBFP());
-    __heir_debug2(raised, "ModRaise");
+    //__heir_debug2(raised, "ModRaise");
 
     //------------------------------------------------------------------------------
     // SPARSELY PACKED CASE
@@ -380,7 +374,7 @@ void MSBBootstrap(CiphertextT ct) {
         cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * 16));
     }
     // Now the message is multplied by N/32
-    __heir_debug2(raised, "PSum");
+    //__heir_debug2(raised, "PSum");
 
     // Normalize to [-1, 1] from [-16, 16]
     // Multiply by 2/N * Delta, so the result is m / 16 * Delta^2
@@ -393,7 +387,7 @@ void MSBBootstrap(CiphertextT ct) {
     raised                           = gEvalMultScalar(raised, normalizeFactor);
     raised->SetScalingFactorBFP(raisedSF * raisedSF);
     gModReduceInPlace(raised);
-    __heir_debug2(raised, "Normalize");
+    //__heir_debug2(raised, "Normalize");
     // Note that there are other ways...some work first multiply by 1 / N
     // Then PartialSum
     // Then use CoeffsToSlots matrix to do the /16
@@ -405,7 +399,7 @@ void MSBBootstrap(CiphertextT ct) {
     auto raisedRC2S = RCoeffsToSlots(cc, raised);
     gModReduceInPlace(raisedRC2S[0]);
     gModReduceInPlace(raisedRC2S[1]);
-    __heir_debug2(raisedRC2S[0], "MSBC2S");
+    //__heir_debug2(raisedRC2S[0], "MSBC2S");
     //__heir_debug2(raisedRC2S[1], "MSBC2S");
 
     //------------------------------------------------------------------------------
@@ -427,7 +421,7 @@ void MSBBootstrap(CiphertextT ct) {
     resI = gEvalMult(resI, resI);
     gModReduceInPlace(resI);
 
-    __heir_debug2(res, "Cheby1");
+    //__heir_debug2(res, "Cheby1");
 
     //------------------------------------------------------------------------------
     // Running LUT
@@ -436,11 +430,16 @@ void MSBBootstrap(CiphertextT ct) {
     auto lutCoeffs = another_interpolate(2);
     auto powers    = EvalPowers(res, lutCoeffs);
     auto lut       = EvalPolyWithPrecomp(powers, lutCoeffs);
-    __heir_debug2(lut, "LUT");
+    //__heir_debug2(lut, "LUT");
 
     auto powersI = EvalPowers(resI, lutCoeffs);
     auto lutI    = EvalPolyWithPrecomp(powersI, lutCoeffs);
-    __heir_debug2(lutI, "LUT");
+    //__heir_debug2(lutI, "LUT");
+
+    auto rCoeffLut = SlotsToRCoeffs(cc, lut, lutI);
+    gModReduceInPlace(rCoeffLut);
+    //__heir_debug2(rCoeffLut, "LUTR");
+    return rCoeffLut;
 }
 
 void SimpleBootstrapExample();
@@ -664,14 +663,44 @@ void SimpleBootstrapExample() {
         ctMSB = ct2;
     }
 
-    if (1) {
-        // Get low 4 bit
-        auto low4Scalar = BigInteger(1) << 28;
-        auto ctLow4     = gEvalMultScalar(ctMSB, low4Scalar);
+    auto lowBitBTS = [](Ciphertext<DCRTPoly> input, unsigned bits) -> std::array<Ciphertext<DCRTPoly>, 2> {
+        auto lowScalar = BigInteger(1) << bits;
+        auto ctLow     = gEvalMultScalar(input, lowScalar);
         // Just a different interpretation...
-        ctLow4->SetScalingFactorBFP(ctMSB->GetScalingFactorBFP());
-        __heir_debug2(ctLow4, "Low4");
-        MSBBootstrap(ctLow4);
+        ctLow->SetScalingFactorBFP(input->GetScalingFactorBFP());
+        auto ctLowBTS = MSBBootstrap(ctLow);
+
+        // Adjust to original MSB representation
+        auto q            = ctLowBTS->GetElements()[0].GetModulus();
+        auto sfNow        = ctLowBTS->GetScalingFactorBFP();
+        auto qBFP         = BigFixedPoint(q, 0, false).scaleTo(128);
+        auto two          = BigFixedPoint::two();
+        auto lowScalarBFP = BigFixedPoint(BigInteger(1) << bits, 0, false).scaleTo(128);
+        // q / (2 * Delta * lowScalar)
+        auto div       = (qBFP / sfNow / two / lowScalarBFP).round();
+        auto divScalar = div.getValue() >> div.getLog2Scale();
+        auto ct2       = gEvalMultScalar(ctLowBTS, divScalar);
+        ct2->SetScalingFactorBFP(qBFP / two);
+        // Reduce all the way to the bottom
+        gModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
+        return {ct2, ctLowBTS};
+    };
+
+    if (1) {
+        std::vector<Ciphertext<DCRTPoly>> lowBTSs;
+        std::vector<Ciphertext<DCRTPoly>> lowBTSHighs;
+        for (size_t bits = 4; bits <= 32; bits += 4) {
+            auto [lowBTS, lowBTSHigh] = lowBitBTS(ctMSB, 32 - bits);
+            lowBTSs.push_back(lowBTS);
+            lowBTSHighs.push_back(lowBTSHigh);
+            gEvalSubInPlace(ctMSB, lowBTS);
+            __heir_debug2(ctMSB, "MSB" + std::to_string(bits));
+        }
+        auto ctNew = lowBTSs[0];
+        for (size_t i = 1; i != lowBTSs.size(); ++i) {
+            gEvalAddInPlace(ctNew, lowBTSs[i]);
+        }
+        __heir_debug2(ctNew, "Reconstructed");
     }
 
     // MSBBootstrap(cc, z2S2r);
