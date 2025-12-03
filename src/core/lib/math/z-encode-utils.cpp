@@ -23,3 +23,13 @@ ZPolynomial RPolynomial::toZPolynomial() const {
 RPolynomial ZPolynomial::toRPolynomial() const {
     return toCSlots().toRPolynomial();
 }
+
+// This is for interpreting ZPolynomial coeffs as RPolynomial directly
+RPolynomial ZPolynomial::interpretAsRPolynomial() const {
+    return RPolynomial(coefficients);
+}
+
+// This is for interpreting RPolynomial coeffs as ZPolynomial directly
+ZPolynomial RPolynomial::interpretAsZPolynomial() const {
+    return ZPolynomial(coefficients);
+}

@@ -105,17 +105,21 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     // Check the r encoding?
     if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise" || msg == "PSum" || msg == "Normalize" ||
-        msg == "LUTR" || msg.find("MSB") != std::string::npos || msg == "Reconstructed") {
+        msg == "LUTR" || msg.find("MSB") != std::string::npos || msg == "Reconstructed" || msg == "Binary") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
         if (msg == "S2RC" || msg == "MSB" || msg == "Reconstructed") {
             // Directly interpret as ZPolynomial
-            ZPolynomial zPoly(values.getCoefficients());
+            ZPolynomial zPoly = values.interpretAsZPolynomial();
             printZPoly(zPoly);
         }
-        if (msg == "ModRaise") {
-            std::cout << msg << "  values [" << 0 << "]: " << values[0].toString(24) << std::endl;
+        if (msg == "Binary") {
+            ZPolynomial zPoly = ZPolynomial::multiplyRaw(values.interpretAsZPolynomial(), ZPolynomial::getT());
+            //printZPoly(zPoly);
+            for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
+                std::cout << msg << "  Binary zPoly [" << i << "]: " << zPoly[i].toHexString(16) << std::endl;
+            }
         }
         if (msg == "Low4" || msg == "ModRaise") {
             extractErrorRoly(values, 4);
@@ -427,7 +431,7 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     // Running LUT
     //------------------------------------------------------------------------------
 
-    auto lutCoeffs = another_interpolate(2);
+    auto lutCoeffs = another_interpolate(1);
     auto powers    = EvalPowers(res, lutCoeffs);
     auto lut       = EvalPolyWithPrecomp(powers, lutCoeffs);
     //__heir_debug2(lut, "LUT");
@@ -686,7 +690,7 @@ void SimpleBootstrapExample() {
         return {ct2, ctLowBTS};
     };
 
-    if (1) {
+    if (0) {
         std::vector<Ciphertext<DCRTPoly>> lowBTSs;
         std::vector<Ciphertext<DCRTPoly>> lowBTSHighs;
         for (size_t bits = 4; bits <= 32; bits += 4) {
@@ -703,18 +707,17 @@ void SimpleBootstrapExample() {
         __heir_debug2(ctNew, "Reconstructed");
     }
 
-    // MSBBootstrap(cc, z2S2r);
-
-    // SlotsToR-Coeffs
-
-    // auto encoded2 = encodeREInCt(ciph, 2);
-    // __heir_debug2(encoded2, "Encode");
-
-    // // should use another empty ct
-    // auto ZPtm = encodeZPtmInCt(ciph);
-
-    // auto multResultHalf = cc->EvalMult(encoded, encoded2);
-    // auto multResult     = cc->EvalMult(multResultHalf, ZPtm);
-
-    // __heir_debug2(multResult, "Mult");
+    if (1) {
+        auto q               = ctMSB->GetElements()[0].GetModulus();
+        auto qBFP            = BigFixedPoint(q, 0, false).scaleTo(128);
+        auto sfNow           = ctMSB->GetScalingFactorBFP();
+        auto elemParam       = ctMSB->GetElements()[0].GetParams();
+        auto offset          = ZPolynomial::getBalancedOffset();
+        Plaintext offsetPtxt = ZEncodingImpl::encodeR(offset.interpretAsRPolynomial(), elemParam, sfNow);
+        gEvalSubInPlace(ctMSB, offsetPtxt);
+        // Do [-1/2, 1/2)
+        auto ct2 = gEvalMultScalar(ctMSB, 2);
+        ct2->SetScalingFactorBFP(qBFP);  // Note it is not qBFP / 2 but qBFP
+        __heir_debug2(ct2, "Binary");
+    }
 }

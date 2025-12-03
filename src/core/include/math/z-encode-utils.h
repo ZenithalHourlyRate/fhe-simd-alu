@@ -145,6 +145,16 @@ public:
         return output;
     }
 
+    static ZPolynomial getBalancedOffset() {
+        uint32_t offset    = 0xFFFFFFFF;
+        auto offsetEncoded = encode(offset);
+        auto half          = BigFixedPoint::half();
+        for (size_t i = 0; i != offsetEncoded.coefficients.size(); ++i) {
+            offsetEncoded[i] = half * offsetEncoded[i];
+        }
+        return offsetEncoded;
+    }
+
     // From balanced tinv
     static ZPolynomial toStandard(ZPolynomial input) {
         uint32_t offset    = 0xFFFFFFFF;
@@ -311,6 +321,8 @@ public:
 
     RPolynomial toRPolynomial() const;
 
+    RPolynomial interpretAsRPolynomial() const;
+
 private:
     std::vector<BigFixedPoint> coefficients;
 };
@@ -333,6 +345,8 @@ public:
     CSlots toCSlots() const;
 
     ZPolynomial toZPolynomial() const;
+
+    ZPolynomial interpretAsZPolynomial() const;
 
 private:
     std::vector<BigFixedPoint> coefficients;
