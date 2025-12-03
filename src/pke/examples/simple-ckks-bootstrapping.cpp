@@ -694,7 +694,7 @@ void SimpleBootstrapExample() {
             lowBTSs.push_back(lowBTS);
             lowBTSHighs.push_back(lowBTSHigh);
             gEvalSubInPlace(ctMSB, lowBTS);
-            __heir_debug2(ctMSB, "MSB" + std::to_string(bits));
+            //__heir_debug2(ctMSB, "MSB" + std::to_string(bits));
         }
         auto ctNew = lowBTSs[0];
         for (size_t i = 1; i != lowBTSs.size(); ++i) {

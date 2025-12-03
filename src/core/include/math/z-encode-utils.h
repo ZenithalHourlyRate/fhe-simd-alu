@@ -213,6 +213,9 @@ public:
             result.pop_back();
         }
         auto rounded = result[0].round();
+        // Now do mod 2^32
+        auto modValueBFP = BigFixedPoint(BigInteger(1) << 32, 0, false).scaleTo(128);
+        rounded          = rounded - (rounded / modValueBFP).floor() * modValueBFP;
         //std::cout << "Decoded X-2: " << result[0].toHexString() << "\n";
         return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
     }
