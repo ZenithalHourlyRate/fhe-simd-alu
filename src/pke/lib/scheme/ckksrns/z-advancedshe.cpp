@@ -5,7 +5,7 @@
 
 namespace lbcrypto {
 
-uint32_t Degree(const std::vector<BigComplex>& coefficients) {
+static uint32_t Degree(const std::vector<BigComplex>& coefficients) {
     uint32_t i = coefficients.size();
     if (i == 0)
         OPENFHE_THROW("Coefficients vector can not be empty");
@@ -26,8 +26,8 @@ vector of Chebyshev interpolation coefficients for the quotient and remainder of
 division f/g. longDiv is a struct that contains the vectors of coefficients for the
 quotient and rest. We assume that the zero-th coefficient is c0, not c0/2 and returns
 the same format.*/
-std::shared_ptr<longDiv<BigComplex>> LongDivisionChebyshev(const std::vector<BigComplex>& f,
-                                                           const std::vector<BigComplex>& g) {
+static std::shared_ptr<longDiv<BigComplex>> LongDivisionChebyshev(const std::vector<BigComplex>& f,
+                                                                  const std::vector<BigComplex>& g) {
     auto n = Degree(f);
     if (n != f.size() - 1)
         OPENFHE_THROW("The dominant coefficient of the divident is zero");
@@ -127,7 +127,8 @@ std::shared_ptr<longDiv<BigComplex>> LongDivisionChebyshev(const std::vector<Big
     return res;
 }
 
-std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalChebyPolysPS(ConstCiphertext<DCRTPoly>& x, uint32_t degree) {
+std::shared_ptr<seriesPowers<DCRTPoly>> AdvancedZImpl::internalEvalChebyPolysPS(ConstCiphertext<DCRTPoly>& x,
+                                                                                uint32_t degree) {
     auto degs  = ComputeDegreesPS(degree);
     uint32_t k = degs[0];
     uint32_t m = degs[1];
@@ -144,17 +145,17 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalChebyPolysPS(ConstCiphertex
     for (uint32_t i = 2; i <= k; ++i) {
         if (i & 0x1) {  // if i is odd
             // compute T_{2i+1}(y) = 2*T_i(y)*T_{i+1}(y) - y
-            T[i - 1] = gEvalMultWithAdjust(T[i / 2 - 1], T[i / 2]);
-            gEvalAddInPlace(T[i - 1], T[i - 1]);
-            gModReduceInPlace(T[i - 1]);
+            T[i - 1] = z->EvalMultWithAdjust(T[i / 2 - 1], T[i / 2]);
+            z->EvalAddInPlace(T[i - 1], T[i - 1]);
+            z->ModReduceInPlace(T[i - 1]);
             // TODO: maybe we can hoist T0Adjust
-            gEvalSubWithAdjustInPlace(T[i - 1], T[0]);
+            z->EvalSubWithAdjustInPlace(T[i - 1], T[0]);
         }
         else {
             // compute T_{2i}(y) = 2*T_i(y)^2 - 1
-            T[i - 1] = gEvalMult(T[i / 2 - 1], T[i / 2 - 1]);
-            gEvalAddInPlace(T[i - 1], T[i - 1]);
-            gModReduceInPlace(T[i - 1]);
+            T[i - 1] = z->EvalMult(T[i / 2 - 1], T[i / 2 - 1]);
+            z->EvalAddInPlace(T[i - 1], T[i - 1]);
+            z->ModReduceInPlace(T[i - 1]);
             auto one = BigFixedPoint::one();
             cEvalAddInPlace(T[i - 1], -one);
         }
@@ -163,11 +164,12 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalChebyPolysPS(ConstCiphertex
     // Adjust them to have same depth and scaling factor
     for (uint32_t i = 1; i < k; ++i) {
         if (T[i - 1]->GetLevel() != T[k - 1]->GetLevel()) {
-            T[i - 1] = gAdjustCiphertext(T[i - 1], T[k - 1]);
+            T[i - 1] = z->AdjustCiphertext(T[i - 1], T[k - 1]);
         }
         else {
-            assert(T[i - 1]->GetScalingFactorBFP().almostEqual(T[k - 1]->GetScalingFactorBFP()) &&
-                   "Scaling factors are not equal!");
+            if (!T[i - 1]->GetScalingFactorBFP().almostEqual(T[k - 1]->GetScalingFactorBFP())) {
+                OPENFHE_THROW("Scaling factors are not equal!");
+            }
         }
     }
 
@@ -180,24 +182,24 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalChebyPolysPS(ConstCiphertex
 
     for (uint32_t i = 1; i < m; ++i) {
         // Compute the Chebyshev polynomials T_k(y), T_{2k}(y), T_{4k}(y), ... , T_{2^{m-1}k}(y)
-        T2[i] = gEvalMult(T2[i - 1], T2[i - 1]);
-        gEvalAddInPlace(T2[i], T2[i]);
-        gModReduceInPlace(T2[i]);
+        T2[i] = z->EvalMult(T2[i - 1], T2[i - 1]);
+        z->EvalAddInPlace(T2[i], T2[i]);
+        z->ModReduceInPlace(T2[i]);
         auto one = BigFixedPoint::one();
         cEvalAddInPlace(T2[i], -one);
 
         // compute T_{k(2*m - 1)} = 2*T_{k(2^{m-1}-1)}(y)*T_{k*2^{m-1}}(y) - T_k(y)
-        T2km1 = gEvalMultWithAdjust(T2km1, T2[i]);
-        gEvalAddInPlace(T2km1, T2km1);
-        gModReduceInPlace(T2km1);
-        gEvalSubWithAdjustInPlace(T2km1, T2[0]);
+        T2km1 = z->EvalMultWithAdjust(T2km1, T2[i]);
+        z->EvalAddInPlace(T2km1, T2km1);
+        z->ModReduceInPlace(T2km1);
+        z->EvalSubWithAdjustInPlace(T2km1, T2[0]);
     }
 
     return std::make_shared<seriesPowers<DCRTPoly>>(std::move(T), std::move(T2), std::move(T2km1), k, m);
 }
 
-Ciphertext<DCRTPoly> EvalPartialLinearWSum(const std::vector<Ciphertext<DCRTPoly>>& ciphertexts,
-                                           const std::vector<BigComplex>& constants, uint32_t limit = 0) {
+Ciphertext<DCRTPoly> AdvancedZImpl::EvalPartialLinearWSum(const std::vector<Ciphertext<DCRTPoly>>& ciphertexts,
+                                                          const std::vector<BigComplex>& constants, uint32_t limit) {
     if (0 == limit)
         limit = ciphertexts.size();
 
@@ -222,22 +224,23 @@ Ciphertext<DCRTPoly> EvalPartialLinearWSum(const std::vector<Ciphertext<DCRTPoly
     auto algo = cc->GetScheme();
     auto& ctm = cts[maxIdx];
     for (uint32_t i = 0; i < maxIdx; ++i)
-        cts[i] = gAdjustCiphertext(cts[i], ctm);
+        cts[i] = z->AdjustCiphertext(cts[i], ctm);
     for (uint32_t i = maxIdx + 1; i < limit; ++i)
-        cts[i] = gAdjustCiphertext(cts[i], ctm);
+        cts[i] = z->AdjustCiphertext(cts[i], ctm);
 
     cts[0] = cEvalMult(cts[0], constants[1]);
     for (uint32_t i = 1; i < limit; ++i) {
         cts[i] = cEvalMult(cts[i], constants[i + 1]);
-        gEvalAddInPlace(cts[0], cts[i]);
+        z->EvalAddInPlace(cts[0], cts[i]);
     }
-    gModReduceInPlace(cts[0]);
+    z->ModReduceInPlace(cts[0]);
     return cts[0];
 }
 
-Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coefficients,
-                                          uint32_t k, uint32_t m, const std::vector<Ciphertext<DCRTPoly>>& T,
-                                          const std::vector<Ciphertext<DCRTPoly>>& T2) {
+Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x,
+                                                         const std::vector<BigComplex>& coefficients, uint32_t k,
+                                                         uint32_t m, const std::vector<Ciphertext<DCRTPoly>>& T,
+                                                         const std::vector<Ciphertext<DCRTPoly>>& T2) {
     // Compute k*2^{m-1}-k because we use it a lot
     uint32_t k2m2k = k * (1 << (m - 1)) - k;
 
@@ -277,7 +280,7 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
             qu                   = T[k - 1]->Clone();
             const uint32_t limit = std::log2(divqr->q.back().getReal().convertToDouble());
             for (uint32_t i = 0; i < limit; ++i)
-                gEvalAddInPlace(qu, qu);
+                z->EvalAddInPlace(qu, qu);
 
             // adds the free term (at x^0)
             cEvalAddInPlace(qu, divqr->q.front() / BigFixedPoint::two());
@@ -286,7 +289,7 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
 
             divqr->q.resize(k);
             if (uint32_t n = Degree(divqr->q); n > 0)
-                gEvalAddWithAdjustInPlace(qu, EvalPartialLinearWSum(T, divqr->q, n));
+                z->EvalAddWithAdjustInPlace(qu, EvalPartialLinearWSum(T, divqr->q, n));
         }
     }
 
@@ -307,7 +310,7 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
             // perform scalar multiplication for all other terms and sum them up if there are non-zero coefficients
             s2.resize(k);
             if (uint32_t n = Degree(s2); n > 0)
-                gEvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(T, s2, n));
+                z->EvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(T, s2, n));
 
             // adds the free term (at x^0)
             cEvalAddInPlace(su, s2.front() / BigFixedPoint::two());
@@ -322,7 +325,7 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
         if (n == 1) {
             if (IsNotEqualOne(divcs->q[1].convertToComplex())) {
                 cu = cEvalMult(T.front(), divcs->q[1]);
-                gModReduceInPlace(cu);
+                z->ModReduceInPlace(cu);
             }
             else {
                 cu = T.front()->Clone();
@@ -340,16 +343,16 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
         // gLevelReduceInPlace(cu, (T2[m - 1]->GetLevel() - cu->GetLevel()));
     }
 
-    cu = cu ? gEvalAddWithAdjust(T2[m - 1], cu) : cEvalAdd(T2[m - 1], divcs->q.front() / BigFixedPoint::two());
+    cu = cu ? z->EvalAddWithAdjust(T2[m - 1], cu) : cEvalAdd(T2[m - 1], divcs->q.front() / BigFixedPoint::two());
 
-    auto result = gEvalMultWithAdjust(cu, qu);
-    gModReduceInPlace(result);
-    gEvalAddWithAdjustInPlace(result, su);
+    auto result = z->EvalMultWithAdjust(cu, qu);
+    z->ModReduceInPlace(result);
+    z->EvalAddWithAdjustInPlace(result, su);
     return result;
 }
 
-Ciphertext<DCRTPoly> internalEvalChebyshevSeriesPSWithPrecomp(const std::shared_ptr<seriesPowers<DCRTPoly>>& ctxtPolys,
-                                                              const std::vector<BigComplex>& coefficients) {
+Ciphertext<DCRTPoly> AdvancedZImpl::internalEvalChebyshevSeriesPSWithPrecomp(
+    const std::shared_ptr<seriesPowers<DCRTPoly>>& ctxtPolys, const std::vector<BigComplex>& coefficients) {
     auto& T     = ctxtPolys->powersRe;
     auto& T2    = ctxtPolys->powers2Re;
     auto& T2km1 = ctxtPolys->power2km1Re;
@@ -365,18 +368,20 @@ Ciphertext<DCRTPoly> internalEvalChebyshevSeriesPSWithPrecomp(const std::shared_
     f2.resize(2 * k2m2k + k + 1);
     f2.back() = BigFixedPoint::one();
 
-    return gEvalSubWithAdjust(InnerEvalChebyshevPS(T[0], f2, k, m, T, T2), T2km1);
+    return z->EvalSubWithAdjust(InnerEvalChebyshevPS(T[0], f2, k, m, T, T2), T2km1);
 }
 
-Ciphertext<DCRTPoly> EvalChebyshevSeriesPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coeffs) {
-    return internalEvalChebyshevSeriesPSWithPrecomp(zInternalEvalChebyPolysPS(x, Degree(coeffs)), coeffs);
+Ciphertext<DCRTPoly> AdvancedZImpl::EvalChebyshevSeriesPS(ConstCiphertext<DCRTPoly>& x,
+                                                          const std::vector<BigComplex>& coeffs) {
+    return internalEvalChebyshevSeriesPSWithPrecomp(internalEvalChebyPolysPS(x, Degree(coeffs)), coeffs);
 }
 
 //===================================================================================
 // PolyPS related
 //===================================================================================
 
-std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalPowersPS(ConstCiphertext<DCRTPoly>& x, uint32_t degree) {
+std::shared_ptr<seriesPowers<DCRTPoly>> AdvancedZImpl::internalEvalPowersPS(ConstCiphertext<DCRTPoly>& x,
+                                                                            uint32_t degree) {
     auto degs  = ComputeDegreesPS(degree);
     uint32_t k = degs[0];
     uint32_t m = degs[1];
@@ -389,23 +394,23 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalPowersPS(ConstCiphertext<DC
     uint32_t rem      = 0;
     for (uint32_t i = 2; i <= k; ++i) {
         if (rem == 0) {
-            powers[i - 1] = gEvalMult(powers[(powerOf2 >> 1) - 1], powers[(powerOf2 >> 1) - 1]);
+            powers[i - 1] = z->EvalMult(powers[(powerOf2 >> 1) - 1], powers[(powerOf2 >> 1) - 1]);
         }
         else {
-            powers[i - 1] = gEvalMultWithAdjust(powers[powerOf2 - 1], powers[rem - 1]);
+            powers[i - 1] = z->EvalMultWithAdjust(powers[powerOf2 - 1], powers[rem - 1]);
         }
 
         if (++rem == powerOf2) {
             powerOf2 <<= 1;
             rem = 0;
         }
-        gModReduceInPlace(powers[i - 1]);
+        z->ModReduceInPlace(powers[i - 1]);
     }
 
     // Adjust them to have same depth and scaling factor
     for (uint32_t i = 1; i < k; ++i) {
         if (powers[i - 1]->GetLevel() != powers[k - 1]->GetLevel()) {
-            powers[i - 1] = gAdjustCiphertext(powers[i - 1], powers[k - 1]);
+            powers[i - 1] = z->AdjustCiphertext(powers[i - 1], powers[k - 1]);
         }
         else {
             assert(powers[i - 1]->GetScalingFactorBFP().almostEqual(powers[k - 1]->GetScalingFactorBFP()) &&
@@ -420,17 +425,17 @@ std::shared_ptr<seriesPowers<DCRTPoly>> zInternalEvalPowersPS(ConstCiphertext<DC
     auto power2km1 = powers.back();
 
     for (uint32_t i = 1; i < m; ++i) {
-        powers2[i] = gEvalMult(powers2[i - 1], powers2[i - 1]);
-        gModReduceInPlace(powers2[i]);
-        power2km1 = gEvalMultWithAdjust(powers2[i], power2km1);
-        gModReduceInPlace(power2km1);
+        powers2[i] = z->EvalMult(powers2[i - 1], powers2[i - 1]);
+        z->ModReduceInPlace(powers2[i]);
+        power2km1 = z->EvalMultWithAdjust(powers2[i], power2km1);
+        z->ModReduceInPlace(power2km1);
     }
 
     return std::make_shared<seriesPowers<DCRTPoly>>(std::move(powers), std::move(powers2), std::move(power2km1), k, m);
 }
 
-std::shared_ptr<longDiv<BigComplex>> LongDivisionPoly(const std::vector<BigComplex>& f,
-                                                      const std::vector<BigComplex>& g) {
+static std::shared_ptr<longDiv<BigComplex>> LongDivisionPoly(const std::vector<BigComplex>& f,
+                                                             const std::vector<BigComplex>& g) {
     auto n = Degree(f);
     if (n != f.size() - 1)
         OPENFHE_THROW("The dominant coefficient of the divident is zero");
@@ -474,9 +479,10 @@ std::shared_ptr<longDiv<BigComplex>> LongDivisionPoly(const std::vector<BigCompl
     return res;
 }
 
-Ciphertext<DCRTPoly> zInnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coefficients,
-                                      uint32_t k, uint32_t m, const std::vector<Ciphertext<DCRTPoly>>& powers,
-                                      const std::vector<Ciphertext<DCRTPoly>>& powers2) {
+Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x,
+                                                    const std::vector<BigComplex>& coefficients, uint32_t k, uint32_t m,
+                                                    const std::vector<Ciphertext<DCRTPoly>>& powers,
+                                                    const std::vector<Ciphertext<DCRTPoly>>& powers2) {
     // Compute k*2^m because we use it often
     uint32_t k2m2k = k * (1 << (m - 1)) - k;
 
@@ -507,13 +513,13 @@ Ciphertext<DCRTPoly> zInnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x, const std::v
         // If their degrees are larger than k, then recursively apply the Paterson-Stockmeyer algorithm.
 
         if (Degree(divqr->q) > k) {
-            qu = zInnerEvalPolyPS(x, divqr->q, k, m - 1, powers, powers2);
+            qu = InnerEvalPolyPS(x, divqr->q, k, m - 1, powers, powers2);
         }
         else {
             qu = cEvalAdd(powers[k - 1], divqr->q.front());
             divqr->q.resize(k);
             if (uint32_t n = Degree(divqr->q); n > 0)
-                gEvalAddWithAdjustInPlace(qu, EvalPartialLinearWSum(powers, divqr->q, n));
+                z->EvalAddWithAdjustInPlace(qu, EvalPartialLinearWSum(powers, divqr->q, n));
         }
     }
 
@@ -525,13 +531,13 @@ Ciphertext<DCRTPoly> zInnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x, const std::v
         s2.back() = BigFixedPoint::one();
 
         if (Degree(s2) > k) {
-            su = zInnerEvalPolyPS(x, s2, k, m - 1, powers, powers2);
+            su = InnerEvalPolyPS(x, s2, k, m - 1, powers, powers2);
         }
         else {
             su = cEvalAdd(powers[k - 1], s2.front());
             s2.resize(k);
             if (uint32_t n = Degree(s2); n > 0)
-                gEvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(powers, s2, n));
+                z->EvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(powers, s2, n));
         }
     }
 
@@ -541,29 +547,29 @@ Ciphertext<DCRTPoly> zInnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x, const std::v
     else if (n == 1) {
         if (IsNotEqualOne(divcs->q[1].convertToComplex())) {
             cu = cEvalMult(powers.front(), divcs->q[1]);
-            gModReduceInPlace(cu);
-            cu = gEvalAddWithAdjust(cu, powers2[m - 1]);
+            z->ModReduceInPlace(cu);
+            cu = z->EvalAddWithAdjust(cu, powers2[m - 1]);
         }
         else {
-            cu = gEvalAddWithAdjust(powers2[m - 1], powers.front());
+            cu = z->EvalAddWithAdjust(powers2[m - 1], powers.front());
         }
         cEvalAddInPlace(cu, divcs->q.front());
     }
     else {
-        cu = gEvalAddWithAdjust(powers2[m - 1], EvalPartialLinearWSum(powers, divcs->q, n));
+        cu = z->EvalAddWithAdjust(powers2[m - 1], EvalPartialLinearWSum(powers, divcs->q, n));
         cEvalAddInPlace(cu, divcs->q.front());
     }
 
 #pragma omp taskwait
 
-    auto result = gEvalMultWithAdjust(cu, qu);
-    gModReduceInPlace(result);
-    gEvalAddWithAdjustInPlace(result, su);
+    auto result = z->EvalMultWithAdjust(cu, qu);
+    z->ModReduceInPlace(result);
+    z->EvalAddWithAdjustInPlace(result, su);
     return result;
 }
 
-Ciphertext<DCRTPoly> internalEvalPolyPSWithPrecomp(const std::shared_ptr<seriesPowers<DCRTPoly>>& ctxtPowers,
-                                                   const std::vector<BigComplex>& coefficients) {
+Ciphertext<DCRTPoly> AdvancedZImpl::internalEvalPolyPSWithPrecomp(
+    const std::shared_ptr<seriesPowers<DCRTPoly>>& ctxtPowers, const std::vector<BigComplex>& coefficients) {
     auto& powers    = ctxtPowers->powersRe;
     auto& powers2   = ctxtPowers->powers2Re;
     auto& power2km1 = ctxtPowers->power2km1Re;
@@ -583,18 +589,18 @@ Ciphertext<DCRTPoly> internalEvalPolyPSWithPrecomp(const std::shared_ptr<seriesP
 #pragma omp parallel num_threads(OpenFHEParallelControls.GetThreadLimit(6 * m + 2))
     {
 #pragma omp single
-        result = gEvalSubWithAdjust(zInnerEvalPolyPS(powers[0], f2, k, m, powers, powers2), power2km1);
+        result = z->EvalSubWithAdjust(InnerEvalPolyPS(powers[0], f2, k, m, powers, powers2), power2km1);
     }
     return result;
 }
 
-std::shared_ptr<seriesPowers<DCRTPoly>> EvalPowers(ConstCiphertext<DCRTPoly>& ciphertext,
-                                                   const std::vector<BigComplex>& coefficients) {
-    return zInternalEvalPowersPS(ciphertext, Degree(coefficients));
+std::shared_ptr<seriesPowers<DCRTPoly>> AdvancedZImpl::EvalPowers(ConstCiphertext<DCRTPoly>& ciphertext,
+                                                                  const std::vector<BigComplex>& coefficients) {
+    return internalEvalPowersPS(ciphertext, Degree(coefficients));
 }
 
-Ciphertext<DCRTPoly> EvalPolyWithPrecomp(std::shared_ptr<seriesPowers<DCRTPoly>> ctxtPowers,
-                                         const std::vector<BigComplex>& coeffs) {
+Ciphertext<DCRTPoly> AdvancedZImpl::EvalPolyWithPrecomp(std::shared_ptr<seriesPowers<DCRTPoly>> ctxtPowers,
+                                                        const std::vector<BigComplex>& coeffs) {
     return internalEvalPolyPSWithPrecomp(ctxtPowers, coeffs);
 }
 

@@ -58,6 +58,84 @@ void cEvalAddInPlace(Ciphertext<DCRTPoly> ct, BigComplex ptxt);
 
 // These methods assume that the Plaintext is REncoded
 
+class LeveledZImpl {
+public:
+    //
+    // Generic methods involving Ciphertext and Plaintext
+    //
+    Ciphertext<DCRTPoly> EvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
+    Ciphertext<DCRTPoly> EvalSub(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
+    Ciphertext<DCRTPoly> EvalAdd(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    Ciphertext<DCRTPoly> EvalSub(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
+    Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    void EvalAddInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
+    void EvalAddInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2);
+    void EvalSubInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
+    void EvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2);
+    void EvalMultInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
+
+    // Special methods for MSB bootstrapping
+    Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar);
+    void EvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar);
+
+    //
+    // Level management
+    //
+private:
+    // Should not allow user to call level reduce
+    void LevelReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1);
+
+public:
+    void ModReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1);
+
+    //
+    // Cross level adjustment
+    //
+    Ciphertext<DCRTPoly> AdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ctTarget);
+
+    // Automatic adjustment family
+    Ciphertext<DCRTPoly> EvalMultWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    Ciphertext<DCRTPoly> EvalAddWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    Ciphertext<DCRTPoly> EvalSubWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+
+    void EvalAddWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    void EvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+
+    //
+    // Operations in Z
+    //
+
+    // Here is short cut multiplication, ct1 * ct2 where one is in binary encoding
+    Ciphertext<DCRTPoly> EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    // Here is full multiplication, ct1 * ct2 * t
+    Ciphertext<DCRTPoly> EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+
+    // Helpers. Here ptxt will be ZEncoded
+    // If scalingFactor is not given, we use ct
+    // TODO: support larger integer..
+    Ciphertext<DCRTPoly> EvalAddInZ(ConstCiphertext<DCRTPoly> ct, uint32_t ptxt);
+    // If scalingFactor is not given, we use ct
+    Ciphertext<DCRTPoly> EvalMultInZ(ConstCiphertext<DCRTPoly> ct, uint32_t ptxt,
+                                     BigFixedPoint scalingFactor = BigFixedPoint::zero());
+
+    //
+    // Operations in C
+    //
+
+    // Helpers. Here ptxt will be CEncoded
+    Ciphertext<DCRTPoly> EvalAddInC(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt);
+    Ciphertext<DCRTPoly> EvalMultInC(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt,
+                                     BigFixedPoint scalingFactor = BigFixedPoint::zero());
+
+    void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, BigComplex ptxt);
+
+private:
+    // cache for plaintext...
+};
+
+using LeveledZ = std::shared_ptr<LeveledZImpl>;
+
 }  // namespace lbcrypto
 
 #endif  //SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_LEVELEDSHE_H_

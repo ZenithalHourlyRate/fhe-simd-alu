@@ -312,7 +312,7 @@ std::vector<BigComplex> another_interpolate(int order = 1) {
     return alphaBigComplex;
 }
 
-Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
+Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
 
     auto paramsQ   = cryptoParams->GetElementParams()->GetParams();
@@ -422,8 +422,8 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     //------------------------------------------------------------------------------
 
     auto& coeff_exp = coeff_exp_16_big_complex_58;
-    auto res        = EvalChebyshevSeriesPS(raisedRC2S[0], coeff_exp);
-    auto resI       = EvalChebyshevSeriesPS(raisedRC2S[1], coeff_exp);
+    auto res        = advZ->EvalChebyshevSeriesPS(raisedRC2S[0], coeff_exp);
+    auto resI       = advZ->EvalChebyshevSeriesPS(raisedRC2S[1], coeff_exp);
 
     // Double angle-iterations to get exp(2*Pi*i*x)
     res = gEvalMult(res, res);
@@ -443,12 +443,12 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     //------------------------------------------------------------------------------
 
     auto lutCoeffs = another_interpolate(1);
-    auto powers    = EvalPowers(res, lutCoeffs);
-    auto lut       = EvalPolyWithPrecomp(powers, lutCoeffs);
+    auto powers    = advZ->EvalPowers(res, lutCoeffs);
+    auto lut       = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
     //__heir_debug2(lut, "LUT");
 
-    auto powersI = EvalPowers(resI, lutCoeffs);
-    auto lutI    = EvalPolyWithPrecomp(powersI, lutCoeffs);
+    auto powersI = advZ->EvalPowers(resI, lutCoeffs);
+    auto lutI    = advZ->EvalPolyWithPrecomp(powersI, lutCoeffs);
     //__heir_debug2(lutI, "LUT");
 
     auto rCoeffLut = SlotsToRCoeffs(cc, lut, lutI);
@@ -559,6 +559,9 @@ void SimpleBootstrapExample() {
     std::cout << *(std::static_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters())->GetParamsP())
               << " primes in the special prime modulus." << std::endl;
 
+    LeveledZ z     = std::make_shared<LeveledZImpl>();
+    AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
+
     cc_global    = cc;
     pk_global    = keyPair.publicKey;
     sk_global    = keyPair.secretKey;
@@ -585,7 +588,7 @@ void SimpleBootstrapExample() {
 
     /// TEST ADD
     if (0) {
-        auto ctAdd = gEvalAdd(encoded, ptxt2);
+        auto ctAdd = z->EvalAdd(encoded, ptxt2);
 
         __heir_debug2(ctAdd, "Add");
     }
@@ -595,9 +598,9 @@ void SimpleBootstrapExample() {
     Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
     if (0) {
-        auto ctMul = gEvalMult(encoded, tPtxt);
+        auto ctMul = z->EvalMult(encoded, tPtxt);
         __heir_debug2(ctMul, "Mult");
-        gModReduceInPlace(ctMul);
+        z->ModReduceInPlace(ctMul);
         __heir_debug2(ctMul, "Mult");
     }
 
@@ -605,7 +608,7 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> ct;
     if (1) {
         auto ctMul = zEvalMultFull(encoded, encoded2, tPtxt);
-        gModReduceInPlace(ctMul, 2);
+        z->ModReduceInPlace(ctMul, 2);
         __heir_debug2(ctMul, "CMult");
         ct = ctMul;
     }
@@ -621,8 +624,8 @@ void SimpleBootstrapExample() {
     std::vector<Ciphertext<DCRTPoly>> zC2S;
     if (1) {
         zC2S = ZCoeffsToSlots(cc, ct);
-        gModReduceInPlace(zC2S[0]);
-        gModReduceInPlace(zC2S[1]);
+        z->ModReduceInPlace(zC2S[0]);
+        z->ModReduceInPlace(zC2S[1]);
 
         __heir_debug2(zC2S[0], "Upper");
         __heir_debug2(zC2S[1], "Down");
@@ -639,7 +642,7 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> s2rc;
     if (1) {
         auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
-        gModReduceInPlace(z2S2r);
+        z->ModReduceInPlace(z2S2r);
         s2rc = z2S2r;
         __heir_debug2(z2S2r, "S2RC");
 
@@ -669,7 +672,7 @@ void SimpleBootstrapExample() {
         auto ct2       = gEvalMultScalar(s2rc, divScalar);
         ct2->SetScalingFactorBFP(qBFP / two);
         // Reduce all the way to the bottom
-        gModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
+        z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
         //auto q0     = ct2->GetElements()[0].GetModulus();
         //auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
         //auto sfNow2 = q0BFP / two;
@@ -678,12 +681,12 @@ void SimpleBootstrapExample() {
         ctMSB = ct2;
     }
 
-    auto lowBitBTS = [](Ciphertext<DCRTPoly> input, unsigned bits) -> std::array<Ciphertext<DCRTPoly>, 2> {
+    auto lowBitBTS = [z, advZ](Ciphertext<DCRTPoly> input, unsigned bits) -> std::array<Ciphertext<DCRTPoly>, 2> {
         auto lowScalar = BigInteger(1) << bits;
-        auto ctLow     = gEvalMultScalar(input, lowScalar);
+        auto ctLow     = z->EvalMultScalar(input, lowScalar);
         // Just a different interpretation...
         ctLow->SetScalingFactorBFP(input->GetScalingFactorBFP());
-        auto ctLowBTS = MSBBootstrap(ctLow);
+        auto ctLowBTS = MSBBootstrap(ctLow, z, advZ);
 
         // Adjust to original MSB representation
         auto q            = ctLowBTS->GetElements()[0].GetModulus();
@@ -694,10 +697,10 @@ void SimpleBootstrapExample() {
         // q / (2 * Delta * lowScalar)
         auto div       = (qBFP / sfNow / two / lowScalarBFP).round();
         auto divScalar = div.getValue() >> div.getLog2Scale();
-        auto ct2       = gEvalMultScalar(ctLowBTS, divScalar);
+        auto ct2       = z->EvalMultScalar(ctLowBTS, divScalar);
         ct2->SetScalingFactorBFP(qBFP / two);
         // Reduce all the way to the bottom
-        gModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
+        z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
         return {ct2, ctLowBTS};
     };
 
@@ -708,12 +711,12 @@ void SimpleBootstrapExample() {
             auto [lowBTS, lowBTSHigh] = lowBitBTS(ctMSB, 32 - bits);
             lowBTSs.push_back(lowBTS);
             lowBTSHighs.push_back(lowBTSHigh);
-            gEvalSubInPlace(ctMSB, lowBTS);
+            z->EvalSubInPlace(ctMSB, lowBTS);
             __heir_debug2(ctMSB, "MSB" + std::to_string(bits));
         }
         auto ctNew = lowBTSs[0];
         for (size_t i = 1; i != lowBTSs.size(); ++i) {
-            gEvalAddInPlace(ctNew, lowBTSs[i]);
+            z->EvalAddInPlace(ctNew, lowBTSs[i]);
         }
         __heir_debug2(ctNew, "Reconstructed");
     }
@@ -725,9 +728,9 @@ void SimpleBootstrapExample() {
         auto elemParam       = ctMSB->GetElements()[0].GetParams();
         auto offset          = ZPolynomial::getBalancedOffset();
         Plaintext offsetPtxt = ZEncodingImpl::encodeR(offset.interpretAsRPolynomial(), elemParam, sfNow);
-        gEvalSubInPlace(ctMSB, offsetPtxt);
+        z->EvalSubInPlace(ctMSB, offsetPtxt);
         // Do [-1/2, 1/2)
-        auto ct2 = gEvalMultScalar(ctMSB, 2);
+        auto ct2 = z->EvalMultScalar(ctMSB, 2);
         ct2->SetScalingFactorBFP(qBFP);  // Note it is not qBFP / 2 but qBFP
         __heir_debug2(ct2, "Binary");
     }
