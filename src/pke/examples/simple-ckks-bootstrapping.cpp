@@ -563,7 +563,7 @@ void SimpleBootstrapExample() {
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(-3).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(-1).toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE
@@ -690,7 +690,7 @@ void SimpleBootstrapExample() {
         return {ct2, ctLowBTS};
     };
 
-    if (0) {
+    if (1) {
         std::vector<Ciphertext<DCRTPoly>> lowBTSs;
         std::vector<Ciphertext<DCRTPoly>> lowBTSHighs;
         for (size_t bits = 4; bits <= 32; bits += 4) {
@@ -707,7 +707,7 @@ void SimpleBootstrapExample() {
         __heir_debug2(ctNew, "Reconstructed");
     }
 
-    if (1) {
+    if (0) {
         auto q               = ctMSB->GetElements()[0].GetModulus();
         auto qBFP            = BigFixedPoint(q, 0, false).scaleTo(128);
         auto sfNow           = ctMSB->GetScalingFactorBFP();

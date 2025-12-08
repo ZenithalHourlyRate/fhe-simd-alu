@@ -12,12 +12,17 @@ namespace lbcrypto {
 //=============================================================================
 
 void gEvalAddInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
-    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalAdd");
-    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    if (ct->GetElements()[0].GetParams()->GetParams().size() !=
+        ptxt->GetElement<DCRTPoly>().GetParams()->GetParams().size()) {
+        OPENFHE_THROW("Ciphertext and Plaintext size mismatch in EvalAdd");
+    }
+    if (ptxt->GetElement<DCRTPoly>().GetFormat() != Format::EVALUATION) {
+        OPENFHE_THROW("Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    }
     ZEncoding zEnc = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
-    assert(zEnc->GetScalingFactorBFP() == ct->GetScalingFactorBFP() &&
-           "Ciphertext and Plaintext scaling factor mismatch in EvalAdd");
+    if (!zEnc->GetScalingFactorBFP().almostEqual(ct->GetScalingFactorBFP())) {
+        OPENFHE_THROW("Ciphertext and Plaintext scaling factor mismatch in EvalAdd");
+    }
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
 
     auto& b = ct->GetElements()[0];
@@ -31,9 +36,12 @@ Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
 }
 
 void gEvalAddInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
-    assert(ct->GetElements().size() == ct2->GetElements().size() && "Ciphertext size mismatch in EvalAddInplace");
-    assert(ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-           "Ciphertext scaling factor mismatch in EvalAddInplace");
+    if (ct->GetElements()[0].GetParams()->GetParams().size() != ct2->GetElements()[0].GetParams()->GetParams().size()) {
+        OPENFHE_THROW("Ciphertext size mismatch in EvalAddInplace");
+    }
+    if (!ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+        OPENFHE_THROW("Ciphertext scaling factor mismatch in EvalAddInplace");
+    }
     auto& cv1  = ct->GetElements();
     auto& cv2  = ct2->GetElements();
     uint32_t n = cv1.size();
@@ -48,12 +56,17 @@ Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRT
 }
 
 void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
-    assert(ct->GetElements().size() == ptxt.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalAdd");
-    assert(ptxt.GetFormat() == Format::EVALUATION && "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    if (ct->GetElements()[0].GetParams()->GetParams().size() !=
+        ptxt->GetElement<DCRTPoly>().GetParams()->GetParams().size()) {
+        OPENFHE_THROW("Ciphertext and Plaintext size mismatch in EvalAdd");
+    }
+    if (ptxt->GetElement<DCRTPoly>().GetFormat() != Format::EVALUATION) {
+        OPENFHE_THROW("Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    }
     ZEncoding zEnc = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
-    assert(zEnc->GetScalingFactorBFP() == ct->GetScalingFactorBFP() &&
-           "Ciphertext and Plaintext scaling factor mismatch in EvalAdd");
+    if (!zEnc->GetScalingFactorBFP().almostEqual(ct->GetScalingFactorBFP())) {
+        OPENFHE_THROW("Ciphertext and Plaintext scaling factor mismatch in EvalAdd");
+    }
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
 
     auto& b = ct->GetElements()[0];
@@ -67,9 +80,12 @@ Ciphertext<DCRTPoly> gEvalSub(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt) {
 }
 
 void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2) {
-    assert(ct->GetElements().size() == ct2->GetElements().size() && "Ciphertext size mismatch in EvalAddInplace");
-    assert(ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-           "Ciphertext scaling factor mismatch in EvalAddInplace");
+    if (ct->GetElements()[0].GetParams()->GetParams().size() != ct2->GetElements()[0].GetParams()->GetParams().size()) {
+        OPENFHE_THROW("Ciphertext size mismatch in EvalAddInplace");
+    }
+    if (!ct->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+        OPENFHE_THROW("Ciphertext scaling factor mismatch in EvalAddInplace");
+    }
     auto& cv1  = ct->GetElements();
     auto& cv2  = ct2->GetElements();
     uint32_t n = cv1.size();
@@ -86,10 +102,13 @@ Ciphertext<DCRTPoly> gEvalSub(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRT
 void gEvalMultInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
     ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
-    assert(ct->GetElements().size() == zEncDCRTPoly.GetParams()->GetParams().size() &&
-           "Ciphertext and Plaintext size mismatch in EvalMult");
-    assert(zEncDCRTPoly.GetFormat() == Format::EVALUATION &&
-           "Plaintext must be in EVALUATION format in EvalMultDCRTPoly");
+    if (ct->GetElements()[0].GetParams()->GetParams().size() !=
+        ptxt->GetElement<DCRTPoly>().GetParams()->GetParams().size()) {
+        OPENFHE_THROW("Ciphertext and Plaintext size mismatch in EvalMult");
+    }
+    if (zEncDCRTPoly.GetFormat() != Format::EVALUATION) {
+        OPENFHE_THROW("Plaintext must be in EVALUATION format in EvalMult");
+    }
     auto ctSFBFP   = ct->GetScalingFactorBFP();
     auto ptxtSFBFP = zEnc->GetScalingFactorBFP();
 
@@ -128,8 +147,9 @@ Ciphertext<DCRTPoly> gEvalMultWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCip
         return gEvalMult(ct1, ct2Adjusted);
     }
     else {
-        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-               "Scaling factors are not equal in gEvalMultWithAdjust");
+        if (!ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+            OPENFHE_THROW("Scaling factors are not equal in gEvalMultWithAdjust");
+        }
         return gEvalMult(ct1, ct2);
     }
 }
@@ -146,8 +166,9 @@ Ciphertext<DCRTPoly> gEvalAddWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiph
         return gEvalAdd(ct1, ct2Adjusted);
     }
     else {
-        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-               "Scaling factors are not equal in gEvalMultWithAdjust");
+        if (!ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+            OPENFHE_THROW("Scaling factors are not equal in gEvalAddtWithAdjust");
+        }
         return gEvalAdd(ct1, ct2);
     }
 }
@@ -165,8 +186,9 @@ void gEvalAddWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPol
         gEvalAddInPlace(ct1, ct2);
     }
     else {
-        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-               "Scaling factors are not equal in gEvalMultWithAdjust");
+        if (!ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+            OPENFHE_THROW("Scaling factors are not equal in gEvalAddWithAdjust");
+        }
         gEvalAddInPlace(ct1, ct2);
     }
 }
@@ -183,8 +205,9 @@ Ciphertext<DCRTPoly> gEvalSubWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiph
         return gEvalSub(ct1, ct2Adjusted);
     }
     else {
-        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-               "Scaling factors are not equal in gEvalMultWithAdjust");
+        if (!ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+            OPENFHE_THROW("Scaling factors are not equal in gEvalSubWithAdjust");
+        }
         return gEvalSub(ct1, ct2);
     }
 }
@@ -202,8 +225,9 @@ void gEvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPol
         gEvalSubInPlace(ct1, ct2);
     }
     else {
-        assert(ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP()) &&
-               "Scaling factors are not equal in gEvalMultWithAdjust");
+        if (!ct1->GetScalingFactorBFP().almostEqual(ct2->GetScalingFactorBFP())) {
+            OPENFHE_THROW("Scaling factors are not equal in gEvalSubWithAdjustInPlace");
+        }
         gEvalSubInPlace(ct1, ct2);
     }
 }

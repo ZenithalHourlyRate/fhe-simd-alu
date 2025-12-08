@@ -1,5 +1,5 @@
 #include <cassert>
-#include "math/z-encode.h"
+#include "math/z-encode-utils.h"
 
 void test_encodeInZ() {
     auto input   = 255;
@@ -235,6 +235,22 @@ void test_balanced() {
     std::cout << "Decoded Rounded Balanced * T: " << decoded << "\n";
 }
 
+void test_noisy() {
+    uint32_t input = 255;
+    auto encodedZ  = ZPolynomial::encode(input);
+    for (size_t i = 0; i != encodedZ.getCoefficients().size(); ++i) {
+        // add some noise
+        encodedZ[i] = encodedZ[i] + BigFixedPoint::positive(1) / BigFixedPoint::positive(16);
+    }
+    std::cout << "Input: " << input << "\nEncoded in Z with noise: ";
+    for (const auto& val : encodedZ.getCoefficients()) {
+        std::cout << val.toHexString() << " ";
+    }
+    std::cout << std::endl;
+    auto decoded = ZPolynomial::decode(encodedZ);
+    std::cout << "Decoded with noise: " << decoded << "\n";
+}
+
 int main() {
     test_encodeInZ();
     test2_encodeInZ();
@@ -244,5 +260,6 @@ int main() {
     test_natural();
     test_extractI();
     test_balanced();
+    test_noisy();
     return 0;
 }

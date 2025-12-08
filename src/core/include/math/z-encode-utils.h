@@ -215,9 +215,14 @@ public:
     static uint32_t decode(ZPolynomial input) {
         auto poly = multiplyRaw(input, getT());
 
-        // Do Euclidean division by X-2
-        auto two                          = BigFixedPoint::positive(2);
+        // For each coefficient, do rounding
         std::vector<BigFixedPoint> result = poly.getCoefficients();
+        for (size_t i = 0; i != result.size(); ++i) {
+            auto rounded = result[i].round();
+            result[i]    = rounded;
+        }
+        // Do Euclidean division by X-2
+        auto two = BigFixedPoint::positive(2);
         for (size_t i = result.size() - 1; i >= 1; --i) {
             result[i - 1] += two * result[i];
             result.pop_back();
