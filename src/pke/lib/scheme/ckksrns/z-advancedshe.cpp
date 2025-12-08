@@ -313,8 +313,8 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
             cEvalAddInPlace(su, s2.front() / BigFixedPoint::two());
 
             // The number of levels of su is the same as the number of levels of T[k-1] or T[k-1] + 1. Need to reduce it to T2[m-1] + 1.
-            // Maybe automatic adjustment
-            gLevelReduceInPlace(su);
+            // New Code: Maybe automatic adjustment
+            //gLevelReduceInPlace(su);
         }
     }
 
@@ -336,7 +336,8 @@ Ciphertext<DCRTPoly> InnerEvalChebyshevPS(ConstCiphertext<DCRTPoly>& x, const st
         cEvalAddInPlace(cu, divcs->q.front() / BigFixedPoint::two());
 
         // Need to reduce levels up to the level of T2[m-1].
-        gLevelReduceInPlace(cu, (T2[m - 1]->GetLevel() - cu->GetLevel()));
+        // New code: Need adjust below
+        // gLevelReduceInPlace(cu, (T2[m - 1]->GetLevel() - cu->GetLevel()));
     }
 
     cu = cu ? gEvalAddWithAdjust(T2[m - 1], cu) : cEvalAdd(T2[m - 1], divcs->q.front() / BigFixedPoint::two());

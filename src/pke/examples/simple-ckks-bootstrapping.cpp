@@ -156,6 +156,17 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             extractErrorRoly(rPoly, 4);
         }
     }
+    if (msg == "ModRaise") {
+        for (size_t i = 0; i != 2; ++i) {
+            std::cout << msg << "  values [" << i << "]: " << values[i].toString(32) << std::endl;
+        }
+    }
+    if (msg == "Cheby1") {
+        for (size_t i = 0; i != 2; ++i) {
+            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toString(32) << std::endl;
+        }
+        std::cout << std::endl;
+    }
     ZPolynomial zValues = values.toZPolynomial();
     if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
@@ -362,7 +373,7 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     }
 
     raised->SetScalingFactorBFP(ct->GetScalingFactorBFP());
-    //__heir_debug2(raised, "ModRaise");
+    __heir_debug2(raised, "ModRaise");
 
     //------------------------------------------------------------------------------
     // SPARSELY PACKED CASE
@@ -378,7 +389,7 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
         cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * 16));
     }
     // Now the message is multplied by N/32
-    //__heir_debug2(raised, "PSum");
+    __heir_debug2(raised, "PSum");
 
     // Normalize to [-1, 1] from [-16, 16]
     // Multiply by 2/N * Delta, so the result is m / 16 * Delta^2
@@ -391,7 +402,7 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     raised                           = gEvalMultScalar(raised, normalizeFactor);
     raised->SetScalingFactorBFP(raisedSF * raisedSF);
     gModReduceInPlace(raised);
-    //__heir_debug2(raised, "Normalize");
+    __heir_debug2(raised, "Normalize");
     // Note that there are other ways...some work first multiply by 1 / N
     // Then PartialSum
     // Then use CoeffsToSlots matrix to do the /16
@@ -425,7 +436,7 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct) {
     resI = gEvalMult(resI, resI);
     gModReduceInPlace(resI);
 
-    //__heir_debug2(res, "Cheby1");
+    __heir_debug2(res, "Cheby1");
 
     //------------------------------------------------------------------------------
     // Running LUT
@@ -563,7 +574,7 @@ void SimpleBootstrapExample() {
     RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(-1).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(-3).toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE
@@ -698,7 +709,7 @@ void SimpleBootstrapExample() {
             lowBTSs.push_back(lowBTS);
             lowBTSHighs.push_back(lowBTSHigh);
             gEvalSubInPlace(ctMSB, lowBTS);
-            //__heir_debug2(ctMSB, "MSB" + std::to_string(bits));
+            __heir_debug2(ctMSB, "MSB" + std::to_string(bits));
         }
         auto ctNew = lowBTSs[0];
         for (size_t i = 1; i != lowBTSs.size(); ++i) {
