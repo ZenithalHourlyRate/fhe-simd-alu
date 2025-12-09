@@ -38,6 +38,7 @@ Example for CKKS bootstrapping with full packing
 #include "math/chebyshev.h"
 #include "openfhe.h"
 #include "utils.h"
+#include "scheme/ckksrns/z-fhe.h"
 
 using namespace lbcrypto;
 
@@ -76,6 +77,54 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto zEncode = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize, sfBigFP);
 
     RPolynomial values = ZEncodingImpl::decodeR(zEncode);
+
+    // This is for sparse LT
+    auto zEncodeTwice       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize * 2, sfBigFP);
+    RPolynomial valuesTwice = ZEncodingImpl::decodeR(zEncodeTwice);
+
+    if (msg == "LT") {
+        uint32_t slots = 32;
+        uint32_t m     = 4 * slots;
+        uint32_t nh    = m / 4;
+        uint32_t mmask = m - 1;  // assumes m is power of 2
+        // computes indices for all primitive roots of unity
+        std::vector<uint32_t> rotGroup(nh);
+        uint32_t fivePows = 1;
+        for (uint32_t i = 0; i < nh; ++i) {
+            rotGroup[i] = fivePows;
+            fivePows *= 5;
+            fivePows &= mmask;
+        }
+
+        // computes all powers of a primitive root of unity exp(2 * M_PI/m)
+        std::vector<BigComplex> ksiPows(m + 1);
+        ksiPows[0] = BigComplex(BigFixedPoint::one(), BigFixedPoint::zero());
+        ksiPows[1] = R_ROOT_MAP.at(m);
+        for (uint32_t j = 2; j < m; ++j) {
+            ksiPows[j] = ksiPows[j - 1] * ksiPows[1];
+        }
+        ksiPows[m] = ksiPows[0];
+
+        BigCMatrix U0(slots, BigCVector(2 * slots));
+        for (uint32_t i = 0; i < slots; ++i) {
+            for (uint32_t j = 0; j < 2 * slots; ++j) {
+                U0[i][j] = ksiPows[(j * rotGroup[i]) & mmask];
+            }
+        }
+
+        BigCVector res;
+        // Do matrix mult U0 * valuesTwice
+        for (size_t i = 0; i != slots; ++i) {
+            BigComplex sum(BigFixedPoint::zero(), BigFixedPoint::zero());
+            for (size_t j = 0; j != 2 * slots; ++j) {
+                sum += U0[i][j] * BigComplex(valuesTwice[j], BigFixedPoint::zero());
+            }
+            res.push_back(sum);
+        }
+        for (size_t i = 0; i != res.size(); ++i) {
+            std::cout << msg << "  LT complexValues [" << i << "]: " << res[i].toHexString(16) << std::endl;
+        }
+    }
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
@@ -129,7 +178,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
     }
     auto cSlots = values.toCSlots();
-    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S" || msg == "LUT") {
+    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S" || msg == "LUT" || msg == "LT") {
         for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
             std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
@@ -312,7 +361,7 @@ std::vector<BigComplex> another_interpolate(int order = 1) {
     return alphaBigComplex;
 }
 
-Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
+Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FHEZ fheZ) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
 
     auto paramsQ   = cryptoParams->GetElementParams()->GetParams();
@@ -403,6 +452,15 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
     raised->SetScalingFactorBFP(raisedSF * raisedSF);
     z->ModReduceInPlace(raised);
     __heir_debug2(raised, "Normalize");
+
+    fheZ->EvalBootstrapSetup(*cc, 16, {1, 1});
+    auto& precomp   = fheZ->GetBootPrecom(16);
+    auto& U0hatTPre = precomp.m_U0hatTPre;
+    auto lt         = fheZ->EvalLinearTransform(U0hatTPre, raised);
+    __heir_debug2(lt, "LT");
+
+    return ct->Clone();
+
     // Note that there are other ways...some work first multiply by 1 / N
     // Then PartialSum
     // Then use CoeffsToSlots matrix to do the /16
@@ -561,6 +619,7 @@ void SimpleBootstrapExample() {
 
     LeveledZ z     = std::make_shared<LeveledZImpl>();
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
+    FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
     cc_global    = cc;
     pk_global    = keyPair.publicKey;
@@ -681,12 +740,16 @@ void SimpleBootstrapExample() {
         ctMSB = ct2;
     }
 
-    auto lowBitBTS = [z, advZ](Ciphertext<DCRTPoly> input, unsigned bits) -> std::array<Ciphertext<DCRTPoly>, 2> {
+    if (1) {
+        MSBBootstrap(ctMSB, z, advZ, fheZ);
+    }
+
+    auto lowBitBTS = [z, advZ, fheZ](Ciphertext<DCRTPoly> input, unsigned bits) -> std::array<Ciphertext<DCRTPoly>, 2> {
         auto lowScalar = BigInteger(1) << bits;
         auto ctLow     = z->EvalMultScalar(input, lowScalar);
         // Just a different interpretation...
         ctLow->SetScalingFactorBFP(input->GetScalingFactorBFP());
-        auto ctLowBTS = MSBBootstrap(ctLow, z, advZ);
+        auto ctLowBTS = MSBBootstrap(ctLow, z, advZ, fheZ);
 
         // Adjust to original MSB representation
         auto q            = ctLowBTS->GetElements()[0].GetModulus();
@@ -704,7 +767,7 @@ void SimpleBootstrapExample() {
         return {ct2, ctLowBTS};
     };
 
-    if (1) {
+    if (0) {
         std::vector<Ciphertext<DCRTPoly>> lowBTSs;
         std::vector<Ciphertext<DCRTPoly>> lowBTSHighs;
         for (size_t bits = 4; bits <= 32; bits += 4) {

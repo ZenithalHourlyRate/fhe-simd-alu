@@ -160,7 +160,7 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
         auto diag = ExtractShiftedDiagonal(A, ji);
         //for (auto& d : diag)
         //    d *= scale;
-        result[ji] = Rotate(diag, -step * (ji / step));
+        result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(diag, -step * (ji / step)));
     }
     return result;
 }
@@ -185,7 +185,7 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
             auto vecA = ExtractShiftedDiagonal(A, ji);
             auto vecB = ExtractShiftedDiagonal(B, ji);
             vecA.insert(vecA.end(), vecB.begin(), vecB.end());
-            result[ji] = Rotate(vecA, -step * (ji / step));
+            result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(vecA, -step * (ji / step)));
         }
     }
     else {
@@ -206,7 +206,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
             // shifted diagonal is computed for rectangular map newA of dimension
             // slots x 2*slots
             auto vec   = ExtractShiftedDiagonal(newA, ji);
-            result[ji] = Rotate(vec, -step * (ji / step));
+            auto res   = Rotate(vec, -step * (ji / step));
+            result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(res);
         }
     }
 
@@ -260,7 +261,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
 
                     auto rot = Rotate(coeff[s][ij], ReduceRotation(-rotScale * (ij / p.g), slots));
 
-                    result[s][ij] = rot;
+                    result[s][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -277,7 +278,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
 
                     auto rot = Rotate(coeff[stop][ij], ReduceRotation(-p.gRem * (ij / p.gRem), slots));
 
-                    result[stop][ij] = rot;
+                    result[stop][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -311,7 +312,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
 
                     auto rot = Rotate(clearTmp, ReduceRotation(-rotScale * (ij / p.g), M4));
 
-                    result[s][ij] = rot;
+                    result[s][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -332,7 +333,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
 
                     auto rot = Rotate(clearTmp, ReduceRotation(-p.gRem * (ij / p.gRem), M4));
 
-                    result[stop][ij] = rot;
+                    result[stop][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -386,7 +387,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
 
                     auto rot = Rotate(coeff[s][ij], ReduceRotation(-rotScale * (ij / p.g), slots));
 
-                    result[s][ij] = rot;
+                    result[s][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -404,7 +405,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
 
                     auto rot = Rotate(coeff[smax][ij], ReduceRotation(-rotScale * (ij / p.g), slots));
 
-                    result[smax][ij] = rot;
+                    result[smax][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -438,7 +439,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
 
                     auto rot = Rotate(clearTmp, ReduceRotation(-rotScale * (ij / p.g), M4));
 
-                    result[s][ij] = rot;
+                    result[s][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -460,7 +461,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
 
                     auto rot = Rotate(clearTmp, ReduceRotation(-rotScale * (ij / p.g), M4));
 
-                    result[smax][ij] = rot;
+                    result[smax][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
             }
         }
@@ -468,8 +469,8 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
     return result;
 }
 
-Plaintext ZBootstrapPlaintextCache::GetPlaintext(const BigFixedPoint& scalingFactor,
-                                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
+Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalingFactor,
+                                                     const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
     auto q   = elementParams->GetModulus();
     auto key = std::make_tuple(scalingFactor, q);
     auto it  = m_cache.find(key);
@@ -481,6 +482,7 @@ Plaintext ZBootstrapPlaintextCache::GetPlaintext(const BigFixedPoint& scalingFac
     auto slots = m_value.size();
     auto m     = m_value.size() * 4;
     auto n     = m_value.size() * 2;
+
     DiscreteFourierTransformBigComplex::Initialize(m, m / 4);
 
     BigCVector inverse = m_value;
@@ -512,7 +514,7 @@ Plaintext ZBootstrapPlaintextCache::GetPlaintext(const BigFixedPoint& scalingFac
         }
     }
 
-    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * n, q, 1));
+    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * N, q, 1));
     polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
 
     DCRTPoly poly(polyLarge, elementParams);

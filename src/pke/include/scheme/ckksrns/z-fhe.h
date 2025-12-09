@@ -7,15 +7,19 @@
 
 namespace lbcrypto {
 
-class ZBootstrapPlaintextCache {
+class ZBootstrapPlaintextCacheImpl {
 public:
-    ZBootstrapPlaintextCache()  = default;
-    ~ZBootstrapPlaintextCache() = default;
+    ZBootstrapPlaintextCacheImpl()  = default;
+    ~ZBootstrapPlaintextCacheImpl() = default;
 
-    ZBootstrapPlaintextCache(const BigCVector& val) : m_value(val) {}
+    ZBootstrapPlaintextCacheImpl(const BigCVector& val) : m_value(val) {}
 
     Plaintext GetPlaintext(const BigFixedPoint& scalingFactor,
                            const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
+
+    BigCVector& getValue() {
+        return m_value;
+    }
 
 private:
     BigCVector m_value;
@@ -24,6 +28,8 @@ private:
     using Key = std::tuple<BigFixedPoint, BigInteger>;
     std::map<Key, Plaintext> m_cache;
 };
+
+using ZBootstrapPlaintextCache = std::shared_ptr<ZBootstrapPlaintextCacheImpl>;
 
 class ZBootstrapPrecom {
 public:
@@ -75,7 +81,11 @@ public:
     void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numCSlots,
                             std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1 = {0, 0});
 
-private:
+    Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
+                                             ConstCiphertext<DCRTPoly>& ct) const;
+
+    // Temporary:
+public:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
         auto pair = m_bootPrecomMap.find(slots);
         if (pair != m_bootPrecomMap.end())
@@ -83,6 +93,7 @@ private:
         OPENFHE_THROW("Precomputations for " + std::to_string(slots) + " slots not found.");
     }
 
+private:
     std::shared_ptr<typename DCRTPoly::Params> GetParamsQP(
         uint32_t m, const std::vector<std::shared_ptr<ILNativeParams>>& paramsQ,
         const std::vector<std::shared_ptr<ILNativeParams>>& paramsP) const;

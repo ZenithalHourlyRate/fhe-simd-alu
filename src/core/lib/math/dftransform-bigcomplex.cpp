@@ -62,7 +62,7 @@ DiscreteFourierTransformBigComplex::PrecomputedValues::PrecomputedValues(uint32_
     m_ksiPows.resize(m_M + 1);
     m_ksiPows[0] = BigComplex(BigFixedPoint::one(), BigFixedPoint::zero());
     m_ksiPows[1] = R_ROOT_MAP.at(m);
-    for (size_t j = 0; j < m_M; ++j) {
+    for (size_t j = 2; j < m_M; ++j) {
         m_ksiPows[j] = m_ksiPows[j - 1] * m_ksiPows[1];
     }
     m_ksiPows[m_M] = m_ksiPows[0];
