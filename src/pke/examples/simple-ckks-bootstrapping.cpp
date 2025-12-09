@@ -399,9 +399,9 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
     auto two                         = BigFixedPoint::two();
     BigFixedPoint normalizeFactorBFP = raisedSF * two / NBigFP;
     BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-    raised                           = gEvalMultScalar(raised, normalizeFactor);
+    raised                           = z->EvalMultScalar(raised, normalizeFactor);
     raised->SetScalingFactorBFP(raisedSF * raisedSF);
-    gModReduceInPlace(raised);
+    z->ModReduceInPlace(raised);
     __heir_debug2(raised, "Normalize");
     // Note that there are other ways...some work first multiply by 1 / N
     // Then PartialSum
@@ -411,9 +411,9 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
     // Running CoeffsToSlots
     //------------------------------------------------------------------------------
 
-    auto raisedRC2S = RCoeffsToSlots(cc, raised);
-    gModReduceInPlace(raisedRC2S[0]);
-    gModReduceInPlace(raisedRC2S[1]);
+    auto raisedRC2S = RCoeffsToSlots(cc, z, raised);
+    z->ModReduceInPlace(raisedRC2S[0]);
+    z->ModReduceInPlace(raisedRC2S[1]);
     //__heir_debug2(raisedRC2S[0], "MSBC2S");
     //__heir_debug2(raisedRC2S[1], "MSBC2S");
 
@@ -426,15 +426,15 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
     auto resI       = advZ->EvalChebyshevSeriesPS(raisedRC2S[1], coeff_exp);
 
     // Double angle-iterations to get exp(2*Pi*i*x)
-    res = gEvalMult(res, res);
-    gModReduceInPlace(res);
-    res = gEvalMult(res, res);
-    gModReduceInPlace(res);
+    res = z->EvalMult(res, res);
+    z->ModReduceInPlace(res);
+    res = z->EvalMult(res, res);
+    z->ModReduceInPlace(res);
 
-    resI = gEvalMult(resI, resI);
-    gModReduceInPlace(resI);
-    resI = gEvalMult(resI, resI);
-    gModReduceInPlace(resI);
+    resI = z->EvalMult(resI, resI);
+    z->ModReduceInPlace(resI);
+    resI = z->EvalMult(resI, resI);
+    z->ModReduceInPlace(resI);
 
     __heir_debug2(res, "Cheby1");
 
@@ -451,8 +451,8 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ) {
     auto lutI    = advZ->EvalPolyWithPrecomp(powersI, lutCoeffs);
     //__heir_debug2(lutI, "LUT");
 
-    auto rCoeffLut = SlotsToRCoeffs(cc, lut, lutI);
-    gModReduceInPlace(rCoeffLut);
+    auto rCoeffLut = SlotsToRCoeffs(cc, z, lut, lutI);
+    z->ModReduceInPlace(rCoeffLut);
     //__heir_debug2(rCoeffLut, "LUTR");
     return rCoeffLut;
 }
@@ -607,7 +607,7 @@ void SimpleBootstrapExample() {
     /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct;
     if (1) {
-        auto ctMul = zEvalMultFull(encoded, encoded2, tPtxt);
+        auto ctMul = zEvalMultFull(z, encoded, encoded2, tPtxt);
         z->ModReduceInPlace(ctMul, 2);
         __heir_debug2(ctMul, "CMult");
         ct = ctMul;
@@ -623,7 +623,7 @@ void SimpleBootstrapExample() {
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
     std::vector<Ciphertext<DCRTPoly>> zC2S;
     if (1) {
-        zC2S = ZCoeffsToSlots(cc, ct);
+        zC2S = ZCoeffsToSlots(cc, z, ct);
         z->ModReduceInPlace(zC2S[0]);
         z->ModReduceInPlace(zC2S[1]);
 
@@ -632,7 +632,7 @@ void SimpleBootstrapExample() {
 
         // Now SF is sf
         if (0) {
-            auto z2S2z = SlotsToZCoeffs(cc, zC2S[0], zC2S[1]);
+            auto z2S2z = SlotsToZCoeffs(cc, z, zC2S[0], zC2S[1]);
 
             __heir_debug2(z2S2z, "Z2S2Z");
         }
@@ -641,7 +641,7 @@ void SimpleBootstrapExample() {
     // TEST SlotsToRCoeffs
     Ciphertext<DCRTPoly> s2rc;
     if (1) {
-        auto z2S2r = SlotsToRCoeffs(cc, zC2S[0], zC2S[1]);
+        auto z2S2r = SlotsToRCoeffs(cc, z, zC2S[0], zC2S[1]);
         z->ModReduceInPlace(z2S2r);
         s2rc = z2S2r;
         __heir_debug2(z2S2r, "S2RC");
@@ -669,7 +669,7 @@ void SimpleBootstrapExample() {
         // q / (2 * Delta)
         auto div       = (qBFP / sfNow / two).round();
         auto divScalar = div.getValue() >> div.getLog2Scale();
-        auto ct2       = gEvalMultScalar(s2rc, divScalar);
+        auto ct2       = z->EvalMultScalar(s2rc, divScalar);
         ct2->SetScalingFactorBFP(qBFP / two);
         // Reduce all the way to the bottom
         z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);

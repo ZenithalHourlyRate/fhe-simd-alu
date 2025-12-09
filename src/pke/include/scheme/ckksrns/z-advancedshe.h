@@ -134,15 +134,6 @@ static const inline std::vector<BigComplex> coeff_exp_16_big_complex_58 = {
     BigComplex(BigFixedPoint(BigInteger("111346816677428262205798"), 128, true),
                BigFixedPoint(BigInteger("0"), 128, true)),
 };
-
-Ciphertext<DCRTPoly> EvalChebyshevSeriesPS(ConstCiphertext<DCRTPoly>& x, const std::vector<BigComplex>& coeffs);
-
-std::shared_ptr<seriesPowers<DCRTPoly>> EvalPowers(ConstCiphertext<DCRTPoly>& ciphertext,
-                                                   const std::vector<BigComplex>& coefficients);
-
-Ciphertext<DCRTPoly> EvalPolyWithPrecomp(std::shared_ptr<seriesPowers<DCRTPoly>> ctxtPowers,
-                                         const std::vector<BigComplex>& coeffs);
-
 class AdvancedZImpl {
 public:
     AdvancedZImpl(LeveledZ z) : z(z) {}
