@@ -84,6 +84,11 @@ public:
     Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
                                              ConstCiphertext<DCRTPoly>& ct) const;
 
+    Ciphertext<DCRTPoly> EvalCoeffsToSlots(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
+                                           ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
+
+    Ciphertext<DCRTPoly> EvalSlotsToCoeffs(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
+                                           ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
     // Temporary:
 public:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {

@@ -453,10 +453,17 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FH
     z->ModReduceInPlace(raised);
     __heir_debug2(raised, "Normalize");
 
-    fheZ->EvalBootstrapSetup(*cc, 16, {1, 1});
-    auto& precomp   = fheZ->GetBootPrecom(16);
-    auto& U0hatTPre = precomp.m_U0hatTPre;
-    auto lt         = fheZ->EvalLinearTransform(U0hatTPre, raised);
+    //fheZ->EvalBootstrapSetup(*cc, 16, {1, 1});
+    //auto& precomp   = fheZ->GetBootPrecom(16);
+    //auto& U0hatTPre = precomp.m_U0hatTPre;
+    //auto lt         = fheZ->EvalLinearTransform(U0hatTPre, raised);
+    //__heir_debug2(lt, "LT");
+
+    fheZ->EvalBootstrapSetup(*cc, 16, {2, 2});
+    auto& precomp      = fheZ->GetBootPrecom(16);
+    auto& U0hatTPreFFT = precomp.m_U0hatTPreFFT;
+    //auto lt         = fheZ->EvalLinearTransform(U0hatTPre, raised);
+    auto lt = fheZ->EvalCoeffsToSlots(U0hatTPreFFT, raised, 16);
     __heir_debug2(lt, "LT");
 
     return ct->Clone();

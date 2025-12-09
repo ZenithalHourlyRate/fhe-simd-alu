@@ -474,11 +474,9 @@ Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalin
     auto q   = elementParams->GetModulus();
     auto key = std::make_tuple(scalingFactor, q);
     auto it  = m_cache.find(key);
-#pragma omp critical
     if (it != m_cache.end()) {
         return it->second;
     }
-
     // Construct plaintext
     auto slots = m_value.size();
     auto m     = m_value.size() * 4;
@@ -522,6 +520,7 @@ Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalin
     poly.SetFormat(Format::EVALUATION);
     Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, scalingFactor);
     // Store in cache
+    // FIXME: is this thread safe???
     m_cache[key] = ptxt;
     return ptxt;
 }
