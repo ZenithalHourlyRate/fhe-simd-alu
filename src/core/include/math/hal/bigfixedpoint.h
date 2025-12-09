@@ -385,6 +385,8 @@ BigFixedPoint operator*(const BigFixedPoint& a, const BigFixedPoint& b);
 
 BigFixedPoint operator/(const BigFixedPoint& a, const BigFixedPoint& b);
 
+bool operator<(const BigFixedPoint& a, const BigFixedPoint& b);
+
 struct BigComplex {
 public:
     BigComplex() : real(), imag() {}
@@ -444,6 +446,15 @@ BigComplex operator+(const BigComplex& a, const BigComplex& b);
 BigComplex operator-(const BigComplex& a, const BigComplex& b);
 BigComplex operator*(const BigComplex& a, const BigComplex& b);
 BigComplex operator/(const BigComplex& a, const BigComplex& b);
+
+struct BigComplexCompare {
+    bool operator()(const BigComplex& a, const BigComplex& b) const {
+        if (a.getReal().almostEqual(b.getReal())) {
+            return a.getImag() < b.getImag();
+        }
+        return a.getReal() < b.getReal();
+    }
+};
 
 using BigCMatrix = std::vector<std::vector<BigComplex>>;
 

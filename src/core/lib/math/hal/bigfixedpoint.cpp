@@ -67,6 +67,14 @@ BigFixedPoint operator/(const BigFixedPoint& a, const BigFixedPoint& b) {
     return BigFixedPoint(quot, log2S, neg);
 }
 
+bool operator<(const BigFixedPoint& a, const BigFixedPoint& b) {
+    auto c = a - b;
+    if (c.equalZero()) {
+        return false;
+    }
+    return c.getNeg();
+}
+
 //=============================================================================
 // BigComplex Implementation
 //=============================================================================

@@ -398,4 +398,147 @@ Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertext(ConstCiphertext<DCRTPoly> ct
     return ctNew;
 }
 
+//
+// Operations in C
+//
+
+void LeveledZImpl::EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigFixedPoint& ptxt) {
+    auto elemParams = ct->GetElements()[0].GetParams();
+    auto ptxtEnc    = GetBFPInCPlaintext(ptxt, ct->GetScalingFactorBFP(), elemParams);
+    EvalAddInPlace(ct, ptxtEnc);
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalAddInC(ConstCiphertext<DCRTPoly> ct, const BigFixedPoint& ptxt) {
+    auto elemParams = ct->GetElements()[0].GetParams();
+    auto ptxtEnc    = GetBFPInCPlaintext(ptxt, ct->GetScalingFactorBFP(), elemParams);
+    return EvalAdd(ct, ptxtEnc);
+}
+
+void LeveledZImpl::EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt) {
+    auto elemParams = ct->GetElements()[0].GetParams();
+    auto ptxtEnc    = GetBCInCPlaintext(ptxt, ct->GetScalingFactorBFP(), elemParams);
+    EvalAddInPlace(ct, ptxtEnc);
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalAddInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt) {
+    auto elemParams = ct->GetElements()[0].GetParams();
+    auto ptxtEnc    = GetBCInCPlaintext(ptxt, ct->GetScalingFactorBFP(), elemParams);
+    return EvalAdd(ct, ptxtEnc);
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt,
+                                               BigFixedPoint scalingFactor) {
+    auto elemParams = ct->GetElements()[0].GetParams();
+    if (scalingFactor.equalZero()) {
+        scalingFactor = ct->GetScalingFactorBFP();
+    }
+    auto ptxtEnc = GetBCInCPlaintext(ptxt, scalingFactor, elemParams);
+    return EvalMult(ct, ptxtEnc);
+}
+
+//
+// Plaintext Caches
+//
+
+Plaintext LeveledZImpl::GetBFPInCPlaintext(const BigFixedPoint& value, const BigFixedPoint& scalingFactor,
+                                           const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
+    auto scaledValue        = (value * scalingFactor).round();
+    auto scaledValueInteger = scaledValue.getValue() >> scaledValue.getLog2Scale();
+    auto scaledValueNeg     = scaledValue.getNeg();
+
+    auto n = elementParams->GetRingDimension();
+    auto q = elementParams->GetModulus();
+
+    auto key = std::make_tuple(value, scalingFactor, q);
+    if (m_bfpInCPlaintextCache.find(key) != m_bfpInCPlaintextCache.end()) {
+        return m_bfpInCPlaintextCache[key];
+    }
+
+    // for BFP in C, its representation in R is just an integer in constant coeff in [0, q)
+    BigVector V(n, q);
+    if (scaledValueNeg) {
+        V[0] = q.Sub(scaledValueInteger.ModEq(q));
+    }
+    else {
+        V[0] = scaledValueInteger.ModEq(q);
+    }
+
+    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * n, q, 1));
+    polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
+
+    DCRTPoly poly(polyLarge, elementParams);
+    poly.SetFormat(Format::EVALUATION);
+    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, scalingFactor);
+    // Store in cache
+    m_bfpInCPlaintextCache[key] = ptxt;
+    return ptxt;
+}
+
+Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixedPoint& scalingFactor,
+                                          const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
+    auto scaledValueComplex = value * scalingFactor;
+
+    auto n = elementParams->GetRingDimension();
+    auto q = elementParams->GetModulus();
+
+    auto key = std::make_tuple(value, scalingFactor, q);
+    if (m_bcInCPlaintextCache.find(key) != m_bcInCPlaintextCache.end()) {
+        return m_bcInCPlaintextCache[key];
+    }
+
+    // for BFP in C, its representation in R is just an integer in constant coeff in [0, q)
+    BigVector V(n, q);
+    // Real part in V[0]
+    {
+        auto realBFP     = scaledValueComplex.getReal().round();
+        auto realInteger = realBFP.getValue() >> realBFP.getLog2Scale();
+        auto realNeg     = realBFP.getNeg();
+        if (realNeg) {
+            V[0] = q.Sub(realInteger.ModEq(q));
+        }
+        else {
+            V[0] = realInteger.ModEq(q);
+        }
+    }
+    // Imag part in V[n//2]
+    {
+        auto imagBFP     = scaledValueComplex.getImag().round();
+        auto imagInteger = imagBFP.getValue() >> imagBFP.getLog2Scale();
+        auto imagNeg     = imagBFP.getNeg();
+        if (imagNeg) {
+            V[n / 2] = q.Sub(imagInteger.ModEq(q));
+        }
+        else {
+            V[n / 2] = imagInteger.ModEq(q);
+        }
+    }
+
+    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * n, q, 1));
+    polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
+
+    DCRTPoly poly(polyLarge, elementParams);
+    poly.SetFormat(Format::EVALUATION);
+    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, scalingFactor);
+    // Store in cache
+    m_bcInCPlaintextCache[key] = ptxt;
+    return ptxt;
+}
+
+//
+// Helpers
+//
+
+bool LeveledZImpl::BCInCPlaintextKeyCompare::operator()(const BCInCPlaintextKey& a, const BCInCPlaintextKey& b) const {
+    if (std::get<0>(a).getReal().almostEqual(std::get<0>(b).getReal())) {
+        if (std::get<0>(a).getImag().almostEqual(std::get<0>(b).getImag())) {
+            if (std::get<1>(a).almostEqual(std::get<1>(b))) {
+                return std::get<2>(a) < std::get<2>(b);
+            }
+            return std::get<1>(a) < std::get<1>(b);
+        }
+        return std::get<0>(a).getImag() < std::get<0>(b).getImag();
+    }
+    return std::get<0>(a).getReal() < std::get<0>(b).getReal();
+}
+
 }  // namespace lbcrypto

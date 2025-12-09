@@ -157,7 +157,7 @@ std::shared_ptr<seriesPowers<DCRTPoly>> AdvancedZImpl::internalEvalChebyPolysPS(
             z->EvalAddInPlace(T[i - 1], T[i - 1]);
             z->ModReduceInPlace(T[i - 1]);
             auto one = BigFixedPoint::one();
-            cEvalAddInPlace(z, T[i - 1], -one);
+            z->EvalAddInPlaceInC(T[i - 1], -one);
         }
     }
 
@@ -186,7 +186,7 @@ std::shared_ptr<seriesPowers<DCRTPoly>> AdvancedZImpl::internalEvalChebyPolysPS(
         z->EvalAddInPlace(T2[i], T2[i]);
         z->ModReduceInPlace(T2[i]);
         auto one = BigFixedPoint::one();
-        cEvalAddInPlace(z, T2[i], -one);
+        z->EvalAddInPlaceInC(T2[i], -one);
 
         // compute T_{k(2*m - 1)} = 2*T_{k(2^{m-1}-1)}(y)*T_{k*2^{m-1}}(y) - T_k(y)
         T2km1 = z->EvalMultWithAdjust(T2km1, T2[i]);
@@ -228,9 +228,9 @@ Ciphertext<DCRTPoly> AdvancedZImpl::EvalPartialLinearWSum(const std::vector<Ciph
     for (uint32_t i = maxIdx + 1; i < limit; ++i)
         cts[i] = z->AdjustCiphertext(cts[i], ctm);
 
-    cts[0] = cEvalMult(z, cts[0], constants[1]);
+    cts[0] = z->EvalMultInC(cts[0], constants[1]);
     for (uint32_t i = 1; i < limit; ++i) {
-        cts[i] = cEvalMult(z, cts[i], constants[i + 1]);
+        cts[i] = z->EvalMultInC(cts[i], constants[i + 1]);
         z->EvalAddInPlace(cts[0], cts[i]);
     }
     z->ModReduceInPlace(cts[0]);
@@ -283,7 +283,7 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalChebyshevPS(ConstCiphertext<DCRTPol
                 z->EvalAddInPlace(qu, qu);
 
             // adds the free term (at x^0)
-            cEvalAddInPlace(z, qu, divqr->q.front() / BigFixedPoint::two());
+            z->EvalAddInPlaceInC(qu, divqr->q.front() / BigFixedPoint::two());
             // The number of levels of qu is the same as the number of levels of T[k-1] + 1.
             // Will only get here when m = 2, so the number of levels of qu and T2[m-1] will be the same.
 
@@ -313,7 +313,7 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalChebyshevPS(ConstCiphertext<DCRTPol
                 z->EvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(T, s2, n));
 
             // adds the free term (at x^0)
-            cEvalAddInPlace(z, su, s2.front() / BigFixedPoint::two());
+            z->EvalAddInPlaceInC(su, s2.front() / BigFixedPoint::two());
 
             // The number of levels of su is the same as the number of levels of T[k-1] or T[k-1] + 1. Need to reduce it to T2[m-1] + 1.
             // New Code: Maybe automatic adjustment
@@ -324,7 +324,7 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalChebyshevPS(ConstCiphertext<DCRTPol
     if (uint32_t n = Degree(divcs->q); n >= 1) {
         if (n == 1) {
             if (IsNotEqualOne(divcs->q[1].convertToComplex())) {
-                cu = cEvalMult(z, T.front(), divcs->q[1]);
+                cu = z->EvalMultInC(T.front(), divcs->q[1]);
                 z->ModReduceInPlace(cu);
             }
             else {
@@ -336,14 +336,14 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalChebyshevPS(ConstCiphertext<DCRTPol
         }
 
         // adds the free term (at x^0)
-        cEvalAddInPlace(z, cu, divcs->q.front() / BigFixedPoint::two());
+        z->EvalAddInPlaceInC(cu, divcs->q.front() / BigFixedPoint::two());
 
         // Need to reduce levels up to the level of T2[m-1].
         // New code: Need adjust below
         // gLevelReduceInPlace(cu, (T2[m - 1]->GetLevel() - cu->GetLevel()));
     }
 
-    cu = cu ? z->EvalAddWithAdjust(T2[m - 1], cu) : cEvalAdd(z, T2[m - 1], divcs->q.front() / BigFixedPoint::two());
+    cu = cu ? z->EvalAddWithAdjust(T2[m - 1], cu) : z->EvalAddInC(T2[m - 1], divcs->q.front() / BigFixedPoint::two());
 
     auto result = z->EvalMultWithAdjust(cu, qu);
     z->ModReduceInPlace(result);
@@ -516,7 +516,7 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x
             qu = InnerEvalPolyPS(x, divqr->q, k, m - 1, powers, powers2);
         }
         else {
-            qu = cEvalAdd(z, powers[k - 1], divqr->q.front());
+            qu = z->EvalAddInC(powers[k - 1], divqr->q.front());
             divqr->q.resize(k);
             if (uint32_t n = Degree(divqr->q); n > 0)
                 z->EvalAddWithAdjustInPlace(qu, EvalPartialLinearWSum(powers, divqr->q, n));
@@ -534,7 +534,7 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x
             su = InnerEvalPolyPS(x, s2, k, m - 1, powers, powers2);
         }
         else {
-            su = cEvalAdd(z, powers[k - 1], s2.front());
+            su = z->EvalAddInC(powers[k - 1], s2.front());
             s2.resize(k);
             if (uint32_t n = Degree(s2); n > 0)
                 z->EvalAddWithAdjustInPlace(su, EvalPartialLinearWSum(powers, s2, n));
@@ -542,22 +542,22 @@ Ciphertext<DCRTPoly> AdvancedZImpl::InnerEvalPolyPS(ConstCiphertext<DCRTPoly>& x
     }
 
     if (uint32_t n = Degree(divcs->q); n == 0) {
-        cu = cEvalAdd(z, powers2[m - 1], divcs->q.front());
+        cu = z->EvalAddInC(powers2[m - 1], divcs->q.front());
     }
     else if (n == 1) {
         if (IsNotEqualOne(divcs->q[1].convertToComplex())) {
-            cu = cEvalMult(z, powers.front(), divcs->q[1]);
+            cu = z->EvalMultInC(powers.front(), divcs->q[1]);
             z->ModReduceInPlace(cu);
             cu = z->EvalAddWithAdjust(cu, powers2[m - 1]);
         }
         else {
             cu = z->EvalAddWithAdjust(powers2[m - 1], powers.front());
         }
-        cEvalAddInPlace(z, cu, divcs->q.front());
+        z->EvalAddInPlaceInC(cu, divcs->q.front());
     }
     else {
         cu = z->EvalAddWithAdjust(powers2[m - 1], EvalPartialLinearWSum(powers, divcs->q, n));
-        cEvalAddInPlace(z, cu, divcs->q.front());
+        z->EvalAddInPlaceInC(cu, divcs->q.front());
     }
 
 #pragma omp taskwait

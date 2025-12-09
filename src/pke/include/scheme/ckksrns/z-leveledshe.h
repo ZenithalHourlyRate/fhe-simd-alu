@@ -6,33 +6,6 @@
 
 namespace lbcrypto {
 
-// Generic methods
-// Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
-// Ciphertext<DCRTPoly> gEvalSub(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
-// Ciphertext<DCRTPoly> gEvalAdd(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// Ciphertext<DCRTPoly> gEvalSub(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
-// Ciphertext<DCRTPoly> gEvalMult(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// Ciphertext<DCRTPoly> gEvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar);
-//
-// void gEvalAddInPlace(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
-// void gEvalAddInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2);
-// void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
-// void gEvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2);
-// void gEvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar);
-// void gLevelReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1);
-// void gModReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t levels = 1);
-//
-// Ciphertext<DCRTPoly> gAdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ctTarget);
-//
-// // Automatic adjustment family
-// Ciphertext<DCRTPoly> gEvalMultWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// Ciphertext<DCRTPoly> gEvalAddWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// Ciphertext<DCRTPoly> gEvalSubWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-//
-// void gEvalAddWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// void gEvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-
 class LeveledZImpl;
 using LeveledZ = std::shared_ptr<LeveledZImpl>;
 
@@ -126,15 +99,34 @@ public:
     // Operations in C
     //
 
-    // Helpers. Here ptxt will be CEncoded
-    Ciphertext<DCRTPoly> EvalAddInC(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt);
-    Ciphertext<DCRTPoly> EvalMultInC(ConstCiphertext<DCRTPoly> ct, BigComplex ptxt,
+    void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigFixedPoint& ptxt);
+    void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt);
+
+    Ciphertext<DCRTPoly> EvalAddInC(ConstCiphertext<DCRTPoly> ct, const BigFixedPoint& ptxt);
+    Ciphertext<DCRTPoly> EvalAddInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt);
+
+    Ciphertext<DCRTPoly> EvalMultInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt,
                                      BigFixedPoint scalingFactor = BigFixedPoint::zero());
 
-    void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, BigComplex ptxt);
-
 private:
-    // cache for plaintext...
+    // value, scalingFactor, modulus
+    using BFPInCPlaintextKey = std::tuple<BigFixedPoint, BigFixedPoint, BigInteger>;
+    std::map<BFPInCPlaintextKey, Plaintext> m_bfpInCPlaintextCache;
+
+    Plaintext GetBFPInCPlaintext(const BigFixedPoint& value, const BigFixedPoint& scalingFactor,
+                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
+
+    // value, scalingFactor, modulus
+    using BCInCPlaintextKey = std::tuple<BigComplex, BigFixedPoint, BigInteger>;
+
+    struct BCInCPlaintextKeyCompare {
+        bool operator()(const BCInCPlaintextKey& a, const BCInCPlaintextKey& b) const;
+    };
+
+    std::map<BCInCPlaintextKey, Plaintext, BCInCPlaintextKeyCompare> m_bcInCPlaintextCache;
+
+    Plaintext GetBCInCPlaintext(const BigComplex& value, const BigFixedPoint& scalingFactor,
+                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
 };
 
 using LeveledZ = std::shared_ptr<LeveledZImpl>;
