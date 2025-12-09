@@ -228,9 +228,9 @@ Ciphertext<DCRTPoly> AdvancedZImpl::EvalPartialLinearWSum(const std::vector<Ciph
     for (uint32_t i = maxIdx + 1; i < limit; ++i)
         cts[i] = z->AdjustCiphertext(cts[i], ctm);
 
-    cts[0] = z->EvalMultInC(cts[0], constants[1]);
+    z->EvalMultInPlaceInC(cts[0], constants[1]);
     for (uint32_t i = 1; i < limit; ++i) {
-        cts[i] = z->EvalMultInC(cts[i], constants[i + 1]);
+        z->EvalMultInPlaceInC(cts[i], constants[i + 1]);
         z->EvalAddInPlace(cts[0], cts[i]);
     }
     z->ModReduceInPlace(cts[0]);

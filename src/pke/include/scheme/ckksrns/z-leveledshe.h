@@ -99,10 +99,10 @@ public:
     // Operations in C
     //
 
-    void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigFixedPoint& ptxt);
     void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt);
+    void EvalMultInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt,
+                            BigFixedPoint scalingFactor = BigFixedPoint::zero());
 
-    Ciphertext<DCRTPoly> EvalAddInC(ConstCiphertext<DCRTPoly> ct, const BigFixedPoint& ptxt);
     Ciphertext<DCRTPoly> EvalAddInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt);
 
     Ciphertext<DCRTPoly> EvalMultInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt,
@@ -110,15 +110,7 @@ public:
 
 private:
     // value, scalingFactor, modulus
-    using BFPInCPlaintextKey = std::tuple<BigFixedPoint, BigFixedPoint, BigInteger>;
-    std::map<BFPInCPlaintextKey, Plaintext> m_bfpInCPlaintextCache;
-
-    Plaintext GetBFPInCPlaintext(const BigFixedPoint& value, const BigFixedPoint& scalingFactor,
-                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
-
-    // value, scalingFactor, modulus
     using BCInCPlaintextKey = std::tuple<BigComplex, BigFixedPoint, BigInteger>;
-
     struct BCInCPlaintextKeyCompare {
         bool operator()(const BCInCPlaintextKey& a, const BCInCPlaintextKey& b) const;
     };
