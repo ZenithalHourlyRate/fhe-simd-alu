@@ -22,18 +22,6 @@ Ciphertext<DCRTPoly> zEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t
 Ciphertext<DCRTPoly> zEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt,
                                BigFixedPoint scalingFactor = BigFixedPoint::zero());
 
-// Helpers. Here ptxt will be CEncoded
-Ciphertext<DCRTPoly> cEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, BigComplex ptxt);
-Ciphertext<DCRTPoly> cEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, BigComplex ptxt,
-                               BigFixedPoint scalingFactor = BigFixedPoint::zero());
-
-void cEvalAddInPlace(LeveledZ z, Ciphertext<DCRTPoly> ct, BigComplex ptxt);
-// Helpers. Here ptxt will be REncoded
-// Ciphertext<DCRTPoly> rEvalAdd(ConstCiphertext<DCRTPoly> ct, RPolynomial ptxt);
-// Ciphertext<DCRTPoly> rEvalMult(ConstCiphertext<DCRTPoly> ct, RPolynomial ptxt);
-
-// These methods assume that the Plaintext is REncoded
-
 class LeveledZImpl {
 public:
     //

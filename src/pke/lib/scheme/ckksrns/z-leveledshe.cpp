@@ -38,35 +38,6 @@ Ciphertext<DCRTPoly> zEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_
     return z->EvalMult(ct, ptxt1);
 }
 
-void cEvalAddInPlace(LeveledZ z, Ciphertext<DCRTPoly> ct, BigComplex ptxt) {
-    auto elemParam = ct->GetElements()[0].GetParams();
-    auto sf        = ct->GetScalingFactorBFP();
-    // TODO: remove the 16 requirement
-    CSlots cslots(std::vector<BigComplex>(16, ptxt));
-    RPolynomial value1 = cslots.toRPolynomial();
-    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
-    z->EvalAddInPlace(ct, ptxt1);
-}
-
-Ciphertext<DCRTPoly> cEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, BigComplex ptxt) {
-    auto ctNew = ct->Clone();
-    cEvalAddInPlace(z, ctNew, ptxt);
-    return ctNew;
-}
-
-Ciphertext<DCRTPoly> cEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, BigComplex ptxt, BigFixedPoint scalingFactor) {
-    auto elemParam = ct->GetElements()[0].GetParams();
-    if (scalingFactor.equalZero()) {
-        scalingFactor = ct->GetScalingFactorBFP();
-    }
-    // TODO: remove the 16 requirement
-    CSlots cslots(std::vector<BigComplex>(16, ptxt));
-    //Is not this just a constant? We can optimize it.
-    RPolynomial value1 = cslots.toRPolynomial();
-    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, scalingFactor);
-    return z->EvalMult(ct, ptxt1);
-}
-
 //=============================================================================
 // Generic methods
 //=============================================================================
@@ -294,23 +265,19 @@ void LeveledZImpl::EvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphe
 }
 
 void LeveledZImpl::EvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar) {
-    // NOTE: the limit here requires RNS with more than 40 bits moduli
-    auto limit = BigInteger(1) << 40;
-    if (scalar > limit) {
-        auto elemParams = ct->GetElements()[0].GetParams();
-        auto scalarBFP  = BigFixedPoint(scalar, 0, false).scaleTo(128);
-        RPolynomial rPoly;
-        rPoly[0]       = scalarBFP;
-        Plaintext ptxt = ZEncodingImpl::encodeR(rPoly, elemParams, BigFixedPoint::one());
-        auto ctOldBFP  = ct->GetScalingFactorBFP();
-        EvalMultInPlace(ct, ptxt);
-        // gEvalMultInPlace updates scaling factor
-        // We need to restore it
-        ct->SetScalingFactorBFP(ctOldBFP);
-    }
-    else {
-        for (auto& a : ct->GetElements()) {
-            a *= scalar;
+    auto elemParams = ct->GetElements()[0].GetParams();
+    auto n          = elemParams->GetRingDimension();
+    for (auto& a : ct->GetElements()) {
+        auto& mVectors = a.GetAllElements();
+        auto t         = a.GetNumOfElements();
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(8))
+        for (size_t i = 0; i < t; ++i) {
+            auto qi         = mVectors[i].GetModulus();
+            auto mui        = mVectors[i].GetRootOfUnity();
+            auto scalarInqi = scalar.Mod(qi);
+            for (size_t j = 0; j < n; ++j) {
+                mVectors[i][j] = scalarInqi.ModMulFast(mVectors[i][j], qi, mui);
+            }
         }
     }
 }
@@ -457,10 +424,10 @@ Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixe
         auto realInteger = realBFP.getValue() >> realBFP.getLog2Scale();
         auto realNeg     = realBFP.getNeg();
         if (realNeg) {
-            V[0] = q.Sub(realInteger.ModEq(q));
+            V[0] = q.Sub(realInteger.Mod(q));
         }
         else {
-            V[0] = realInteger.ModEq(q);
+            V[0] = realInteger.Mod(q);
         }
     }
     // Imag part in V[n//2]
@@ -469,10 +436,10 @@ Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixe
         auto imagInteger = imagBFP.getValue() >> imagBFP.getLog2Scale();
         auto imagNeg     = imagBFP.getNeg();
         if (imagNeg) {
-            V[n / 2] = q.Sub(imagInteger.ModEq(q));
+            V[n / 2] = q.Sub(imagInteger.Mod(q));
         }
         else {
-            V[n / 2] = imagInteger.ModEq(q);
+            V[n / 2] = imagInteger.Mod(q);
         }
     }
 
