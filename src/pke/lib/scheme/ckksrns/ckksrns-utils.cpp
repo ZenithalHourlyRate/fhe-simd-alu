@@ -32,6 +32,7 @@
 #include "scheme/ckksrns/ckksrns-utils.h"
 #include "utils/exception.h"
 #include "utils/utilities.h"
+#include "math/hal/bigfixedpoint.h"
 
 #include <algorithm>
 #include <cmath>
@@ -371,6 +372,7 @@ std::vector<VecDType> Rotate(const std::vector<VecDType>& a, int32_t index) {
 }
 template std::vector<std::complex<double>> Rotate(const std::vector<std::complex<double>>& a, int32_t index);
 template std::vector<int64_t> Rotate(const std::vector<int64_t>& a, int32_t index);
+template std::vector<BigComplex> Rotate(const std::vector<BigComplex>& a, int32_t index);
 
 template <typename VectorDataType>
 std::vector<VectorDataType> RotateTwoHalves(const std::vector<VectorDataType>& a, int32_t index) {

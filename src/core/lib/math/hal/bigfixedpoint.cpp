@@ -113,3 +113,7 @@ BigComplex& BigComplex::operator/=(const BigComplex& a) {
     *this = *this / a;
     return *this;
 }
+
+BigComplex operator-(const BigComplex& a) {
+    return BigComplex(-a.getReal(), -a.getImag());
+}

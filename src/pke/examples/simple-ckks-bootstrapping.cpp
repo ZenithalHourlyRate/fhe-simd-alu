@@ -37,7 +37,7 @@ Example for CKKS bootstrapping with full packing
 
 #include "math/chebyshev.h"
 #include "openfhe.h"
-#include "z-utils.h"
+#include "utils.h"
 
 using namespace lbcrypto;
 

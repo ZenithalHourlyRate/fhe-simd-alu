@@ -21,11 +21,11 @@ from mpmath import *
 # Set high precision: 80 decimal digits (~265 bits), > 64-bit fractional precision
 mp.dps = 360
 
-def main():
-    # Polynomial: X^32 - X + 2
+def main(n):
+    # Polynomial: X^n - X + 2
     # Coefficients for mp.polyroots: highest degree first
-    # X^32 + 0*X^31 + ... + 0*X^2 - X + 2
-    coeffs = [mp.mpf(1)] + [mp.mpf(0)] * 30 + [mp.mpf(-1), mp.mpf(2)]
+    # X^n + 0*X^{n-1} + ... + 0*X^2 - X + 2
+    coeffs = [mp.mpf(1)] + [mp.mpf(0)] * (n-2) + [mp.mpf(-1), mp.mpf(2)]
 
     # Find all roots with high precision
     roots = mp.polyroots(coeffs, maxsteps=400, error=False)
@@ -63,36 +63,16 @@ def main():
             f"BigFixedPoint(BigInteger(\"{d}\"), 128, {bNeg})),"
         )
 
-def main2():
-    # Polynomial: X^32 + 1
+def main2(n):
+    # Polynomial: X^n + 1
     # Coefficients for mp.polyroots: highest degree first
-    # X^32 + 0*X^31 + ... + 0*X^2 - X + 2
-    coeffs = [mp.mpf(1)] + [mp.mpf(0)] * 31 + [mp.mpf(1)]
+    # X^n + 0*X^{n-1} + ... + 0*X^2 - X + 2
+    coeffs = [mp.mpf(1)] + [mp.mpf(0)] * (n-1) + [mp.mpf(1)]
+    m = 2 * n
+    # 2n-th primitive roots
+    omega = exp(2j * pi / m)
 
-    # Find all roots with high precision
-    roots = mp.polyroots(coeffs, maxsteps=400, error=False)
-
-    # fint the primitive root such that close to (1, 0) in upper half-plane
-
-    # Keep only roots with positive imaginary part (upper half-plane).
-    # Use a tiny epsilon to avoid numerical noise.
-    eps = mp.mpf("1e-40")
-    upper_roots = [z for z in roots if mp.im(z) > eps]
-
-    # Sort by real part (then imaginary) for a stable, readable order
-    upper_roots.sort(key=lambda z: (mp.re(z), mp.im(z)))
-
-    omega = upper_roots[-1]
-    print("Primitive 64th root of unity:")
-    print(omega)
-
-    # use the X -> X^5 automorphism to generate all roots
     all_roots = [omega]
-    for _ in range(15):
-        omega = omega ** 5
-        all_roots.append(omega)
-
-    assert len(all_roots) == 16
 
     # 2^128 as an exact integer
     scale_int = 1 << 128
@@ -114,10 +94,12 @@ def main2():
         # Print in the requested format
         # (Python bools print as True/False, which is usually fine for code-gen style)
         print(
+            f"const auto R_ROOT_M{m} = "
             f"BigComplex("
             f"BigFixedPoint(BigInteger(\"{c}\"), 128, {aNeg}), "
-            f"BigFixedPoint(BigInteger(\"{d}\"), 128, {bNeg})),"
+            f"BigFixedPoint(BigInteger(\"{d}\"), 128, {bNeg}));"
         )
 
 if __name__ == "__main__":
-    main2()
+    for deg in range(1, 18):
+        main2(2 ** deg)

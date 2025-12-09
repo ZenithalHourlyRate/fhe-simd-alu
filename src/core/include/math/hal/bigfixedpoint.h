@@ -447,6 +447,8 @@ BigComplex operator-(const BigComplex& a, const BigComplex& b);
 BigComplex operator*(const BigComplex& a, const BigComplex& b);
 BigComplex operator/(const BigComplex& a, const BigComplex& b);
 
+BigComplex operator-(const BigComplex& a);
+
 struct BigComplexCompare {
     bool operator()(const BigComplex& a, const BigComplex& b) const {
         if (a.getReal().almostEqual(b.getReal())) {
@@ -456,6 +458,7 @@ struct BigComplexCompare {
     }
 };
 
-using BigCMatrix = std::vector<std::vector<BigComplex>>;
+using BigCVector = std::vector<BigComplex>;
+using BigCMatrix = std::vector<BigCVector>;
 
 #endif  // SRC_CORE_INCLUDE_MATH_HAL_BIGFIXEDPOINT_H_

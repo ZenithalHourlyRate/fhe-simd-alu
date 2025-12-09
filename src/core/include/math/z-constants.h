@@ -89,6 +89,11 @@ const std::vector<BigComplex> r_roots_32 = {
                BigFixedPoint(BigInteger("325629922445073537381874007153931917509"), 128, false)),
 };
 
+const auto r_root_32 = BigComplex(BigFixedPoint(BigInteger("338643814315582355912937410983851649519"), 128, false),
+                                  BigFixedPoint(BigInteger("33353504510164655995148692934415085169"), 128, false));
+const auto r_root_64 = BigComplex(BigFixedPoint(BigInteger("339872481907374595982655373237523399998"), 128, false),
+                                  BigFixedPoint(BigInteger("16696864359439569162511425913059001623"), 128, false));
+
 const auto r_roots_32_scale = 128;
 
 const auto r_roots       = r_roots_32;
@@ -103,5 +108,50 @@ BigCMatrix getRUInverse();
 std::vector<BigComplex> multU(const BigCMatrix& U, std::vector<BigFixedPoint> input);
 
 std::vector<BigFixedPoint> multUInverse(const BigCMatrix& UInv, std::vector<BigComplex> input);
+
+// Primitive roots of unity for various m
+// Here we define exp(2 pi i / m) for m = 8, 16, ..., 262144
+// They are roots for X^{m/2} + 1, and offers m/4 C slots
+// The minimal m is 8 because the minimal C slot we have is 2 (sparse packing of 1 complex number)
+// If we account for Z slot, minimal m is much larger depending on the choice
+const auto R_ROOT_M8      = BigComplex(BigFixedPoint(BigInteger("240615969168004511545033772477625056927"), 128, false),
+                                       BigFixedPoint(BigInteger("240615969168004511545033772477625056927"), 128, false));
+const auto R_ROOT_M16     = BigComplex(BigFixedPoint(BigInteger("314379914072750776175968446001973125505"), 128, false),
+                                       BigFixedPoint(BigInteger("130220424146621615521356287377630227996"), 128, false));
+const auto R_ROOT_M32     = BigComplex(BigFixedPoint(BigInteger("333743936656827580393945988193699131951"), 128, false),
+                                       BigFixedPoint(BigInteger("66385796539016198537004233668372411924"), 128, false));
+const auto R_ROOT_M64     = BigComplex(BigFixedPoint(BigInteger("338643814315582355912937410983851649519"), 128, false),
+                                       BigFixedPoint(BigInteger("33353504510164655995148692934415085169"), 128, false));
+const auto R_ROOT_M128    = BigComplex(BigFixedPoint(BigInteger("339872481907374595982655373237523399998"), 128, false),
+                                       BigFixedPoint(BigInteger("16696864359439569162511425913059001623"), 128, false));
+const auto R_ROOT_M256    = BigComplex(BigFixedPoint(BigInteger("340179880234010501256410555240815138610"), 128, false),
+                                       BigFixedPoint(BigInteger("8350947328924239869306493724758181497"), 128, false));
+const auto R_ROOT_M512    = BigComplex(BigFixedPoint(BigInteger("340256744284537774291616451567166656226"), 128, false),
+                                       BigFixedPoint(BigInteger("4175788093625692072829030064408394408"), 128, false));
+const auto R_ROOT_M1024   = BigComplex(BigFixedPoint(BigInteger("340275961201545362514682404085958700136"), 128, false),
+                                       BigFixedPoint(BigInteger("2087933351568136955647909863034040375"), 128, false));
+const auto R_ROOT_M2048   = BigComplex(BigFixedPoint(BigInteger("340280765487321862450779202347741264351"), 128, false),
+                                       BigFixedPoint(BigInteger("1043971588913162969962874901364098823"), 128, false));
+const auto R_ROOT_M4096   = BigComplex(BigFixedPoint(BigInteger("340281966562298792572160534645360975660"), 128, false),
+                                       BigFixedPoint(BigInteger("521986408598802148050493966777353034"), 128, false));
+const auto R_ROOT_M8192   = BigComplex(BigFixedPoint(BigInteger("340282266831263825696362301831656808750"), 128, false),
+                                       BigFixedPoint(BigInteger("260993281067212527299757014848791288"), 128, false));
+const auto R_ROOT_M16384  = BigComplex(BigFixedPoint(BigInteger("340282341898518884018790830072534181986"), 128, false),
+                                       BigFixedPoint(BigInteger("130496650129583753759140694874978295"), 128, false));
+const auto R_ROOT_M32768  = BigComplex(BigFixedPoint(BigInteger("340282360665333511102050687223426738058"), 128, false),
+                                       BigFixedPoint(BigInteger("65248326264289096219790833612199600"), 128, false));
+const auto R_ROOT_M65536  = BigComplex(BigFixedPoint(BigInteger("340282365357037221779282487371359009126"), 128, false),
+                                       BigFixedPoint(BigInteger("32624163282081701561065576602700777"), 128, false));
+const auto R_ROOT_M131072 = BigComplex(BigFixedPoint(BigInteger("340282366529963152817741505908074724901"), 128, false),
+                                       BigFixedPoint(BigInteger("16312081659782994994230389606789418"), 128, false));
+const auto R_ROOT_M262144 = BigComplex(BigFixedPoint(BigInteger("340282366823194635787928202577525532155"), 128, false),
+                                       BigFixedPoint(BigInteger("8156040832234265524836811571533929"), 128, false));
+
+const std::map<uint32_t, BigComplex> R_ROOT_MAP = {
+    {8, R_ROOT_M8},         {16, R_ROOT_M16},       {32, R_ROOT_M32},         {64, R_ROOT_M64},
+    {128, R_ROOT_M128},     {256, R_ROOT_M256},     {512, R_ROOT_M512},       {1024, R_ROOT_M1024},
+    {2048, R_ROOT_M2048},   {4096, R_ROOT_M4096},   {8192, R_ROOT_M8192},     {16384, R_ROOT_M16384},
+    {32768, R_ROOT_M32768}, {65536, R_ROOT_M65536}, {131072, R_ROOT_M131072}, {262144, R_ROOT_M262144},
+};
 
 #endif
