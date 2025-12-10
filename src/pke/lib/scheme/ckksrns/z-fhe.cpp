@@ -14,7 +14,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaint
     const int32_t cSlots  = zSlots * zNDiv2;
     const auto& p         = GetBootPrecom(cSlots);
     // FUNNY that bStep = g...
-    const uint32_t bStep = (p.m_paramsZEnc.g == 0) ? std::ceil(std::sqrt(zNDiv2)) : p.m_paramsZEnc.g;
+    const uint32_t bStep = std::ceil(std::sqrt(zNDiv2));
     const uint32_t gStep = std::ceil(static_cast<double>(zNDiv2) / bStep);
 
     auto cc     = ct->GetCryptoContext();

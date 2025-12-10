@@ -167,9 +167,7 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
 
     const int32_t cSlots = zSlots * zNDiv2;
 
-    auto g = GetBootPrecom(cSlots).m_paramsZEnc.g;
-
-    const int32_t step = (g == 0) ? std::ceil(std::sqrt(zNDiv2)) : g;
+    const int32_t step = std::ceil(std::sqrt(zNDiv2));
 
     // digonal, 1st digonal, ..., zN/2-1th diagonal, -1th diagonal, ..., -zN/2+1 th diagonal
     std::vector<ZBootstrapPlaintextCache> result(2 * zNDiv2 - 1);
@@ -223,9 +221,7 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
 
     const int32_t cSlots = zSlots * zNDiv2;
 
-    auto g = GetBootPrecom(cSlots).m_paramsEnc.g;
-
-    const int32_t step = (g == 0) ? std::ceil(std::sqrt(cSlots)) : g;
+    const int32_t step = std::ceil(std::sqrt(zNDiv2));
 
     // digonal, 1st digonal, ..., zN/2-1th diagonal, -1th diagonal, ..., -zN/2+1 th diagonal
     std::vector<ZBootstrapPlaintextCache> result(2 * zNDiv2 - 1);

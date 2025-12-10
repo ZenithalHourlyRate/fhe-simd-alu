@@ -73,9 +73,6 @@ public:
     // coefficients corresponding to conj(U0^T); used in encoding
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFT;
 
-    // Used for storing baby-step giant-step params for Z-C linear transforms
-    struct ckks_boot_params m_paramsZEnc;
-    struct ckks_boot_params m_paramsZDec;
     //
     // coefficients for ZU and ZUInverse
     //
