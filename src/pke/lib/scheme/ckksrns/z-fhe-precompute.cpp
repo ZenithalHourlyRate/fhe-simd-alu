@@ -128,18 +128,28 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     auto ZU        = GetZU(zN);
     auto ZUInverse = GetZUInverse(zN);
 
+    BigCMatrix ZU0(zN / 2, BigCVector(zN / 2));
+    BigCMatrix ZU1(zN / 2, BigCVector(zN / 2));
     BigCMatrix ZUInverse0(zN / 2, BigCVector(zN / 2));
+    BigCMatrix ZUInverse1(zN / 2, BigCVector(zN / 2));
     for (size_t i = 0; i != zN / 2; ++i) {
         for (size_t j = 0; j != zN / 2; ++j) {
+            ZU0[i][j]        = ZU[i][j];
+            ZU1[i][j]        = ZU[i][j + zN / 2];
             ZUInverse0[i][j] = ZUInverse[i][j];
+            ZUInverse1[i][j] = ZUInverse[i + zN / 2][j];
         }
     }
 
-    precom->m_ZUInverse0Pre = EvalZLinearTransformPrecompute(cc, ZUInverse0, zSlots);
-
     //if (isSparse) {
+    precom->m_ZUPre        = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
+    precom->m_ZUInversePre = EvalZLinearTransformPrecompute(cc, ZUInverse0, ZUInverse1, zSlots);
     //}
     //else {
+    precom->m_ZU0Pre        = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
+    precom->m_ZU1Pre        = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
+    precom->m_ZUInverse0Pre = EvalZLinearTransformPrecompute(cc, ZUInverse0, zSlots);
+    precom->m_ZUInverse1Pre = EvalZLinearTransformPrecompute(cc, ZUInverse1, zSlots);
     //}
 }
 
@@ -203,6 +213,75 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
     return result;
 }
 
+std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
+                                                                               const BigCMatrix& A, const BigCMatrix& B,
+                                                                               uint32_t zSlotsUnsigned) const {
+    int32_t zSlots = zSlotsUnsigned;
+    int32_t zNDiv2 = A.size();
+    if (zNDiv2 != static_cast<int32_t>(A[0].size()))
+        OPENFHE_THROW("The matrix passed to EvalLTPrecompute is not square");
+
+    const int32_t cSlots = zSlots * zNDiv2;
+
+    auto g = GetBootPrecom(cSlots).m_paramsEnc.g;
+
+    const int32_t step = (g == 0) ? std::ceil(std::sqrt(cSlots)) : g;
+
+    // digonal, 1st digonal, ..., zN/2-1th diagonal, -1th diagonal, ..., -zN/2+1 th diagonal
+    std::vector<ZBootstrapPlaintextCache> result(2 * zNDiv2 - 1);
+
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
+    #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zNDiv2))
+#endif
+    for (int32_t ji = 0; ji < zNDiv2; ++ji) {
+        auto vecA = ExtractShiftedDiagonal(A, ji);
+        for (int32_t k = zNDiv2 - ji; k < zNDiv2; ++k) {
+            vecA[k] = BigFixedPoint::zero();
+        }
+        auto vecB = ExtractShiftedDiagonal(B, ji);
+        for (int32_t k = zNDiv2 - ji; k < zNDiv2; ++k) {
+            vecB[k] = BigFixedPoint::zero();
+        }
+        //vecA.insert(vecA.end(), vecB.begin(), vecB.end());
+        //for (auto& d : diag)
+        //    d *= scale;
+        auto repeatedDiag = BigCVector(2 * cSlots, BigFixedPoint::zero());
+        for (int32_t r = 0; r < zSlots; ++r) {
+            for (int32_t k = 0; k < zNDiv2; ++k) {
+                repeatedDiag[r * zNDiv2 + k]          = vecA[k];
+                repeatedDiag[r * zNDiv2 + k + cSlots] = vecB[k];
+            }
+        }
+        result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
+    }
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
+    #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zNDiv2))
+#endif
+    for (int32_t ji = -1; ji > -zNDiv2; --ji) {
+        auto vecA = ExtractShiftedDiagonal(A, zNDiv2 + ji);
+        for (int32_t k = 0; k < -ji; ++k) {
+            vecA[k] = BigFixedPoint::zero();
+        }
+        auto vecB = ExtractShiftedDiagonal(B, zNDiv2 + ji);
+        for (int32_t k = 0; k < -ji; ++k) {
+            vecB[k] = BigFixedPoint::zero();
+        }
+        //vecA.insert(vecA.end(), vecB.begin(), vecB.end());
+        //for (auto& d : diag)
+        //    d *= scale;
+        auto repeatedDiag = BigCVector(2 * cSlots, BigFixedPoint::zero());
+        for (int32_t r = 0; r < zSlots; ++r) {
+            for (int32_t k = 0; k < zNDiv2; ++k) {
+                repeatedDiag[r * zNDiv2 + k]          = vecA[k];
+                repeatedDiag[r * zNDiv2 + k + cSlots] = vecB[k];
+            }
+        }
+        result[zNDiv2 - 1 - ji] =
+            std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
+    }
+    return result;
+}
+
 //------------------------------------------------------------------------------
 // Precomputations for CoeffsToSlots and SlotsToCoeffs
 //------------------------------------------------------------------------------
@@ -250,6 +329,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
             auto vecA = ExtractShiftedDiagonal(A, ji);
             auto vecB = ExtractShiftedDiagonal(B, ji);
             vecA.insert(vecA.end(), vecB.begin(), vecB.end());
+            //for (auto& d : diag)
+            //    d *= scale;
             result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(vecA, -step * (ji / step)));
         }
     }
@@ -270,8 +351,10 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
         for (int32_t ji = 0; ji < slots; ++ji) {
             // shifted diagonal is computed for rectangular map newA of dimension
             // slots x 2*slots
-            auto vec   = ExtractShiftedDiagonal(newA, ji);
-            auto res   = Rotate(vec, -step * (ji / step));
+            auto vec = ExtractShiftedDiagonal(newA, ji);
+            auto res = Rotate(vec, -step * (ji / step));
+            //for (auto& d : diag)
+            //    d *= scale;
             result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(res);
         }
     }

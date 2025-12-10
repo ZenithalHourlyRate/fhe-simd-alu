@@ -122,7 +122,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             res.push_back(sum);
         }
         for (size_t i = 0; i != res.size(); ++i) {
-            std::cout << msg << "  LT complexValues [" << i << "]: " << res[i].toHexString(16) << std::endl;
+            std::cout << msg << "  complexValues [" << i << "]: " << res[i].toHexString(16) << std::endl;
         }
     }
 
@@ -178,7 +178,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
     }
     auto cSlots = values.toCSlots();
-    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S" || msg == "LUT" || msg == "LT") {
+    if (msg == "Upper" || msg == "Down" || msg == "Rotate" || msg == "MSBC2S" || msg == "LUT") {
         for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
             std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
@@ -683,12 +683,18 @@ void SimpleBootstrapExample() {
     }
 
     fheZ->EvalBootstrapSetup(*cc, 16, {1, 1});
-    auto& precomp   = fheZ->GetBootPrecom(16);
-    auto ZUInverse0 = precomp.m_ZUInverse0Pre;
-    auto lt         = fheZ->EvalZLinearTransform(ZUInverse0, ct, 1);
-    auto ltConj     = Conjugate(lt, cc->GetEvalAutomorphismKeyMap(lt->GetKeyTag()));
+    auto& precomp  = fheZ->GetBootPrecom(16);
+    auto ZUInverse = precomp.m_ZUInversePre;
+    auto lt        = fheZ->EvalZLinearTransform(ZUInverse, ct, 1);
+    auto ltConj    = Conjugate(lt, cc->GetEvalAutomorphismKeyMap(lt->GetKeyTag()));
     z->EvalAddInPlace(lt, ltConj);
-    __heir_debug2(lt, "Upper");
+    __heir_debug2(lt, "LT");
+
+    //auto ZUInverse0 = precomp.m_ZUInverse1Pre;
+    //auto lt         = fheZ->EvalZLinearTransform(ZUInverse0, ct, 1);
+    //auto ltConj     = Conjugate(lt, cc->GetEvalAutomorphismKeyMap(lt->GetKeyTag()));
+    //z->EvalAddInPlace(lt, ltConj);
+    //__heir_debug2(lt, "Upper");
 
     return;
 

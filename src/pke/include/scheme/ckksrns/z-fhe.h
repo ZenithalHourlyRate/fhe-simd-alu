@@ -79,6 +79,7 @@ public:
     //
     // coefficients for ZU and ZUInverse
     //
+    // digonal, 1st digonal, ..., zN/2-1th diagonal, -1th diagonal, ..., -zN/2+1 th diagonal
     std::vector<ZBootstrapPlaintextCache> m_ZUPre;
     std::vector<ZBootstrapPlaintextCache> m_ZUInversePre;
 
@@ -121,6 +122,11 @@ private:
     //------------------------------------------------------------------------------
     std::vector<ZBootstrapPlaintextCache> EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                          const BigCMatrix& A, uint32_t zSlots) const;
+
+    std::vector<ZBootstrapPlaintextCache> EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
+                                                                         const BigCMatrix& A, const BigCMatrix& B,
+                                                                         uint32_t zSlots) const;
+
     //------------------------------------------------------------------------------
     // Precomputations for CoeffsToSlots and SlotsToCoeffs
     //------------------------------------------------------------------------------
