@@ -118,29 +118,93 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         precom->m_U0PreFFT     = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
         precom->m_U0hatTPreFFT = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false);
     }
+
+    // Now deal with Z Linear Transform
+    size_t zBits  = 32;
+    size_t zSlots = 1;
+    size_t zN     = zBits;
+
+    auto ZU        = GetZU(zN);
+    auto ZUInverse = GetZUInverse(zN);
+
+    BigCMatrix ZUInverse0(zN / 2, BigCVector(zN / 2));
+    for (size_t i = 0; i != zN / 2; ++i) {
+        for (size_t j = 0; j != zN / 2; ++j) {
+            ZUInverse0[i][j] = ZUInverse[i][j];
+        }
+    }
+
+    precom->m_ZUInverse0Pre = EvalZLinearTransformPrecompute(cc, ZUInverse0, zSlots);
+
+    //if (isSparse) {
+    //}
+    //else {
+    //}
+}
+
+//------------------------------------------------------------------------------
+// Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
+//------------------------------------------------------------------------------
+
+std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
+                                                                               const BigCMatrix& A,
+                                                                               uint32_t zSlotsUnsigned) const {
+    int32_t zSlots = zSlotsUnsigned;
+    int32_t zNDiv2 = A.size();
+    if (zNDiv2 != static_cast<int32_t>(A[0].size()))
+        OPENFHE_THROW("The matrix passed to EvalLTPrecompute is not square");
+
+    const int32_t cSlots = zSlots * zNDiv2;
+
+    auto g = GetBootPrecom(cSlots).m_paramsZEnc.g;
+
+    const int32_t step = (g == 0) ? std::ceil(std::sqrt(zNDiv2)) : g;
+
+    // digonal, 1st digonal, ..., zN/2-1th diagonal, -1th diagonal, ..., -zN/2+1 th diagonal
+    std::vector<ZBootstrapPlaintextCache> result(2 * zNDiv2 - 1);
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
+    #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zNDiv2))
+#endif
+    for (int32_t ji = 0; ji < zNDiv2; ++ji) {
+        auto diag = ExtractShiftedDiagonal(A, ji);
+        for (int32_t k = zNDiv2 - ji; k < zNDiv2; ++k) {
+            diag[k] = BigFixedPoint::zero();
+        }
+        auto repeatedDiag = BigCVector(cSlots, BigFixedPoint::zero());
+        for (int32_t r = 0; r < zSlots; ++r) {
+            for (int32_t k = 0; k < zNDiv2; ++k) {
+                repeatedDiag[r * zNDiv2 + k] = diag[k];
+            }
+        }
+        //for (auto& d : diag)
+        //    d *= scale;
+        result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
+    }
+#if !defined(__MINGW32__) && !defined(__MINGW64__)
+    #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zNDiv2))
+#endif
+    for (int32_t ji = -1; ji > -zNDiv2; --ji) {
+        auto diag = ExtractShiftedDiagonal(A, zNDiv2 + ji);
+        for (int32_t k = 0; k < -ji; ++k) {
+            diag[k] = BigFixedPoint::zero();
+        }
+        auto repeatedDiag = BigCVector(cSlots, BigFixedPoint::zero());
+        for (int32_t r = 0; r < zSlots; ++r) {
+            for (int32_t k = 0; k < zNDiv2; ++k) {
+                repeatedDiag[r * zNDiv2 + k] = diag[k];
+            }
+        }
+        //for (auto& d : diag)
+        //    d *= scale;
+        result[zNDiv2 - 1 - ji] =
+            std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
+    }
+    return result;
 }
 
 //------------------------------------------------------------------------------
 // Precomputations for CoeffsToSlots and SlotsToCoeffs
 //------------------------------------------------------------------------------
-
-std::shared_ptr<typename DCRTPoly::Params> FHEZImpl::GetParamsQP(
-    uint32_t m, const std::vector<std::shared_ptr<ILNativeParams>>& paramsQ,
-    const std::vector<std::shared_ptr<ILNativeParams>>& paramsP) const {
-    uint32_t sizeQ = paramsQ.size();
-    uint32_t sizeP = paramsP.size();
-    std::vector<NativeInteger> moduli(sizeQ + sizeP);
-    std::vector<NativeInteger> roots(sizeQ + sizeP);
-    for (uint32_t i = 0; i < sizeQ; ++i) {
-        moduli[i] = paramsQ[i]->GetModulus();
-        roots[i]  = paramsQ[i]->GetRootOfUnity();
-    }
-    for (uint32_t i = 0; i < sizeP; ++i) {
-        moduli[sizeQ + i] = paramsP[i]->GetModulus();
-        roots[sizeQ + i]  = paramsP[i]->GetRootOfUnity();
-    }
-    return std::make_shared<ILDCRTParams<DCRTPoly::Integer>>(m, moduli, roots);
-}
 
 std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                               const BigCMatrix& A) const {
@@ -362,10 +426,6 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
     auto elementParams      = *(cryptoParams->GetElementParams());
-
-    auto paramsQ          = elementParams.GetParams();
-    auto paramsP          = cryptoParams->GetParamsP()->GetParams();
-    auto elementParamsPtr = GetParamsQP(cc.GetCyclotomicOrder(), paramsQ, paramsP);
 
     if (uint32_t M4 = cc.GetCyclotomicOrder() / 4; M4 == slots) {
         // fully-packed

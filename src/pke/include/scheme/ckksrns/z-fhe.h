@@ -72,6 +72,20 @@ public:
 
     // coefficients corresponding to conj(U0^T); used in encoding
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFT;
+
+    // Used for storing baby-step giant-step params for Z-C linear transforms
+    struct ckks_boot_params m_paramsZEnc;
+    struct ckks_boot_params m_paramsZDec;
+    //
+    // coefficients for ZU and ZUInverse
+    //
+    std::vector<ZBootstrapPlaintextCache> m_ZUPre;
+    std::vector<ZBootstrapPlaintextCache> m_ZUInversePre;
+
+    std::vector<ZBootstrapPlaintextCache> m_ZU0Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZU1Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZUInverse0Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZUInverse1Pre;
 };
 
 class FHEZImpl {
@@ -83,6 +97,9 @@ public:
 
     Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
                                              ConstCiphertext<DCRTPoly>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalZLinearTransform(std::vector<ZBootstrapPlaintextCache>& A, ConstCiphertext<DCRTPoly>& ct,
+                                              uint32_t zSlots) const;
 
     Ciphertext<DCRTPoly> EvalCoeffsToSlots(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
                                            ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
@@ -99,10 +116,11 @@ public:
     }
 
 private:
-    std::shared_ptr<typename DCRTPoly::Params> GetParamsQP(
-        uint32_t m, const std::vector<std::shared_ptr<ILNativeParams>>& paramsQ,
-        const std::vector<std::shared_ptr<ILNativeParams>>& paramsP) const;
-
+    //------------------------------------------------------------------------------
+    // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
+    //------------------------------------------------------------------------------
+    std::vector<ZBootstrapPlaintextCache> EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
+                                                                         const BigCMatrix& A, uint32_t zSlots) const;
     //------------------------------------------------------------------------------
     // Precomputations for CoeffsToSlots and SlotsToCoeffs
     //------------------------------------------------------------------------------
@@ -131,6 +149,7 @@ private:
     AdvancedZ advZ;
 
     // key tuple is dim1, levelBudgetEnc, levelBudgetDec
+    // key tuple is cSlots, zSlots,
     std::map<uint32_t, std::shared_ptr<ZBootstrapPrecom>> m_bootPrecomMap;
 };
 

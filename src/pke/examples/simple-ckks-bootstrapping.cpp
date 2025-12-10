@@ -609,6 +609,9 @@ void SimpleBootstrapExample() {
     for (int i = 1; i <= 31; ++i) {
         rotateIndices.push_back(i);
     }
+    for (int i = 1; i <= 31; ++i) {
+        rotateIndices.push_back(-i);
+    }
     const uint32_t limit = ringDim / 32;
     for (uint32_t j = 1; j < limit; j <<= 1) {
         rotateIndices.push_back(j * 16);
@@ -678,6 +681,14 @@ void SimpleBootstrapExample() {
         __heir_debug2(ctMul, "CMult");
         ct = ctMul;
     }
+
+    fheZ->EvalBootstrapSetup(*cc, 16, {1, 1});
+    auto& precomp   = fheZ->GetBootPrecom(16);
+    auto ZUInverse0 = precomp.m_ZUInverse0Pre;
+    auto lt         = fheZ->EvalZLinearTransform(ZUInverse0, ct, 1);
+    __heir_debug2(lt, "Upper");
+
+    return;
 
     /// TEST Rotate
     if (0) {

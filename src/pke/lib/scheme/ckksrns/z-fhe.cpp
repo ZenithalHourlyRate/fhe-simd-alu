@@ -3,6 +3,111 @@
 namespace lbcrypto {
 
 //------------------------------------------------------------------------------
+// EVALUATION: ZCoeffsToSlots and SlotsToZCoeffs
+//------------------------------------------------------------------------------
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
+                                                    ConstCiphertext<DCRTPoly>& ct, uint32_t zSlotsUnsigned) const {
+    // Computing the baby-step bStep and the giant-step gStep.
+    const int32_t zSlots  = zSlotsUnsigned;
+    const uint32_t zNDiv2 = (A.size() + 1) / 2;
+    const int32_t cSlots  = zSlots * zNDiv2;
+    const auto& p         = GetBootPrecom(cSlots);
+    // FUNNY that bStep = g...
+    const uint32_t bStep = (p.m_paramsZEnc.g == 0) ? std::ceil(std::sqrt(zNDiv2)) : p.m_paramsZEnc.g;
+    const uint32_t gStep = std::ceil(static_cast<double>(zNDiv2) / bStep);
+
+    auto cc     = ct->GetCryptoContext();
+    auto digits = cc->EvalFastRotationPrecompute(ct);
+
+    // hoisted automorphisms
+    std::vector<Ciphertext<DCRTPoly>> fastRotation(bStep - 1);
+    std::vector<Ciphertext<DCRTPoly>> fastRotationNeg(bStep - 1);
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(bStep - 1))
+    for (uint32_t j = 1; j < bStep; ++j)
+        fastRotation[j - 1] = cc->EvalFastRotationExt(ct, j, digits, true);
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(bStep - 1))
+    for (uint32_t j = 1; j < bStep; ++j)
+        fastRotationNeg[j - 1] = cc->EvalFastRotationExt(ct, -static_cast<int32_t>(j), digits, true);
+
+    auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
+    auto sfBFP         = ct->GetScalingFactorBFP();
+
+    const uint32_t M = cc->GetCyclotomicOrder();
+    const uint32_t N = cc->GetRingDimension();
+    std::vector<uint32_t> map(N);
+    Ciphertext<DCRTPoly> result;
+    DCRTPoly first;
+
+    // Used for neg loop initialization of inner
+    Ciphertext<DCRTPoly> starter;
+    for (uint32_t j = 0; j < gStep; ++j) {
+        auto inner = z->EvalMult(cc->KeySwitchExt(ct, true), A[bStep * j]->GetPlaintext(sfBFP, elementParams));
+        for (uint32_t i = 1; i < bStep; ++i) {
+            if (bStep * j + i < zNDiv2)
+                z->EvalAddInPlace(
+                    inner, z->EvalMult(fastRotation[i - 1], A[bStep * j + i]->GetPlaintext(sfBFP, elementParams)));
+        }
+
+        if (j == 0) {
+            first         = cc->KeySwitchDownFirstElement(inner);
+            auto elements = inner->GetElements();
+            elements[0].SetValuesToZero();
+            inner->SetElements(std::move(elements));
+            result = std::move(inner);
+
+            starter = result->Clone();
+        }
+        else {
+            inner = cc->KeySwitchDown(inner);
+            // Find the automorphism index that corresponds to rotation index index.
+            uint32_t autoIndex = FindAutomorphismIndex2nComplex(bStep * j, M);
+            PrecomputeAutoMap(N, autoIndex, &map);
+            first += inner->GetElements()[0].AutomorphismTransform(autoIndex, map);
+
+            auto&& innerDigits = cc->EvalFastRotationPrecompute(inner);
+            z->EvalAddInPlace(result, cc->EvalFastRotationExt(inner, bStep * j, innerDigits, false));
+        }
+    }
+    // Neg
+    for (uint32_t j = 0; j < gStep; ++j) {
+        Ciphertext<DCRTPoly> inner;
+        if (j == 0) {
+            // Initialize inner to zero ciphertext
+            inner = starter;
+        }
+        else {
+            inner =
+                z->EvalMult(cc->KeySwitchExt(ct, true), A[zNDiv2 - 1 + bStep * j]->GetPlaintext(sfBFP, elementParams));
+        }
+        for (uint32_t i = 1; i < bStep; ++i) {
+            if (bStep * j + i < zNDiv2)
+                z->EvalAddInPlace(inner,
+                                  z->EvalMult(fastRotationNeg[i - 1],
+                                              A[zNDiv2 - 1 + bStep * j + i]->GetPlaintext(sfBFP, elementParams)));
+        }
+
+        if (j == 0) {
+            first += cc->KeySwitchDownFirstElement(inner);
+        }
+        else {
+            inner = cc->KeySwitchDown(inner);
+            // Find the automorphism index that corresponds to rotation index index.
+            uint32_t autoIndex = FindAutomorphismIndex2nComplex(-bStep * static_cast<int32_t>(j), M);
+            PrecomputeAutoMap(N, autoIndex, &map);
+            first += inner->GetElements()[0].AutomorphismTransform(autoIndex, map);
+
+            auto&& innerDigits = cc->EvalFastRotationPrecompute(inner);
+            z->EvalAddInPlace(result,
+                              cc->EvalFastRotationExt(inner, -bStep * static_cast<int32_t>(j), innerDigits, false));
+        }
+    }
+    result = cc->KeySwitchDown(result);
+    result->GetElements()[0] += first;
+    return result;
+}
+
+//------------------------------------------------------------------------------
 // EVALUATION: CoeffsToSlots and SlotsToCoeffs
 //------------------------------------------------------------------------------
 
