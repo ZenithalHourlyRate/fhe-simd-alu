@@ -1,5 +1,7 @@
 #include "math/hal/bigfixedpoint.h"
 
+namespace lbcrypto {
+
 //=============================================================================
 // BigFixedPoint Implementation
 //=============================================================================
@@ -117,3 +119,5 @@ BigComplex& BigComplex::operator/=(const BigComplex& a) {
 BigComplex operator-(const BigComplex& a) {
     return BigComplex(-a.getReal(), -a.getImag());
 }
+
+}  // namespace lbcrypto

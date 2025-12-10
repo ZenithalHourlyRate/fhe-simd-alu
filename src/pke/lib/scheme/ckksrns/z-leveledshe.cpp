@@ -22,7 +22,7 @@ Ciphertext<DCRTPoly> zEvalMultFull(LeveledZ z, ConstCiphertext<DCRTPoly> ct1, Co
 Ciphertext<DCRTPoly> zEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt) {
     auto elemParam     = ct->GetElements()[0].GetParams();
     auto sf            = ct->GetScalingFactorBFP();
-    RPolynomial value1 = ZPolynomial::encode(ptxt).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, ptxt).toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
     return z->EvalAdd(ct, ptxt1);
 }
@@ -30,7 +30,7 @@ Ciphertext<DCRTPoly> zEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t
 Ciphertext<DCRTPoly> zEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt, BigFixedPoint scalingFactor) {
     auto elemParam     = ct->GetElements()[0].GetParams();
     auto sf            = ct->GetScalingFactorBFP();
-    RPolynomial value1 = ZPolynomial::encode(ptxt).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, ptxt).toRPolynomial();
     if (scalingFactor.equalZero()) {
         scalingFactor = sf;
     }

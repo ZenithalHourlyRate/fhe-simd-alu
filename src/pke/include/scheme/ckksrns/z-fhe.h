@@ -96,8 +96,8 @@ public:
     Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
                                              ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalZLinearTransform(std::vector<ZBootstrapPlaintextCache>& A, ConstCiphertext<DCRTPoly>& ct,
-                                              uint32_t zSlots) const;
+    Ciphertext<DCRTPoly> EvalZLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
+                                              ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalCoeffsToSlots(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
                                            ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;

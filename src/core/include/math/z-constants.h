@@ -314,9 +314,27 @@ const std::map<uint32_t, BigCVector> Z_ROOTS_MAP = {
     {8, Z_ROOTS_N8}, {16, Z_ROOTS_N16}, {32, Z_ROOTS_N32}, {64, Z_ROOTS_N64}, {128, Z_ROOTS_N128},
 };
 
-BigCMatrix GetZU(uint32_t zN);
+class ZLinearTransform {
+public:
+    static void Initialize(uint32_t zN);
+    static const BigCMatrix& GetZU(uint32_t zN);
+    static const BigCMatrix& GetZUInverse(uint32_t zN);
 
-BigCMatrix GetZUInverse(uint32_t zN);
+    static BigCVector MultZU(uint32_t zN, const BigFPVector& input);
+    static BigFPVector MultZUInverse(uint32_t zN, const BigCVector& input);
+
+private:
+    struct PrecomputedValues {
+        uint32_t m_zN;
+        BigCMatrix m_ZU;
+        BigCMatrix m_ZUInv;
+        PrecomputedValues(uint32_t zN);
+
+        static BigCMatrix GetZU(uint32_t zN);
+        static BigCMatrix GetZUInverse(uint32_t zN);
+    };
+    static std::unordered_map<uint32_t, PrecomputedValues> precomputedValues;
+};
 
 // Now find the primitive roots for x^N+1
 

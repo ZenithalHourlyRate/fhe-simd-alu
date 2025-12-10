@@ -4,15 +4,21 @@
 #include <cassert>
 #include "math/z-constants.h"
 
+namespace lbcrypto {
+
 struct RPolynomial;
 struct CSlots;
 
 struct ZPolynomial {
 public:
-    ZPolynomial() : coefficients(zN) {}
-    ZPolynomial(const std::vector<BigFixedPoint>& coeffs) : coefficients(coeffs) {}
+    ZPolynomial(uint32_t zN) : zN(zN), coefficients(zN) {}
+    ZPolynomial(const std::vector<BigFixedPoint>& coeffs) : zN(coeffs.size()), coefficients(coeffs) {}
     std::vector<BigFixedPoint> getCoefficients() const {
         return coefficients;
+    }
+
+    uint32_t getZN() const {
+        return zN;
     }
 
     double getLog2Norm() {
@@ -34,7 +40,7 @@ public:
         return coefficients[index];
     }
 
-    static ZPolynomial getT() {
+    static ZPolynomial getT(uint32_t zN) {
         std::vector<BigFixedPoint> t(zN, BigFixedPoint::zero());
         auto two = BigFixedPoint::two();
         auto one = BigFixedPoint::one();
@@ -43,7 +49,7 @@ public:
         return ZPolynomial(t);
     }
 
-    static ZPolynomial getTInv() {
+    static ZPolynomial getTInv(uint32_t zN) {
         std::vector<BigFixedPoint> tInv;
         // denominator
         auto one = BigFixedPoint::one();
@@ -61,6 +67,7 @@ public:
     }
 
     static ZPolynomial addRaw(ZPolynomial a, ZPolynomial b) {
+        auto zN = a.getZN();
         std::vector<BigFixedPoint> result(zN, BigFixedPoint::zero());
         for (size_t i = 0; i != zN; ++i) {
             result[i] = a[i] + b[i];
@@ -69,6 +76,7 @@ public:
     }
 
     static ZPolynomial multiplyRaw(ZPolynomial a, ZPolynomial b) {
+        auto zN = a.getZN();
         std::vector<BigFixedPoint> result(2 * zN - 1, BigFixedPoint::zero());
         for (size_t i = 0; i != zN; ++i) {
             for (size_t j = 0; j != zN; ++j) {
@@ -87,7 +95,8 @@ public:
     }
 
     // Binary
-    static ZPolynomial encodeBinary(uint32_t input) {
+    // TODO: support larger integer
+    static ZPolynomial encodeBinary(uint32_t zN, uint64_t input) {
         auto one  = BigFixedPoint::one();
         auto zero = BigFixedPoint::zero();
         std::vector<BigFixedPoint> bits;
@@ -105,66 +114,8 @@ public:
     }
 
     // Standard
-    static ZPolynomial encode(uint32_t input) {
-        return multiplyRaw(encodeBinary(input), getTInv());
-    }
-
-    // Balanced
-    static ZPolynomial encodeBalanced(uint32_t input) {
-        auto half    = BigFixedPoint::half();
-        auto negHalf = -half;
-        std::vector<BigFixedPoint> bits;
-        // get bits of input in {-1/2, 1/2}
-        // Note that 0 maps to -1/2
-        for (size_t i = 0; i != zN; ++i) {
-            auto flag = (input & (1 << i)) >> i;
-            if (flag) {
-                bits.push_back(half);
-            }
-            else {
-                bits.push_back(negHalf);
-            }
-        }
-        return bits;
-    }
-
-    // Balanced TInv
-    static ZPolynomial encodeBalancedTInv(uint32_t input) {
-        return multiplyRaw(encodeBalanced(input), getTInv());
-    }
-
-    // From standard
-    static ZPolynomial toBalancedTInv(ZPolynomial input) {
-        uint32_t offset    = 0xFFFFFFFF;
-        auto offsetEncoded = encode(offset);
-        auto half          = BigFixedPoint::half();
-        ZPolynomial output;
-        for (size_t i = 0; i != input.coefficients.size(); ++i) {
-            output[i] = input[i] - half * offsetEncoded[i];
-        }
-        return output;
-    }
-
-    static ZPolynomial getBalancedOffset() {
-        uint32_t offset    = 0xFFFFFFFF;
-        auto offsetEncoded = encode(offset);
-        auto half          = BigFixedPoint::half();
-        for (size_t i = 0; i != offsetEncoded.coefficients.size(); ++i) {
-            offsetEncoded[i] = half * offsetEncoded[i];
-        }
-        return offsetEncoded;
-    }
-
-    // From balanced tinv
-    static ZPolynomial toStandard(ZPolynomial input) {
-        uint32_t offset    = 0xFFFFFFFF;
-        auto offsetEncoded = encode(offset);
-        auto half          = BigFixedPoint::half();
-        ZPolynomial output;
-        for (size_t i = 0; i != input.coefficients.size(); ++i) {
-            output[i] = input[i] + half * offsetEncoded[i];
-        }
-        return output;
+    static ZPolynomial encode(uint32_t zN, uint64_t input) {
+        return multiplyRaw(encodeBinary(zN, input), getTInv(zN));
     }
 
     // Round to [-1, 1)
@@ -185,7 +136,8 @@ public:
     static ZPolynomial roundNOneToZero(ZPolynomial input) {
         // Add small epsilon to ensure range in (-1, 0)
         // epsilon = 2^{-zN-1}
-        auto eps = BigFixedPoint(BigInteger(1) << z_upper_roots_scale - zN - 1, z_upper_roots_scale, false);
+        auto zN  = input.getZN();
+        auto eps = BigFixedPoint(BigInteger(1) << (128 - zN - 1), 128, false);
         // do [\cdot ]_1
         std::vector<BigFixedPoint> output;
         for (auto i : input.getCoefficients()) {
@@ -197,23 +149,12 @@ public:
         return output;
     }
 
-    // Round to [-1/2, 1/2)
-    static ZPolynomial roundNHalfToHalf(ZPolynomial input) {
-        // Do []_1, which reduces to [-1/2, 1/2)
-        std::vector<BigFixedPoint> output;
-        for (auto i : input.getCoefficients()) {
-            auto iRound = i.round();
-            output.push_back(i - iRound);
-        }
-        return output;
-    }
-
     static ZPolynomial roundBigI(ZPolynomial input) {
         return roundNOneToZero(input);
     }
 
-    static uint32_t decode(ZPolynomial input) {
-        auto poly = multiplyRaw(input, getT());
+    static uint64_t decode(ZPolynomial input) {
+        auto poly = multiplyRaw(input, getT(input.getZN()));
 
         // For each coefficient, do rounding
         std::vector<BigFixedPoint> result = poly.getCoefficients();
@@ -235,41 +176,22 @@ public:
         return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
     }
 
-    static uint32_t decodeBalanced(ZPolynomial input) {
-        auto poly = multiplyRaw(input, getT());
-        // Add each coefficient by 1/2
-        auto half = BigFixedPoint::half();
-        for (size_t i = 0; i != poly.getCoefficients().size(); ++i) {
-            poly[i] += half;
-        }
-
-        // Do Euclidean division by X-2
-        auto two                          = BigFixedPoint::positive(2);
-        std::vector<BigFixedPoint> result = poly.getCoefficients();
-        for (size_t i = result.size() - 1; i >= 1; --i) {
-            result[i - 1] += two * result[i];
-            result.pop_back();
-        }
-        auto rounded = result[0].round();
-        //std::cout << "Decoded X-2: " << result[0].toHexString() << "\n";
-        return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
-    }
-
     static ZPolynomial add(ZPolynomial lhs, ZPolynomial rhs) {
         return roundBigI(addRaw(lhs, rhs));
     }
 
     static ZPolynomial multiply(ZPolynomial lhs, ZPolynomial rhs) {
-        return roundBigI(multiplyRaw(multiplyRaw(lhs, rhs), getT()));
+        return roundBigI(multiplyRaw(multiplyRaw(lhs, rhs), getT(lhs.getZN())));
     }
 
     static ZPolynomial extractError(ZPolynomial input) {
         // Input: [m]_t / t + I + e
         // recoded: [m_t] / t
+        auto zN      = input.getZN();
         auto decoded = decode(input);
-        auto recoded = encode(decoded);
+        auto recoded = encode(zN, decoded);
         // error: I + e
-        ZPolynomial error;
+        ZPolynomial error(zN);
         for (size_t i = 0; i != input.coefficients.size(); ++i) {
             error[i] = input[i] - recoded[i];
         }
@@ -292,11 +214,11 @@ public:
     }
 
     static ZPolynomial extractI(ZPolynomial input) {
-        ZPolynomial Ipoly;
+        ZPolynomial Ipoly(input.getZN());
         // Input: [m]_t / t + I + e
         // recoded: [m_t] / t
         auto decoded = decode(input);
-        auto recoded = encode(decoded);
+        auto recoded = encode(input.getZN(), decoded);
         // error: I + e
         for (size_t i = 0; i != input.coefficients.size(); ++i) {
             auto diff      = input[i] - recoded[i];
@@ -307,7 +229,7 @@ public:
     }
 
     static ZPolynomial truncError(ZPolynomial input) {
-        ZPolynomial output;
+        ZPolynomial output(input.getZN());
         auto error = extractError(input);
         for (size_t i = 0; i != error.coefficients.size(); ++i) {
             output[i] = input[i] - error[i];
@@ -318,7 +240,7 @@ public:
     static ZPolynomial extractStandardMessage(ZPolynomial input) {
         auto noError = truncError(input);
         auto decoded = decode(noError);
-        auto recoded = encode(decoded);
+        auto recoded = encode(input.getZN(), decoded);
         return recoded;
     }
 
@@ -329,6 +251,7 @@ public:
     RPolynomial interpretAsRPolynomial() const;
 
 private:
+    uint32_t zN;
     std::vector<BigFixedPoint> coefficients;
 };
 
@@ -359,7 +282,7 @@ private:
 
 struct CSlots {
 public:
-    CSlots() : slots(rN / 2) {}
+    CSlots(uint32_t zN, uint32_t zSlots) : slots(rN / 2) {}
     CSlots(const std::vector<BigComplex>& slotVec) : slots(slotVec) {}
     std::vector<BigComplex> getSlots() const {
         return slots;
@@ -376,7 +299,11 @@ public:
     RPolynomial toRPolynomial() const;
 
 private:
+    uint32_t zN;
+    uint32_t zSlots;
     std::vector<BigComplex> slots;
 };
+
+}  // namespace lbcrypto
 
 #endif  // SRC_PKE_EXAMPLES_Z_ENCODE_UTILS_H_

@@ -5,6 +5,8 @@
 #include "math/z-encode-utils.h"
 #include "plaintext.h"
 
+namespace lbcrypto {
+
 class ZEncodingImpl;
 
 using ZEncoding = std::shared_ptr<ZEncodingImpl>;
@@ -88,5 +90,7 @@ public:
         return output;
     }
 };
+
+}  // namespace lbcrypto
 
 #endif  // SRC_PKE_EXAMPLES_Z_ENCODE_H_

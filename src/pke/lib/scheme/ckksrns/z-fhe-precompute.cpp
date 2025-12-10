@@ -125,8 +125,9 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     size_t zN     = zBits;
 
     // We note that ZUInverse is scaled.
-    auto ZU        = GetZU(zN);
-    auto ZUInverse = GetZUInverse(zN);
+    ZLinearTransform::Initialize(zN);
+    auto& ZU        = ZLinearTransform::GetZU(zN);
+    auto& ZUInverse = ZLinearTransform::GetZUInverse(zN);
 
     BigCMatrix ZU0(zN / 2, BigCVector(zN / 2));
     BigCMatrix ZU1(zN / 2, BigCVector(zN / 2));
@@ -141,16 +142,16 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         }
     }
 
-    //if (isSparse) {
-    precom->m_ZUPre        = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
-    precom->m_ZUInversePre = EvalZLinearTransformPrecompute(cc, ZUInverse0, ZUInverse1, zSlots);
-    //}
-    //else {
-    precom->m_ZU0Pre        = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
-    precom->m_ZU1Pre        = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
-    precom->m_ZUInverse0Pre = EvalZLinearTransformPrecompute(cc, ZUInverse0, zSlots);
-    precom->m_ZUInverse1Pre = EvalZLinearTransformPrecompute(cc, ZUInverse1, zSlots);
-    //}
+    if (isSparse) {
+        precom->m_ZUPre        = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
+        precom->m_ZUInversePre = EvalZLinearTransformPrecompute(cc, ZUInverse0, ZUInverse1, zSlots);
+    }
+    else {
+        precom->m_ZU0Pre        = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
+        precom->m_ZU1Pre        = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
+        precom->m_ZUInverse0Pre = EvalZLinearTransformPrecompute(cc, ZUInverse0, zSlots);
+        precom->m_ZUInverse1Pre = EvalZLinearTransformPrecompute(cc, ZUInverse1, zSlots);
+    }
 }
 
 //------------------------------------------------------------------------------

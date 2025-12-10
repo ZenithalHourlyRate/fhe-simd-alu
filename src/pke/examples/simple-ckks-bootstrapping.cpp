@@ -163,13 +163,6 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             ZPolynomial zPoly = values.interpretAsZPolynomial();
             printZPoly(zPoly);
         }
-        if (msg == "Binary") {
-            ZPolynomial zPoly = ZPolynomial::multiplyRaw(values.interpretAsZPolynomial(), ZPolynomial::getT());
-            //printZPoly(zPoly);
-            for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
-                std::cout << msg << "  Binary zPoly [" << i << "]: " << zPoly[i].toHexString(16) << std::endl;
-            }
-        }
         if (msg == "Low4" || msg == "ModRaise") {
             extractErrorRoly(values, 4);
         }
@@ -476,9 +469,9 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FH
     // Running CoeffsToSlots
     //------------------------------------------------------------------------------
 
-    auto raisedRC2S = RCoeffsToSlots(cc, z, raised);
-    z->ModReduceInPlace(raisedRC2S[0]);
-    z->ModReduceInPlace(raisedRC2S[1]);
+    //auto raisedRC2S = RCoeffsToSlots(cc, z, raised);
+    //z->ModReduceInPlace(raisedRC2S[0]);
+    //z->ModReduceInPlace(raisedRC2S[1]);
     //__heir_debug2(raisedRC2S[0], "MSBC2S");
     //__heir_debug2(raisedRC2S[1], "MSBC2S");
 
@@ -486,40 +479,40 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FH
     // Running Approximate Mod Reduction
     //------------------------------------------------------------------------------
 
-    auto& coeff_exp = coeff_exp_16_big_complex_58;
-    auto res        = advZ->EvalChebyshevSeriesPS(raisedRC2S[0], coeff_exp);
-    auto resI       = advZ->EvalChebyshevSeriesPS(raisedRC2S[1], coeff_exp);
+    //auto& coeff_exp = coeff_exp_16_big_complex_58;
+    //auto res        = advZ->EvalChebyshevSeriesPS(raisedRC2S[0], coeff_exp);
+    //auto resI       = advZ->EvalChebyshevSeriesPS(raisedRC2S[1], coeff_exp);
 
-    // Double angle-iterations to get exp(2*Pi*i*x)
-    res = z->EvalMult(res, res);
-    z->ModReduceInPlace(res);
-    res = z->EvalMult(res, res);
-    z->ModReduceInPlace(res);
+    //// Double angle-iterations to get exp(2*Pi*i*x)
+    //res = z->EvalMult(res, res);
+    //z->ModReduceInPlace(res);
+    //res = z->EvalMult(res, res);
+    //z->ModReduceInPlace(res);
 
-    resI = z->EvalMult(resI, resI);
-    z->ModReduceInPlace(resI);
-    resI = z->EvalMult(resI, resI);
-    z->ModReduceInPlace(resI);
+    //resI = z->EvalMult(resI, resI);
+    //z->ModReduceInPlace(resI);
+    //resI = z->EvalMult(resI, resI);
+    //z->ModReduceInPlace(resI);
 
-    __heir_debug2(res, "Cheby1");
+    //__heir_debug2(res, "Cheby1");
 
     //------------------------------------------------------------------------------
     // Running LUT
     //------------------------------------------------------------------------------
 
-    auto lutCoeffs = another_interpolate(1);
-    auto powers    = advZ->EvalPowers(res, lutCoeffs);
-    auto lut       = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
-    //__heir_debug2(lut, "LUT");
+    //auto lutCoeffs = another_interpolate(1);
+    //auto powers    = advZ->EvalPowers(res, lutCoeffs);
+    //auto lut       = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
+    ////__heir_debug2(lut, "LUT");
 
-    auto powersI = advZ->EvalPowers(resI, lutCoeffs);
-    auto lutI    = advZ->EvalPolyWithPrecomp(powersI, lutCoeffs);
+    //auto powersI = advZ->EvalPowers(resI, lutCoeffs);
+    //auto lutI    = advZ->EvalPolyWithPrecomp(powersI, lutCoeffs);
     //__heir_debug2(lutI, "LUT");
 
-    auto rCoeffLut = SlotsToRCoeffs(cc, z, lut, lutI);
-    z->ModReduceInPlace(rCoeffLut);
+    //auto rCoeffLut = SlotsToRCoeffs(cc, z, lut, lutI);
+    //z->ModReduceInPlace(rCoeffLut);
     //__heir_debug2(rCoeffLut, "LUTR");
-    return rCoeffLut;
+    //return rCoeffLut;
 }
 
 void SimpleBootstrapExample();
@@ -630,6 +623,7 @@ void SimpleBootstrapExample() {
     LeveledZ z     = std::make_shared<LeveledZImpl>();
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
+    ZLinearTransform::Initialize(32);
 
     cc_global    = cc;
     pk_global    = keyPair.publicKey;
@@ -643,10 +637,10 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    RPolynomial value1 = ZPolynomial::encode(-1).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, 0xFFFFFFFF).toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(-3).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(32, 0xFFFFFFFF).toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE
@@ -663,7 +657,7 @@ void SimpleBootstrapExample() {
     }
 
     /// TEST CT-PT-MULT
-    RPolynomial t   = ZPolynomial::getT().toRPolynomial();
+    RPolynomial t   = ZPolynomial::getT(32).toRPolynomial();
     Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
     if (0) {
@@ -682,21 +676,8 @@ void SimpleBootstrapExample() {
         ct = ctMul;
     }
 
-    fheZ->EvalBootstrapSetup(*cc, 16, {1, 1});
-    auto& precomp  = fheZ->GetBootPrecom(16);
-    auto ZUInverse = precomp.m_ZUInversePre;
-    auto lt        = fheZ->EvalZLinearTransform(ZUInverse, ct, 1);
-    auto ltConj    = Conjugate(lt, cc->GetEvalAutomorphismKeyMap(lt->GetKeyTag()));
-    z->EvalAddInPlace(lt, ltConj);
-    __heir_debug2(lt, "LT");
-
-    //auto ZUInverse0 = precomp.m_ZUInverse1Pre;
-    //auto lt         = fheZ->EvalZLinearTransform(ZUInverse0, ct, 1);
-    //auto ltConj     = Conjugate(lt, cc->GetEvalAutomorphismKeyMap(lt->GetKeyTag()));
-    //z->EvalAddInPlace(lt, ltConj);
-    //__heir_debug2(lt, "Upper");
-
-    return;
+    fheZ->EvalBootstrapSetup(*cc, 16, {2, 2});
+    auto& precomp = fheZ->GetBootPrecom(16);
 
     /// TEST Rotate
     if (0) {
@@ -706,42 +687,22 @@ void SimpleBootstrapExample() {
     }
 
     /// TEST ZCoeffToSlots and SlotsToZCoeffs
-    std::vector<Ciphertext<DCRTPoly>> zC2S;
+    Ciphertext<DCRTPoly> zC2S;
     if (1) {
-        zC2S = ZCoeffsToSlots(cc, z, ct);
-        z->ModReduceInPlace(zC2S[0]);
-        z->ModReduceInPlace(zC2S[1]);
+        zC2S = fheZ->EvalZLinearTransform(precomp.m_ZUInversePre, ct);
+        z->EvalAddInPlace(zC2S, Conjugate(zC2S, cc->GetEvalAutomorphismKeyMap(zC2S->GetKeyTag())));
+        z->ModReduceInPlace(zC2S);
 
-        __heir_debug2(zC2S[0], "Upper");
-        __heir_debug2(zC2S[1], "Down");
-
-        // Now SF is sf
-        if (0) {
-            auto z2S2z = SlotsToZCoeffs(cc, z, zC2S[0], zC2S[1]);
-
-            __heir_debug2(z2S2z, "Z2S2Z");
-        }
+        __heir_debug2(zC2S, "Upper");
     }
 
     // TEST SlotsToRCoeffs
     Ciphertext<DCRTPoly> s2rc;
     if (1) {
-        auto z2S2r = SlotsToRCoeffs(cc, z, zC2S[0], zC2S[1]);
+        auto z2S2r = fheZ->EvalSlotsToCoeffs(precomp.m_U0PreFFT, zC2S, 16);
         z->ModReduceInPlace(z2S2r);
         s2rc = z2S2r;
         __heir_debug2(z2S2r, "S2RC");
-
-        //auto z2S2r_1 = EvalMultScalar(z2S2r, 2);
-        ////z2S2r_1->SetScalingFactor(sf * sf * 2);
-        //__heir_debug2(z2S2r_1, "S2RC");
-
-        //auto z2S2r_2 = EvalMultScalar(z2S2r, 4);
-        ////z2S2r_2->SetScalingFactor(sf * sf * 4);
-        //__heir_debug2(z2S2r_2, "S2RC");
-
-        //auto z2S2r_3 = EvalMultScalar(z2S2r, 8);
-        ////z2S2r_3->SetScalingFactor(sf * sf * 8);
-        //__heir_debug2(z2S2r_3, "S2RC");
     }
 
     // TEST Scale to MSB
@@ -808,19 +769,5 @@ void SimpleBootstrapExample() {
             z->EvalAddInPlace(ctNew, lowBTSs[i]);
         }
         __heir_debug2(ctNew, "Reconstructed");
-    }
-
-    if (0) {
-        auto q               = ctMSB->GetElements()[0].GetModulus();
-        auto qBFP            = BigFixedPoint(q, 0, false).scaleTo(128);
-        auto sfNow           = ctMSB->GetScalingFactorBFP();
-        auto elemParam       = ctMSB->GetElements()[0].GetParams();
-        auto offset          = ZPolynomial::getBalancedOffset();
-        Plaintext offsetPtxt = ZEncodingImpl::encodeR(offset.interpretAsRPolynomial(), elemParam, sfNow);
-        z->EvalSubInPlace(ctMSB, offsetPtxt);
-        // Do [-1/2, 1/2)
-        auto ct2 = z->EvalMultScalar(ctMSB, 2);
-        ct2->SetScalingFactorBFP(qBFP);  // Note it is not qBFP / 2 but qBFP
-        __heir_debug2(ct2, "Binary");
     }
 }

@@ -4,7 +4,7 @@
 #include <cassert>
 #include "math/math-hal.h"
 
-using namespace lbcrypto;
+namespace lbcrypto {
 
 struct BigFixedPoint {
 public:
@@ -460,5 +460,12 @@ struct BigComplexCompare {
 
 using BigCVector = std::vector<BigComplex>;
 using BigCMatrix = std::vector<BigCVector>;
+
+using BigFPVector = std::vector<BigFixedPoint>;
+
+BigCVector ToCVector(const BigFPVector& input);
+BigFPVector ToReal(const BigCVector& input);
+
+}  // namespace lbcrypto
 
 #endif  // SRC_CORE_INCLUDE_MATH_HAL_BIGFIXEDPOINT_H_

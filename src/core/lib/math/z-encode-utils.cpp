@@ -1,7 +1,9 @@
 #include "math/z-encode-utils.h"
 
+namespace lbcrypto {
+
 CSlots ZPolynomial::toCSlots() const {
-    return multU(getZU(), coefficients);
+    return ZLinearTransform::MultZU(zN, coefficients);
 }
 
 CSlots RPolynomial::toCSlots() const {
@@ -9,6 +11,7 @@ CSlots RPolynomial::toCSlots() const {
 }
 
 ZPolynomial CSlots::toZPolynomial() const {
+    //return ZLinearTransform::MultZUInverse(zBits, slots);
     return multUInverse(getZUInverse(), slots);
 }
 
@@ -33,3 +36,5 @@ RPolynomial ZPolynomial::interpretAsRPolynomial() const {
 ZPolynomial RPolynomial::interpretAsZPolynomial() const {
     return ZPolynomial(coefficients);
 }
+
+}  // namespace lbcrypto

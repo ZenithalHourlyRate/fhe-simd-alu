@@ -7,12 +7,9 @@ namespace lbcrypto {
 //------------------------------------------------------------------------------
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
-                                                    ConstCiphertext<DCRTPoly>& ct, uint32_t zSlotsUnsigned) const {
+                                                    ConstCiphertext<DCRTPoly>& ct) const {
     // Computing the baby-step bStep and the giant-step gStep.
-    const int32_t zSlots  = zSlotsUnsigned;
     const uint32_t zNDiv2 = (A.size() + 1) / 2;
-    const int32_t cSlots  = zSlots * zNDiv2;
-    const auto& p         = GetBootPrecom(cSlots);
     // FUNNY that bStep = g...
     const uint32_t bStep = std::ceil(std::sqrt(zNDiv2));
     const uint32_t gStep = std::ceil(static_cast<double>(zNDiv2) / bStep);
