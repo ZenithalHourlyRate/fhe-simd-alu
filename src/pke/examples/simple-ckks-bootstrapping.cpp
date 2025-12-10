@@ -686,6 +686,8 @@ void SimpleBootstrapExample() {
     auto& precomp   = fheZ->GetBootPrecom(16);
     auto ZUInverse0 = precomp.m_ZUInverse0Pre;
     auto lt         = fheZ->EvalZLinearTransform(ZUInverse0, ct, 1);
+    auto ltConj     = Conjugate(lt, cc->GetEvalAutomorphismKeyMap(lt->GetKeyTag()));
+    z->EvalAddInPlace(lt, ltConj);
     __heir_debug2(lt, "Upper");
 
     return;

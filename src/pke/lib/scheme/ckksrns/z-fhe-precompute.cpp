@@ -124,6 +124,7 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     size_t zSlots = 1;
     size_t zN     = zBits;
 
+    // We note that ZUInverse is scaled.
     auto ZU        = GetZU(zN);
     auto ZUInverse = GetZUInverse(zN);
 

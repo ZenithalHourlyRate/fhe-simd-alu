@@ -50,13 +50,16 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaint
         }
 
         if (j == 0) {
+            // We only want to inherit metadata
+            starter = inner->Clone();
+            for (auto& cv : starter->GetElements())
+                cv.SetValuesToZero();
+
             first         = cc->KeySwitchDownFirstElement(inner);
             auto elements = inner->GetElements();
             elements[0].SetValuesToZero();
             inner->SetElements(std::move(elements));
             result = std::move(inner);
-
-            starter = result->Clone();
         }
         else {
             inner = cc->KeySwitchDown(inner);
@@ -89,6 +92,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaint
 
         if (j == 0) {
             first += cc->KeySwitchDownFirstElement(inner);
+            auto elements = inner->GetElements();
+            elements[0].SetValuesToZero();
+            inner->SetElements(std::move(elements));
+            z->EvalAddInPlace(result, inner);
         }
         else {
             inner = cc->KeySwitchDown(inner);
