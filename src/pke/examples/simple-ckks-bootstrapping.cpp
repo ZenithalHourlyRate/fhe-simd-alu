@@ -74,7 +74,8 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto l = ct->GetElements()[0].GetParams()->GetParams().size();
     std::cout << msg << "  l: " << l - 1 << std::endl;
 
-    auto zEncode = std::make_shared<ZEncodingImpl>(b.GetParams(), b, zN_global, zSlots_global, sfBigFP);
+    ZEncodingParams params(ZMode, zN_global, zSlots_global);
+    auto zEncode = std::make_shared<ZEncodingImpl>(b.GetParams(), b, sfBigFP, params);
 
     RPolynomial values = ZEncodingImpl::decodeR(zEncode);
 
@@ -580,11 +581,18 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    zN_global     = 32;
-    zSlots_global = 1;
+    uint32_t zN     = 32;
+    uint32_t zSlots = 1;
+    zN_global       = zN;
+    zSlots_global   = zSlots;
 
-    DiscreteFourierTransformBigComplex::Initialize(64, 64 / 4);
-    ZLinearTransform::Initialize(32);
+    auto cSlots  = zN * zSlots / 2;
+    auto cSlots2 = cSlots * 2;
+    // For regular encoding
+    DiscreteFourierTransformBigComplex::Initialize(cSlots * 4, cSlots);
+    // For encoding of bootstrapping related plaintext for sparse bootstrapping
+    DiscreteFourierTransformBigComplex::Initialize(cSlots2 * 4, cSlots2);
+    ZLinearTransform::Initialize(zN);
 
     cc_global    = cc;
     pk_global    = keyPair.publicKey;

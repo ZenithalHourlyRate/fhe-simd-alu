@@ -6,6 +6,87 @@
 
 namespace lbcrypto {
 
+enum ZEncodingType {
+    INVALID = 0,
+    ZMode,  // Representing ZPolynomial, at Z/arithmetic mode
+    CMode   // Representing C values. Used at bootstrapping and C/binary mode
+};
+
+struct ZEncodingParams {
+private:
+    ZEncodingType m_encodingType;
+
+    // Meaningful only for ZPolynomial representation
+    uint32_t m_zN;
+    uint32_t m_zSlots;
+    // Meaningful only for C mode
+    uint32_t m_rN;
+    uint32_t m_cSlots;
+
+public:
+    ZEncodingParams() : m_encodingType(INVALID) {}
+    ZEncodingParams(const ZEncodingParams&) = default;
+
+    ZEncodingParams(ZEncodingType type, uint32_t N, uint32_t slots = 0) {
+        m_encodingType = type;
+        if (type == ZMode) {
+            m_zN     = N;
+            m_zSlots = slots;
+            m_rN     = 0;
+            m_cSlots = 0;
+        }
+        if (type == CMode) {
+            m_zN     = 0;
+            m_zSlots = 0;
+            m_rN     = N;
+            m_cSlots = N / 2;
+        }
+    }
+
+    uint32_t getLength() const {
+        if (m_encodingType == ZMode) {
+            return m_zN * m_zSlots;
+        }
+        else {
+            return m_rN;
+        }
+    }
+
+    uint32_t getSlots() const {
+        if (m_encodingType == ZMode) {
+            return m_zSlots;
+        }
+        else {
+            return m_cSlots;
+        }
+    }
+
+    uint32_t getZN() const {
+        if (m_encodingType == ZMode) {
+            return m_zN;
+        }
+        else {
+            OPENFHE_THROW("getZN called for CMode");
+        }
+    }
+
+    uint32_t getZSlots() const {
+        if (m_encodingType == ZMode) {
+            return m_zSlots;
+        }
+        else {
+            OPENFHE_THROW("getZSlots called for CMode");
+        }
+    }
+
+    bool isZMode() const {
+        return m_encodingType == ZMode;
+    }
+    bool isCMode() const {
+        return m_encodingType == CMode;
+    }
+};
+
 struct RPolynomial;
 struct CSlots;
 
@@ -169,8 +250,8 @@ public:
             result.pop_back();
         }
         auto rounded = result[0].round();
-        // Now do mod 2^32
-        auto modValueBFP = BigFixedPoint(BigInteger(1) << 32, 0, false).scaleTo(128);
+        // Now do mod 2^zN
+        auto modValueBFP = BigFixedPoint(BigInteger(1) << input.getZN(), 0, false).scaleTo(128);
         rounded          = rounded - (rounded / modValueBFP).floor() * modValueBFP;
         //std::cout << "Decoded X-2: " << result[0].toHexString() << "\n";
         return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
@@ -195,16 +276,6 @@ public:
         for (size_t i = 0; i != input.coefficients.size(); ++i) {
             error[i] = input[i] - recoded[i];
         }
-        // This only works for off-by-one representation
-        // Now there is a possible I term with I in {-1, 0}
-        // We need to subtract eps = 2^{-zN - 1} to ensure < -1 or < 0
-        //auto eps        = BigFixedPoint(BigInteger(1) << z_upper_roots_scale - zN - 1, z_upper_roots_scale, false);
-        //auto constCoeff = error.getCoefficients()[0] - eps;
-        //auto constCoeffInteger = constCoeff.getValue() >> constCoeff.getLog2Scale();
-        //// This is b0. OpenFHE count bits from 1...
-        //int32_t I = constCoeffInteger.GetBitAtIndex(1);
-        //auto BigI = BigFixedPoint(I, 0, false);
-        //error[0] += BigI;
         for (size_t i = 0; i != error.coefficients.size(); ++i) {
             auto errorRounded = error[i].round();
             error[i] -= errorRounded;
@@ -253,9 +324,8 @@ private:
 
 struct RPolynomial {
 public:
-    RPolynomial(uint32_t zN, uint32_t zSlots) : zN(zN), zSlots(zSlots), coefficients(zN * zSlots) {}
-    RPolynomial(uint32_t zN, uint32_t zSlots, const std::vector<BigFixedPoint>& coeffs)
-        : zN(zN), zSlots(zSlots), coefficients(coeffs) {}
+    RPolynomial(const ZEncodingParams& p) : params(p), coefficients(p.getLength()) {}
+    RPolynomial(const ZEncodingParams& p, const std::vector<BigFixedPoint>& coeffs) : params(p), coefficients(coeffs) {}
     std::vector<BigFixedPoint> getCoefficients() const {
         return coefficients;
     }
@@ -267,26 +337,21 @@ public:
         return coefficients[index];
     }
 
-    uint32_t getZN() const {
-        return zN;
-    }
-    uint32_t getZSlots() const {
-        return zSlots;
+    ZEncodingParams getZEncodingParams() const {
+        return params;
     }
 
     CSlots toCSlots() const;
 
 private:
-    uint32_t zN;
-    uint32_t zSlots;
+    ZEncodingParams params;
     std::vector<BigFixedPoint> coefficients;
 };
 
 struct CSlots {
 public:
-    CSlots(uint32_t zN, uint32_t zSlots) : zN(zN), zSlots(zSlots), slots(zN * zSlots / 2) {}
-    CSlots(uint32_t zN, uint32_t zSlots, const std::vector<BigComplex>& slotVec)
-        : zN(zN), zSlots(zSlots), slots(slotVec) {}
+    CSlots(const ZEncodingParams& p) : params(p), slots(p.getLength() / 2) {}
+    CSlots(const ZEncodingParams& p, const std::vector<BigComplex>& slotVec) : params(p), slots(slotVec) {}
     std::vector<BigComplex> getSlots() const {
         return slots;
     }
@@ -298,51 +363,43 @@ public:
         return slots[index];
     }
 
-    uint32_t getZN() const {
-        return zN;
-    }
-
-    uint32_t getZSlots() const {
-        return zSlots;
-    }
-
     uint32_t size() const {
-        if (slots.size() != zN * zSlots / 2) {
-            OPENFHE_THROW("CSlots::size: inconsistent size");
-        }
         return slots.size();
+    }
+
+    ZEncodingParams getZEncodingParams() const {
+        return params;
     }
 
     ZPolynomial getZPolynomial(size_t slotIndex) const;
 
     RPolynomial toRPolynomial() const;
 
-    static CSlots Merge(const std::vector<CSlots>& cslotVec) {
-        if (cslotVec.size() == 0) {
-            OPENFHE_THROW("CSlots::Merge: empty input");
-        }
-        auto zN         = cslotVec[0].zN;
-        uint32_t zSlots = 0;
-        for (const auto& cs : cslotVec) {
-            if (cs.zN != zN) {
-                OPENFHE_THROW("CSlots::Merge: inconsistent zN");
-            }
-            zSlots += cs.zSlots;
-        }
-        std::vector<BigComplex> mergedSlots(zN * zSlots / 2);
-        size_t offset = 0;
-        for (const auto& cs : cslotVec) {
-            for (size_t i = 0; i != cs.slots.size(); ++i) {
-                mergedSlots[offset + i] = cs.slots[i];
-            }
-            offset += cs.slots.size();
-        }
-        return CSlots(zN, zSlots, mergedSlots);
-    }
+    //static CSlots Merge(const std::vector<CSlots>& cslotVec) {
+    //    if (cslotVec.size() == 0) {
+    //        OPENFHE_THROW("CSlots::Merge: empty input");
+    //    }
+    //    auto zN         = cslotVec[0].zN;
+    //    uint32_t zSlots = 0;
+    //    for (const auto& cs : cslotVec) {
+    //        if (cs.zN != zN) {
+    //            OPENFHE_THROW("CSlots::Merge: inconsistent zN");
+    //        }
+    //        zSlots += cs.zSlots;
+    //    }
+    //    std::vector<BigComplex> mergedSlots(zN * zSlots / 2);
+    //    size_t offset = 0;
+    //    for (const auto& cs : cslotVec) {
+    //        for (size_t i = 0; i != cs.slots.size(); ++i) {
+    //            mergedSlots[offset + i] = cs.slots[i];
+    //        }
+    //        offset += cs.slots.size();
+    //    }
+    //    return CSlots(zN, zSlots, mergedSlots);
+    //}
 
 private:
-    uint32_t zN;
-    uint32_t zSlots;
+    ZEncodingParams params;
     std::vector<BigComplex> slots;
 };
 

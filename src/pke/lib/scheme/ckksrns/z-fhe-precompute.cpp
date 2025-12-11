@@ -619,46 +619,10 @@ Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalin
         return it->second;
     }
     // Construct plaintext
-    auto slots = m_value.size();
-    auto m     = m_value.size() * 4;
-    auto n     = m_value.size() * 2;
+    auto n = m_value.size() * 2;
 
-    BigCVector inverse = m_value;
-    // Scale first
-    for (auto& val : inverse) {
-        val *= scalingFactor;
-    }
-
-    DiscreteFourierTransformBigComplex::FFTSpecialInv(inverse, m);
-
-    std::vector<BigFixedPoint> rValues(2 * slots);
-    for (size_t i = 0; i != inverse.size(); ++i) {
-        rValues[i]         = inverse[i].getReal().round();
-        rValues[i + slots] = inverse[i].getImag().round();
-    }
-
-    // The big one
-    auto N = elementParams->GetRingDimension();
-    BigVector V(N, q);
-    for (size_t i = 0; i < n; ++i) {
-        auto bfp     = rValues[i];
-        auto integer = bfp.getValue() >> bfp.getLog2Scale();
-        auto neg     = bfp.getNeg();
-        if (neg) {
-            V[i * N / n] = q.Sub(integer.Mod(q));
-        }
-        else {
-            V[i * N / n] = integer.Mod(q);
-        }
-    }
-
-    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * N, q, 1));
-    polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
-
-    DCRTPoly poly(polyLarge, elementParams);
-    poly.SetFormat(Format::EVALUATION);
-    // TODO: make it in z-encoding directly
-    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, 0, scalingFactor);
+    ZEncodingParams params(CMode, n);
+    Plaintext ptxt = ZEncodingImpl::encodeC(CSlots(params, m_value), elementParams, scalingFactor);
     // Store in cache
     // FIXME: is this thread safe???
     m_cache[key] = ptxt;

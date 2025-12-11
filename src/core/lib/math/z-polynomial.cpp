@@ -4,13 +4,17 @@
 namespace lbcrypto {
 
 CSlots ZPolynomial::toCSlots() const {
-    return CSlots(zN, 1, ZLinearTransform::MultZU(zN, coefficients));
+    return CSlots(ZEncodingParams(ZMode, zN, 1), ZLinearTransform::MultZU(zN, coefficients));
 }
 
 ZPolynomial CSlots::getZPolynomial(size_t slotIndex) const {
-    if (slotIndex >= zSlots) {
+    if (!params.isZMode()) {
+        OPENFHE_THROW("CSlots::getZPolynomial: not in ZMode");
+    }
+    if (slotIndex >= params.getZSlots()) {
         OPENFHE_THROW("CSlots::getZPolynomial: slotIndex out of range");
     }
+    auto zN = params.getZN();
     std::vector<BigComplex> cSlotsForIndex(zN / 2);
     for (size_t i = 0; i != zN / 2; ++i) {
         cSlotsForIndex[i] = slots[slotIndex * (zN / 2) + i % (zN / 2)];
@@ -26,7 +30,7 @@ CSlots RPolynomial::toCSlots() const {
         forward[i] = BigComplex(coefficients[i], coefficients[i + cSlots]);
     }
     DiscreteFourierTransformBigComplex::FFTSpecial(forward, m);
-    return CSlots(zN, zSlots, forward);
+    return CSlots(params, forward);
 }
 
 RPolynomial CSlots::toRPolynomial() const {
@@ -39,7 +43,7 @@ RPolynomial CSlots::toRPolynomial() const {
         rValues[i]                = inverse[i].getReal();
         rValues[i + slots.size()] = inverse[i].getImag();
     }
-    return RPolynomial(zN, zSlots, rValues);
+    return RPolynomial(params, rValues);
 }
 
 }  // namespace lbcrypto

@@ -406,9 +406,6 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInC(ConstCiphertext<DCRTPoly> ct, con
 
 Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixedPoint& scalingFactor,
                                           const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
-    auto scaledValueComplex = value * scalingFactor;
-
-    auto n = elementParams->GetRingDimension();
     auto q = elementParams->GetModulus();
 
     auto key = std::make_tuple(value, scalingFactor, q);
@@ -416,40 +413,9 @@ Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixe
         return m_bcInCPlaintextCache[key];
     }
 
-    // for BFP in C, its representation in R is just an integer in constant coeff in [0, q)
-    BigVector V(n, q);
-    // Real part in V[0]
-    {
-        auto realBFP     = scaledValueComplex.getReal().round();
-        auto realInteger = realBFP.getValue() >> realBFP.getLog2Scale();
-        auto realNeg     = realBFP.getNeg();
-        if (realNeg) {
-            V[0] = q.Sub(realInteger.Mod(q));
-        }
-        else {
-            V[0] = realInteger.Mod(q);
-        }
-    }
-    // Imag part in V[n//2]
-    {
-        auto imagBFP     = scaledValueComplex.getImag().round();
-        auto imagInteger = imagBFP.getValue() >> imagBFP.getLog2Scale();
-        auto imagNeg     = imagBFP.getNeg();
-        if (imagNeg) {
-            V[n / 2] = q.Sub(imagInteger.Mod(q));
-        }
-        else {
-            V[n / 2] = imagInteger.Mod(q);
-        }
-    }
-
-    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * n, q, 1));
-    polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
-
-    DCRTPoly poly(polyLarge, elementParams);
-    poly.SetFormat(Format::EVALUATION);
-    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, 0, scalingFactor);
+    Plaintext ptxt = ZEncodingImpl::encodeC(value, elementParams, scalingFactor);
     // Store in cache
+    // TODO: is this thread safe?
     m_bcInCPlaintextCache[key] = ptxt;
     return ptxt;
 }
