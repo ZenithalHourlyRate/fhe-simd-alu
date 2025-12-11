@@ -78,8 +78,6 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     RPolynomial values = ZEncodingImpl::decodeR(zEncode);
 
-    std::cout << msg << "  zN, zSlots: " << values.getZN() << " " << values.getZSlots() << std::endl;
-
     // This is for sparse LT
     //auto zEncodeTwice       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize * 2, sfBigFP);
     //RPolynomial valuesTwice = ZEncodingImpl::decodeR(zEncodeTwice);
@@ -600,10 +598,10 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    RPolynomial value1 = ZPolynomial::encode(32, 0xFFFFFFFF).toCSlots().toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(32, 0xFFFFFFFF).toCSlots().toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(32, -3).toCSlots().toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE

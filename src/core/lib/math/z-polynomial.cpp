@@ -13,22 +13,20 @@ ZPolynomial CSlots::getZPolynomial(size_t slotIndex) const {
     }
     std::vector<BigComplex> cSlotsForIndex(zN / 2);
     for (size_t i = 0; i != zN / 2; ++i) {
-        cSlotsForIndex[i] = slots[slotIndex * (zN / 2) + i % zN / 2];
+        cSlotsForIndex[i] = slots[slotIndex * (zN / 2) + i % (zN / 2)];
     }
     return ZPolynomial(ZLinearTransform::MultZUInverse(zN, cSlotsForIndex));
 }
 
 CSlots RPolynomial::toCSlots() const {
-    auto m             = coefficients.size() * 2;
-    BigCVector forward = ToCVector(coefficients);
-    DiscreteFourierTransformBigComplex::FFTSpecial(forward, m);
+    auto m      = coefficients.size() * 2;
     auto cSlots = coefficients.size() / 2;
-    BigCVector firstHalf(cSlots);
+    BigCVector forward(cSlots);
     for (size_t i = 0; i != cSlots; ++i) {
-        firstHalf[i] = forward[i];
+        forward[i] = BigComplex(coefficients[i], coefficients[i + cSlots]);
     }
-
-    return CSlots(zN, zSlots, firstHalf);
+    DiscreteFourierTransformBigComplex::FFTSpecial(forward, m);
+    return CSlots(zN, zSlots, forward);
 }
 
 RPolynomial CSlots::toRPolynomial() const {
