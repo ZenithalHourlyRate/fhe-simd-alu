@@ -39,6 +39,7 @@ Example for CKKS bootstrapping with full packing
 #include "openfhe.h"
 #include "utils.h"
 #include "scheme/ckksrns/z-fhe.h"
+#include "math/dftransform-bigcomplex.h"
 
 using namespace lbcrypto;
 
@@ -47,6 +48,8 @@ CryptoContextT cc_global;
 PublicKeyT pk_global;
 PrivateKeyT sk_global;
 size_t slots_global;
+size_t zN_global;
+size_t zSlots_global;
 
 std::vector<BigComplex> zC2SVals;
 
@@ -71,60 +74,15 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto l = ct->GetElements()[0].GetParams()->GetParams().size();
     std::cout << msg << "  l: " << l - 1 << std::endl;
 
-    // valueSize = zN
-    auto valueSize = slots_global * 2;
-
-    auto zEncode = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize, sfBigFP);
+    auto zEncode = std::make_shared<ZEncodingImpl>(b.GetParams(), b, zN_global, zSlots_global, sfBigFP);
 
     RPolynomial values = ZEncodingImpl::decodeR(zEncode);
 
+    std::cout << msg << "  zN, zSlots: " << values.getZN() << " " << values.getZSlots() << std::endl;
+
     // This is for sparse LT
-    auto zEncodeTwice       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize * 2, sfBigFP);
-    RPolynomial valuesTwice = ZEncodingImpl::decodeR(zEncodeTwice);
-
-    if (msg == "LT") {
-        uint32_t slots = 32;
-        uint32_t m     = 4 * slots;
-        uint32_t nh    = m / 4;
-        uint32_t mmask = m - 1;  // assumes m is power of 2
-        // computes indices for all primitive roots of unity
-        std::vector<uint32_t> rotGroup(nh);
-        uint32_t fivePows = 1;
-        for (uint32_t i = 0; i < nh; ++i) {
-            rotGroup[i] = fivePows;
-            fivePows *= 5;
-            fivePows &= mmask;
-        }
-
-        // computes all powers of a primitive root of unity exp(2 * M_PI/m)
-        std::vector<BigComplex> ksiPows(m + 1);
-        ksiPows[0] = BigComplex(BigFixedPoint::one(), BigFixedPoint::zero());
-        ksiPows[1] = R_ROOT_MAP.at(m);
-        for (uint32_t j = 2; j < m; ++j) {
-            ksiPows[j] = ksiPows[j - 1] * ksiPows[1];
-        }
-        ksiPows[m] = ksiPows[0];
-
-        BigCMatrix U0(slots, BigCVector(2 * slots));
-        for (uint32_t i = 0; i < slots; ++i) {
-            for (uint32_t j = 0; j < 2 * slots; ++j) {
-                U0[i][j] = ksiPows[(j * rotGroup[i]) & mmask];
-            }
-        }
-
-        BigCVector res;
-        // Do matrix mult U0 * valuesTwice
-        for (size_t i = 0; i != slots; ++i) {
-            BigComplex sum(BigFixedPoint::zero(), BigFixedPoint::zero());
-            for (size_t j = 0; j != 2 * slots; ++j) {
-                sum += U0[i][j] * BigComplex(valuesTwice[j], BigFixedPoint::zero());
-            }
-            res.push_back(sum);
-        }
-        for (size_t i = 0; i != res.size(); ++i) {
-            std::cout << msg << "  complexValues [" << i << "]: " << res[i].toHexString(16) << std::endl;
-        }
-    }
+    //auto zEncodeTwice       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, valueSize * 2, sfBigFP);
+    //RPolynomial valuesTwice = ZEncodingImpl::decodeR(zEncodeTwice);
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
@@ -158,11 +116,11 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
         }
-        if (msg == "S2RC" || msg == "MSB" || msg == "Reconstructed") {
-            // Directly interpret as ZPolynomial
-            ZPolynomial zPoly = values.interpretAsZPolynomial();
-            printZPoly(zPoly);
-        }
+        //if (msg == "S2RC" || msg == "MSB" || msg == "Reconstructed") {
+        //    // Directly interpret as ZPolynomial
+        //    ZPolynomial zPoly = values.interpretAsZPolynomial();
+        //    printZPoly(zPoly);
+        //}
         if (msg == "Low4" || msg == "ModRaise") {
             extractErrorRoly(values, 4);
         }
@@ -190,13 +148,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             }
             printZPoly(zCoeffs);
         }
-        if (msg == "LUT") {
-            RPolynomial rPoly;
-            for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-                rPoly[i] = cSlots[i].getReal();
-            }
-            extractErrorRoly(rPoly, 4);
-        }
+        //if (msg == "LUT") {
+        //    RPolynomial rPoly;
+        //    for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
+        //        rPoly[i] = cSlots[i].getReal();
+        //    }
+        //    extractErrorRoly(rPoly, 4);
+        //}
     }
     if (msg == "ModRaise") {
         for (size_t i = 0; i != 2; ++i) {
@@ -209,7 +167,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
         std::cout << std::endl;
     }
-    ZPolynomial zValues = values.toZPolynomial();
+    ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
     if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
             std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(16) << std::endl;
@@ -623,6 +581,11 @@ void SimpleBootstrapExample() {
     LeveledZ z     = std::make_shared<LeveledZImpl>();
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
+
+    zN_global     = 32;
+    zSlots_global = 1;
+
+    DiscreteFourierTransformBigComplex::Initialize(64, 64 / 4);
     ZLinearTransform::Initialize(32);
 
     cc_global    = cc;
@@ -637,10 +600,10 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    RPolynomial value1 = ZPolynomial::encode(32, 0xFFFFFFFF).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, 0xFFFFFFFF).toCSlots().toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(32, 0xFFFFFFFF).toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(32, 0xFFFFFFFF).toCSlots().toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE
@@ -657,7 +620,7 @@ void SimpleBootstrapExample() {
     }
 
     /// TEST CT-PT-MULT
-    RPolynomial t   = ZPolynomial::getT(32).toRPolynomial();
+    RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
     Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
 
     if (0) {

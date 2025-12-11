@@ -246,10 +246,6 @@ public:
 
     CSlots toCSlots() const;
 
-    RPolynomial toRPolynomial() const;
-
-    RPolynomial interpretAsRPolynomial() const;
-
 private:
     uint32_t zN;
     std::vector<BigFixedPoint> coefficients;
@@ -257,8 +253,9 @@ private:
 
 struct RPolynomial {
 public:
-    RPolynomial() : coefficients(rN) {}
-    RPolynomial(const std::vector<BigFixedPoint>& coeffs) : coefficients(coeffs) {}
+    RPolynomial(uint32_t zN, uint32_t zSlots) : zN(zN), zSlots(zSlots), coefficients(zN * zSlots) {}
+    RPolynomial(uint32_t zN, uint32_t zSlots, const std::vector<BigFixedPoint>& coeffs)
+        : zN(zN), zSlots(zSlots), coefficients(coeffs) {}
     std::vector<BigFixedPoint> getCoefficients() const {
         return coefficients;
     }
@@ -270,20 +267,26 @@ public:
         return coefficients[index];
     }
 
+    uint32_t getZN() const {
+        return zN;
+    }
+    uint32_t getZSlots() const {
+        return zSlots;
+    }
+
     CSlots toCSlots() const;
 
-    ZPolynomial toZPolynomial() const;
-
-    ZPolynomial interpretAsZPolynomial() const;
-
 private:
+    uint32_t zN;
+    uint32_t zSlots;
     std::vector<BigFixedPoint> coefficients;
 };
 
 struct CSlots {
 public:
-    CSlots(uint32_t zN, uint32_t zSlots) : slots(rN / 2) {}
-    CSlots(const std::vector<BigComplex>& slotVec) : slots(slotVec) {}
+    CSlots(uint32_t zN, uint32_t zSlots) : zN(zN), zSlots(zSlots), slots(zN * zSlots / 2) {}
+    CSlots(uint32_t zN, uint32_t zSlots, const std::vector<BigComplex>& slotVec)
+        : zN(zN), zSlots(zSlots), slots(slotVec) {}
     std::vector<BigComplex> getSlots() const {
         return slots;
     }
@@ -295,8 +298,47 @@ public:
         return slots[index];
     }
 
-    ZPolynomial toZPolynomial() const;
+    uint32_t getZN() const {
+        return zN;
+    }
+
+    uint32_t getZSlots() const {
+        return zSlots;
+    }
+
+    uint32_t size() const {
+        if (slots.size() != zN * zSlots / 2) {
+            OPENFHE_THROW("CSlots::size: inconsistent size");
+        }
+        return slots.size();
+    }
+
+    ZPolynomial getZPolynomial(size_t slotIndex) const;
+
     RPolynomial toRPolynomial() const;
+
+    static CSlots Merge(const std::vector<CSlots>& cslotVec) {
+        if (cslotVec.size() == 0) {
+            OPENFHE_THROW("CSlots::Merge: empty input");
+        }
+        auto zN         = cslotVec[0].zN;
+        uint32_t zSlots = 0;
+        for (const auto& cs : cslotVec) {
+            if (cs.zN != zN) {
+                OPENFHE_THROW("CSlots::Merge: inconsistent zN");
+            }
+            zSlots += cs.zSlots;
+        }
+        std::vector<BigComplex> mergedSlots(zN * zSlots / 2);
+        size_t offset = 0;
+        for (const auto& cs : cslotVec) {
+            for (size_t i = 0; i != cs.slots.size(); ++i) {
+                mergedSlots[offset + i] = cs.slots[i];
+            }
+            offset += cs.slots.size();
+        }
+        return CSlots(zN, zSlots, mergedSlots);
+    }
 
 private:
     uint32_t zN;

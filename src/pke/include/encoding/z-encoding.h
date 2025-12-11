@@ -2,10 +2,15 @@
 #define SRC_PKE_EXAMPLES_Z_ENCODE_H_
 
 #include <cassert>
-#include "math/z-encode-utils.h"
+#include "math/z-polynomial.h"
 #include "plaintext.h"
 
 namespace lbcrypto {
+
+enum ZEncodingType {
+    Z = 1,  // Representing ZPolynomial, at Z/arithmetic mode
+    C       // Representing C values. Used at bootstrapping and C/binary mode
+};
 
 class ZEncodingImpl;
 
@@ -16,14 +21,16 @@ using ZEncoding = std::shared_ptr<ZEncodingImpl>;
 class ZEncodingImpl : public PlaintextImpl {
 private:
     BigFixedPoint m_scalingFactorBFP;
-    size_t m_rPolySize;
+    uint32_t m_zN;
+    uint32_t m_zSlots;
 
 public:
-    ZEncodingImpl(std::shared_ptr<DCRTPoly::Params> vp, const DCRTPoly& elements, size_t rPolySize,
+    ZEncodingImpl(std::shared_ptr<DCRTPoly::Params> vp, const DCRTPoly& elements, uint32_t zN, uint32_t zSlots,
                   BigFixedPoint scalingFactorBFP)
         : PlaintextImpl(vp, nullptr, INVALID_ENCODING, INVALID_SCHEME) {
         encodedVectorDCRT  = elements;
-        m_rPolySize        = rPolySize;
+        m_zN               = zN;
+        m_zSlots           = zSlots;
         m_scalingFactorBFP = scalingFactorBFP;
     }
 
@@ -41,31 +48,44 @@ public:
         OPENFHE_THROW("Not implemented");
     }
     virtual size_t GetLength() const override {
-        return m_rPolySize;
+        return m_zSlots * m_zN;
     }
     BigFixedPoint GetScalingFactorBFP() const {
         return m_scalingFactorBFP;
     }
+    uint32_t GetZN() const {
+        return m_zN;
+    }
+    uint32_t GetZSlots() const {
+        return m_zSlots;
+    }
 
-    static ZEncoding encodeR(RPolynomial input, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                             BigFixedPoint scalingFactor) {
-        DCRTPoly newPoly(elementParams, Format::COEFFICIENT, true);
-        auto bigPoly = newPoly.CRTInterpolate();
-        auto ringDim = elementParams->GetRingDimension();
-        auto q       = elementParams->GetModulus();
-        for (size_t i = 0; i != input.getCoefficients().size(); ++i) {
-            auto val        = input[i] * scalingFactor;
-            auto valInteger = (val.round()).getValue() >> val.getLog2Scale();
-            if (val.getNeg()) {
-                bigPoly[i * (ringDim / (input.getCoefficients().size()))] = q - valInteger;
+    static ZEncoding encodeR(const RPolynomial& input, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                             const BigFixedPoint& scalingFactor) {
+        // The big one
+        auto N              = elementParams->GetRingDimension();
+        auto q              = elementParams->GetModulus();
+        auto n              = input.getCoefficients().size();
+        const auto& rCoeffs = input.getCoefficients();
+        BigVector V(N, q);
+        for (size_t i = 0; i < n; ++i) {
+            auto bfp     = (rCoeffs[i] * scalingFactor).round();
+            auto integer = bfp.getValue() >> bfp.getLog2Scale();
+            auto neg     = bfp.getNeg();
+            if (neg) {
+                V[i * N / n] = q.Sub(integer.Mod(q));
             }
             else {
-                bigPoly[i * (ringDim / (input.getCoefficients().size()))] = valInteger;
+                V[i * N / n] = integer.Mod(q);
             }
         }
-        DCRTPoly finalPoly(bigPoly, elementParams);
-        finalPoly.SetFormat(Format::EVALUATION);
-        return std::make_shared<ZEncodingImpl>(elementParams, finalPoly, input.getCoefficients().size(), scalingFactor);
+
+        DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * N, q, 1));
+        polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
+
+        DCRTPoly poly(polyLarge, elementParams);
+        poly.SetFormat(Format::EVALUATION);
+        return std::make_shared<ZEncodingImpl>(elementParams, poly, input.getZN(), input.getZSlots(), scalingFactor);
     }
 
     static RPolynomial decodeR(ZEncoding input) {
@@ -84,10 +104,10 @@ public:
                 neg        = true;
                 valInteger = q - valInteger;
             }
-            auto valFixedPoint = BigFixedPoint(valInteger, 0, neg).scaleTo(z_upper_roots_scale);
+            auto valFixedPoint = BigFixedPoint(valInteger, 0, neg).scaleTo(128);
             output.push_back(valFixedPoint / scalingFactor);
         }
-        return output;
+        return {input->GetZN(), input->GetZSlots(), output};
     }
 };
 

@@ -120,4 +120,22 @@ BigComplex operator-(const BigComplex& a) {
     return BigComplex(-a.getReal(), -a.getImag());
 }
 
+BigCVector ToCVector(const BigFPVector& input) {
+    BigCVector result;
+    result.reserve(input.size());
+    for (size_t i = 0; i < input.size(); i++) {
+        result.push_back(input[i]);
+    }
+    return result;
+}
+
+BigFPVector ToReal(const BigCVector& input) {
+    BigFPVector result;
+    result.reserve(input.size());
+    for (size_t i = 0; i < input.size(); i++) {
+        result.push_back(input[i].getReal());
+    }
+    return result;
+}
+
 }  // namespace lbcrypto

@@ -1,4 +1,4 @@
-#include "encoding/z-encode.h"
+#include "encoding/z-encoding.h"
 #include "math/z-constants.h"
 #include "scheme/ckksrns/z-fhe.h"
 #include "math/dftransform-bigcomplex.h"
@@ -623,8 +623,6 @@ Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalin
     auto m     = m_value.size() * 4;
     auto n     = m_value.size() * 2;
 
-    DiscreteFourierTransformBigComplex::Initialize(m, m / 4);
-
     BigCVector inverse = m_value;
     // Scale first
     for (auto& val : inverse) {
@@ -659,7 +657,8 @@ Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalin
 
     DCRTPoly poly(polyLarge, elementParams);
     poly.SetFormat(Format::EVALUATION);
-    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, scalingFactor);
+    // TODO: make it in z-encoding directly
+    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, 0, scalingFactor);
     // Store in cache
     // FIXME: is this thread safe???
     m_cache[key] = ptxt;

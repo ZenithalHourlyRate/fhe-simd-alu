@@ -1,6 +1,6 @@
 #include <cassert>
 #include "openfhe.h"
-#include "encoding/z-encode.h"
+#include "encoding/z-encoding.h"
 #include "scheme/ckksrns/z-leveledshe.h"
 #include "scheme/ckksrns/z-advancedshe.h"
 

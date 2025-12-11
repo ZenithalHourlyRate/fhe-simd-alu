@@ -1,5 +1,5 @@
 #include "scheme/ckksrns/z-leveledshe.h"
-#include "encoding/z-encode.h"
+#include "encoding/z-encoding.h"
 
 //=============================================================================
 // Custom Evals
@@ -22,7 +22,7 @@ Ciphertext<DCRTPoly> zEvalMultFull(LeveledZ z, ConstCiphertext<DCRTPoly> ct1, Co
 Ciphertext<DCRTPoly> zEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt) {
     auto elemParam     = ct->GetElements()[0].GetParams();
     auto sf            = ct->GetScalingFactorBFP();
-    RPolynomial value1 = ZPolynomial::encode(32, ptxt).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, ptxt).toCSlots().toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
     return z->EvalAdd(ct, ptxt1);
 }
@@ -30,7 +30,7 @@ Ciphertext<DCRTPoly> zEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t
 Ciphertext<DCRTPoly> zEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt, BigFixedPoint scalingFactor) {
     auto elemParam     = ct->GetElements()[0].GetParams();
     auto sf            = ct->GetScalingFactorBFP();
-    RPolynomial value1 = ZPolynomial::encode(32, ptxt).toRPolynomial();
+    RPolynomial value1 = ZPolynomial::encode(32, ptxt).toCSlots().toRPolynomial();
     if (scalingFactor.equalZero()) {
         scalingFactor = sf;
     }
@@ -448,7 +448,7 @@ Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixe
 
     DCRTPoly poly(polyLarge, elementParams);
     poly.SetFormat(Format::EVALUATION);
-    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, scalingFactor);
+    Plaintext ptxt = std::make_shared<ZEncodingImpl>(elementParams, poly, 0, 0, scalingFactor);
     // Store in cache
     m_bcInCPlaintextCache[key] = ptxt;
     return ptxt;
