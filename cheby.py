@@ -172,7 +172,7 @@ def expHalf(x):
     """
     return mp.exp(mp.mpc(0, mp.pi / mp.mpf(2) * x))
 
-EXP_HALF_DEGREE=58
+EXP_HALF_DEGREE=46
 def expHalf_cheby_coeffs():
     print("Computing Chebyshev coefficients for expHalf...")
     coeffs = EvalChebyshevCoefficients(expHalf, mp.mpf(-16), mp.mpf(16), EXP_HALF_DEGREE)
@@ -249,8 +249,8 @@ def printExpHalf():
         printC(coeff)
     print("};")
 #
-#if __name__ == "__main__":
-#    printExpHalf()
+if __name__ == "__main__":
+    printExpHalf()
 
 def expFull(x):
     """

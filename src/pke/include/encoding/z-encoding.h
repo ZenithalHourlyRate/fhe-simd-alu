@@ -2,6 +2,7 @@
 #define SRC_PKE_EXAMPLES_Z_ENCODE_H_
 
 #include <cassert>
+#include "ciphertext-fwd.h"
 #include "math/z-polynomial.h"
 #include "plaintext.h"
 
@@ -146,6 +147,18 @@ public:
     static ZEncoding encodeC(const CSlots& cSlots, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                              const BigFixedPoint& scalingFactor) {
         return encodeR(cSlots.toRPolynomial(), elementParams, scalingFactor);
+    }
+
+    static ZEncoding encodeOneHotInC(uint32_t zN, uint32_t zSlots, uint32_t bit,
+                                     const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                     const BigFixedPoint& scalingFactor, uint32_t downScale) {
+        // TODO: handle sparse packing and full packing
+        ZEncodingParams params(CMode, zN * zSlots * 2);  // for sparse packing now...
+        std::vector<BigComplex> vec(zN * zSlots, BigFixedPoint::zero());
+        // TODO: fix it
+        vec[bit - 1] = BigFixedPoint::one() / BigFixedPoint::positive(downScale);
+        CSlots cSlots(params, vec);
+        return encodeC(cSlots, elementParams, scalingFactor);
     }
 };
 

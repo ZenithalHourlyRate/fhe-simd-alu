@@ -123,23 +123,12 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
         }
     }
-    if (msg == "Upper" || msg == "C2S" || msg == "Diff") {
+    if (msg == "Upper" || msg == "C2S" || msg == "LUT") {
         auto cSlotsTwice = valuesTwice.toCSlots();
         for (size_t i = 0; i != cSlotsTwice.getSlots().size(); ++i) {
             std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(16) << std::endl;
         }
     }
-    //if (msg == "ModRaise") {
-    //    for (size_t i = 0; i != 2; ++i) {
-    //        std::cout << msg << "  values [" << i << "]: " << values[i].toString(32) << std::endl;
-    //    }
-    //}
-    //if (msg == "Cheby1") {
-    //    for (size_t i = 0; i != 2; ++i) {
-    //        std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toString(32) << std::endl;
-    //    }
-    //    std::cout << std::endl;
-    //}
     if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
         ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
@@ -150,11 +139,9 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     return 0;
 }
 
-std::vector<BigComplex> another_interpolate(int order = 1) {
-    size_t p = 16;
-
+std::vector<BigComplex> another_interpolate(size_t p, int order = 1) {
     auto f = [&](auto x) {
-        return double(x) / p;
+        return -(p - double(x)) / p;
     };
 
     auto omega = std::exp(2i * M_PI / double(p));
@@ -199,7 +186,8 @@ std::vector<BigComplex> another_interpolate(int order = 1) {
     return alphaBigComplex;
 }
 
-Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FHEZ fheZ) {
+std::array<Ciphertext<DCRTPoly>, 2> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FHEZ fheZ,
+                                                 uint32_t oneHotBit) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
 
     auto paramsQ   = cryptoParams->GetElementParams()->GetParams();
@@ -260,7 +248,7 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FH
     }
 
     raised->SetScalingFactorBFP(ct->GetScalingFactorBFP());
-    __heir_debug2(raised, "ModRaise");
+    //__heir_debug2(raised, "ModRaise");
 
     //------------------------------------------------------------------------------
     // SPARSELY PACKED CASE
@@ -312,44 +300,20 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FH
     auto c2s = fheZ->EvalLinearTransform(precomp.m_U0hatTPre, raised);
     z->EvalAddInPlace(c2s, Conjugate(c2s, cc->GetEvalAutomorphismKeyMap(c2s->GetKeyTag())));
     z->ModReduceInPlace(c2s);
-    __heir_debug2(c2s, "C2S");
-
-    //------------------------------------------------------------------------------
-    // Running CoeffsToSlots
-    //------------------------------------------------------------------------------
-
-    auto c2sSF   = c2s->GetScalingFactorBFP();
-    auto shifted = cc->EvalRotate(c2s, -8);
-
-    // Scale down by 8 bits
-    BigFixedPoint shiftedFactorBFP = c2sSF / (BigFixedPoint::positive(1ul << 8));
-    BigInteger shiftedFactor       = (shiftedFactorBFP.round().getValue()) >> shiftedFactorBFP.getLog2Scale();
-    shifted                        = z->EvalMultScalar(shifted, shiftedFactor);
-    shifted->SetScalingFactorBFP(c2sSF * c2sSF);
-    z->ModReduceInPlace(shifted);
-
-    auto diff = z->EvalSubWithAdjust(c2s, shifted);
-    __heir_debug2(diff, "Diff");
-
-    return diff;
+    //__heir_debug2(c2s, "C2S");
 
     //------------------------------------------------------------------------------
     // Running Approximate Mod Reduction
     //------------------------------------------------------------------------------
 
-    auto& coeff_exp = coeff_exp_16_big_complex_58;
+    auto& coeff_exp = coeff_exp_16_big_complex_46;
     auto res        = advZ->EvalChebyshevSeriesPS(c2s, coeff_exp);
 
     //// Double angle-iterations to get exp(2*Pi*i*x)
-    //res = z->EvalMult(res, res);
-    //z->ModReduceInPlace(res);
-    //res = z->EvalMult(res, res);
-    //z->ModReduceInPlace(res);
-
-    //resI = z->EvalMult(resI, resI);
-    //z->ModReduceInPlace(resI);
-    //resI = z->EvalMult(resI, resI);
-    //z->ModReduceInPlace(resI);
+    res = z->EvalMult(res, res);
+    z->ModReduceInPlace(res);
+    res = z->EvalMult(res, res);
+    z->ModReduceInPlace(res);
 
     //__heir_debug2(res, "Cheby1");
 
@@ -357,19 +321,68 @@ Ciphertext<DCRTPoly> MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FH
     // Running LUT
     //------------------------------------------------------------------------------
 
-    //auto lutCoeffs = another_interpolate(1);
-    //auto powers    = advZ->EvalPowers(res, lutCoeffs);
-    //auto lut       = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
-    ////__heir_debug2(lut, "LUT");
+    auto lutCoeffs = another_interpolate(1l << 8, 2);
+    auto powers    = advZ->EvalPowers(res, lutCoeffs);
+    auto lut       = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
+    //__heir_debug2(lut, "LUT");
 
-    //auto powersI = advZ->EvalPowers(resI, lutCoeffs);
-    //auto lutI    = advZ->EvalPolyWithPrecomp(powersI, lutCoeffs);
-    //__heir_debug2(lutI, "LUT");
+    //------------------------------------------------------------------------------
+    // Masking and Rotating
+    //------------------------------------------------------------------------------
 
-    //auto rCoeffLut = SlotsToRCoeffs(cc, z, lut, lutI);
-    //z->ModReduceInPlace(rCoeffLut);
-    //__heir_debug2(rCoeffLut, "LUTR");
-    //return rCoeffLut;
+    auto lutElementParams = lut->GetElements()[0].GetParams();
+    // TODO: fix the encode One logic
+    auto oneHotEncoding1 = ZEncodingImpl::encodeOneHotInC(zN_global, zSlots_global, oneHotBit, lutElementParams,
+                                                          lut->GetScalingFactorBFP(), 256);
+    auto oneHotEncoding2 = ZEncodingImpl::encodeOneHotInC(zN_global, zSlots_global, oneHotBit + 8, lutElementParams,
+                                                          lut->GetScalingFactorBFP(), 256 * 256);
+
+    auto masked1 = z->EvalMult(lut, oneHotEncoding1);
+    masked1      = cc->EvalRotate(masked1, -8);
+    z->ModReduceInPlace(masked1);
+
+    auto masked2 = z->EvalMult(lut, oneHotEncoding2);
+    masked2      = cc->EvalRotate(masked1, -16);
+    z->ModReduceInPlace(masked2);
+
+    //------------------------------------------------------------------------------
+    // Running SlotsToCoeffs
+    //------------------------------------------------------------------------------
+
+    auto s2c1 = fheZ->EvalLinearTransform(precomp.m_U0Pre, masked1);
+    // This is needed for sparsely packed case
+    {
+        z->EvalAddInPlace(s2c1, cc->EvalRotate(s2c1, zN_global * zSlots_global / 2));
+    }
+    z->ModReduceInPlace(s2c1);
+
+    auto s2c2 = fheZ->EvalLinearTransform(precomp.m_U0Pre, masked2);
+    // This is needed for sparsely packed case
+    {
+        z->EvalAddInPlace(s2c2, cc->EvalRotate(s2c2, zN_global * zSlots_global / 2));
+    }
+    z->ModReduceInPlace(s2c2);
+    return {s2c1, s2c2};
+}
+
+Ciphertext<DCRTPoly> ToBottom(CiphertextT ct, LeveledZ z) {
+    auto q     = ct->GetElements()[0].GetModulus();
+    auto sfNow = ct->GetScalingFactorBFP();
+    auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
+    auto two   = BigFixedPoint::two();
+    // q / (2 * Delta)
+    auto div       = (qBFP / sfNow / two).round();
+    auto divScalar = div.getValue() >> div.getLog2Scale();
+    auto ct2       = z->EvalMultScalar(ct, divScalar);
+    ct2->SetScalingFactorBFP(qBFP / two);
+    // Reduce all the way to the bottom
+    z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
+    // To make sure the scaling factor is exactly q0 / 2
+    auto q0     = ct2->GetElements()[0].GetModulus();
+    auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
+    auto sfNow2 = q0BFP / two;
+    ct2->SetScalingFactorBFP(sfNow2);
+    return ct2;
 }
 
 void SimpleBootstrapExample();
@@ -510,14 +523,14 @@ void SimpleBootstrapExample() {
     RPolynomial value1 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
-    RPolynomial value2 = ZPolynomial::encode(32, -3).toCSlots().toRPolynomial();
+    RPolynomial value2 = ZPolynomial::encode(32, 1).toCSlots().toRPolynomial();
     Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
 
     /// TEST ENCODE
     auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
     auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
-    __heir_debug2(encoded, "Encode");
+    //__heir_debug2(encoded, "Encode");
 
     /// TEST ADD
     if (0) {
@@ -560,7 +573,7 @@ void SimpleBootstrapExample() {
         z->EvalAddInPlace(zC2S, Conjugate(zC2S, cc->GetEvalAutomorphismKeyMap(zC2S->GetKeyTag())));
         z->ModReduceInPlace(zC2S);
 
-        __heir_debug2(zC2S, "Upper");
+        //__heir_debug2(zC2S, "Upper");
     }
 
     // TEST SlotsToRCoeffs
@@ -581,68 +594,21 @@ void SimpleBootstrapExample() {
     }
 
     // TEST Scale to MSB
-    Ciphertext<DCRTPoly> ctMSB;
-    if (1) {
-        auto q     = s2rc->GetElements()[0].GetModulus();
-        auto sfNow = s2rc->GetScalingFactorBFP();
-        auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
-        auto two   = BigFixedPoint::two();
-        // q / (2 * Delta)
-        auto div       = (qBFP / sfNow / two).round();
-        auto divScalar = div.getValue() >> div.getLog2Scale();
-        auto ct2       = z->EvalMultScalar(s2rc, divScalar);
-        ct2->SetScalingFactorBFP(qBFP / two);
-        // Reduce all the way to the bottom
-        z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
-        //auto q0     = ct2->GetElements()[0].GetModulus();
-        //auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
-        //auto sfNow2 = q0BFP / two;
-        //ct2->SetScalingFactorBFP(sfNow2);
-        __heir_debug2(ct2, "MSB");
-        ctMSB = ct2;
-    }
+    Ciphertext<DCRTPoly> ctMSB = ToBottom(s2rc, z);
+    __heir_debug2(ctMSB, "MSB");
 
-    if (1) {
-        MSBBootstrap(ctMSB, z, advZ, fheZ);
-    }
+    auto [ct8, ct8_2] = MSBBootstrap(ctMSB, z, advZ, fheZ, 8);
+    __heir_debug2(ct8, "MSB");
 
-    auto lowBitBTS = [z, advZ, fheZ](Ciphertext<DCRTPoly> input, unsigned bits) -> std::array<Ciphertext<DCRTPoly>, 2> {
-        auto lowScalar = BigInteger(1) << bits;
-        auto ctLow     = z->EvalMultScalar(input, lowScalar);
-        // Just a different interpretation...
-        ctLow->SetScalingFactorBFP(input->GetScalingFactorBFP());
-        auto ctLowBTS = MSBBootstrap(ctLow, z, advZ, fheZ);
+    auto ctMSBSub8      = z->EvalSub(ctMSB, ToBottom(ct8, z));
+    auto [ct16, ct16_2] = MSBBootstrap(ctMSBSub8, z, advZ, fheZ, 16);
+    __heir_debug2(ct16, "MSB");
 
-        // Adjust to original MSB representation
-        auto q            = ctLowBTS->GetElements()[0].GetModulus();
-        auto sfNow        = ctLowBTS->GetScalingFactorBFP();
-        auto qBFP         = BigFixedPoint(q, 0, false).scaleTo(128);
-        auto two          = BigFixedPoint::two();
-        auto lowScalarBFP = BigFixedPoint(BigInteger(1) << bits, 0, false).scaleTo(128);
-        // q / (2 * Delta * lowScalar)
-        auto div       = (qBFP / sfNow / two / lowScalarBFP).round();
-        auto divScalar = div.getValue() >> div.getLog2Scale();
-        auto ct2       = z->EvalMultScalar(ctLowBTS, divScalar);
-        ct2->SetScalingFactorBFP(qBFP / two);
-        // Reduce all the way to the bottom
-        z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
-        return {ct2, ctLowBTS};
-    };
+    auto ctMSBSub16     = z->EvalSub(z->EvalSub(ctMSB, ToBottom(ct8_2, z)), ToBottom(ct16, z));
+    auto [ct24, ct24_2] = MSBBootstrap(ctMSBSub16, z, advZ, fheZ, 24);
+    __heir_debug2(ct24, "MSB");
 
-    if (0) {
-        std::vector<Ciphertext<DCRTPoly>> lowBTSs;
-        std::vector<Ciphertext<DCRTPoly>> lowBTSHighs;
-        for (size_t bits = 4; bits <= 32; bits += 4) {
-            auto [lowBTS, lowBTSHigh] = lowBitBTS(ctMSB, 32 - bits);
-            lowBTSs.push_back(lowBTS);
-            lowBTSHighs.push_back(lowBTSHigh);
-            z->EvalSubInPlace(ctMSB, lowBTS);
-            __heir_debug2(ctMSB, "MSB" + std::to_string(bits));
-        }
-        auto ctNew = lowBTSs[0];
-        for (size_t i = 1; i != lowBTSs.size(); ++i) {
-            z->EvalAddInPlace(ctNew, lowBTSs[i]);
-        }
-        __heir_debug2(ctNew, "Reconstructed");
-    }
+    auto ctMSBSub24     = z->EvalSub(z->EvalSub(ctMSB, ToBottom(ct16_2, z)), ToBottom(ct24, z));
+    auto [ct32, ct32_2] = MSBBootstrap(ctMSBSub24, z, advZ, fheZ, 32);
+    __heir_debug2(ct32, "MSB");
 }
