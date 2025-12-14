@@ -53,7 +53,11 @@ void CryptoContextImpl<Element>::ClearStaticMapsAndVectors() {
     CryptoContextImpl<Element>::s_evalAutomorphismKeyMap.clear();
     CryptoContextImpl<Element>::s_evalMultKeyMap.clear();
     PackedEncoding::Destroy();
+#ifndef WITH_INTEL_HEXL
     intnat::ChineseRemainderTransformFTTNat<NativeVector>().Reset();
+#else
+    intnathexl::ChineseRemainderTransformFTTNat<NativeVector>().Reset();
+#endif
 #ifdef WITH_BE2
     bigintfxd::ChineseRemainderTransformFTTFxd<M2Vector>().Reset();
 #endif
