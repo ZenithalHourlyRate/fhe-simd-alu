@@ -113,7 +113,7 @@ public:
                 return BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
             }
             else {
-                return BigFixedPoint(intPart + 1, 0, getNeg()).scaleTo(log2Scale);
+                return BigFixedPoint(intPart.Add(1), 0, getNeg()).scaleTo(log2Scale);
             }
         }
         else {
@@ -136,7 +136,7 @@ public:
                 return BigFixedPoint(intPart, 0, getNeg()).scaleTo(log2Scale);
             }
             else {
-                return BigFixedPoint(intPart + 1, 0, getNeg()).scaleTo(log2Scale);
+                return BigFixedPoint(intPart.Add(1), 0, getNeg()).scaleTo(log2Scale);
             }
         }
     }
@@ -179,7 +179,7 @@ public:
     std::string toString(int prec = 32) const {
         std::string result;
 
-        if (neg && value != 0) {
+        if (neg && value.Compare(0) != 0) {
             result += "-";
         }
 
@@ -192,21 +192,21 @@ public:
         result += integerPart.ToString();
 
         // Convert fractional part to decimal
-        if (fractionalPart != 0 && log2Scale > 0) {
+        if (fractionalPart.Compare(0) != 0 && log2Scale > 0) {
             result += ".";
 
             // Convert fractional part (which is in base-2) to base-10
             BigInteger frac            = fractionalPart;
             const int maxDecimalDigits = prec;  // Maximum decimal digits to display
 
-            for (int i = 0; i < maxDecimalDigits && frac != 0; i++) {
-                frac *= 10;                            // Multiply by 10 to get next decimal digit
+            for (int i = 0; i < maxDecimalDigits && frac.Compare(0) != 0; i++) {
+                frac.MulEq(10);                        // Multiply by 10 to get next decimal digit
                 BigInteger digit = frac >> log2Scale;  // Extract the digit
                 result += digit.ToString();
                 frac = frac - (digit << log2Scale);  // Remainder for next iteration
 
                 // Early exit if remainder becomes zero
-                if (frac == 0) {
+                if (frac.Compare(0) == 0) {
                     break;
                 }
             }
@@ -222,7 +222,7 @@ public:
     std::string toHexString(int prec = 32) const {
         std::string result;
 
-        if (neg && value != 0) {
+        if (neg && value.Compare(0) != 0) {
             result += "-";
         }
 
@@ -232,13 +232,13 @@ public:
         BigInteger fractionalPart = scaledValue - (integerPart << log2Scale);  // Remainder
 
         // Convert integer part to string
-        if (integerPart != 0) {
+        if (integerPart.Compare(0) != 0) {
             // Manual binary conversion for integer part
             BigInteger temp = integerPart;
             std::string hexStr;
-            while (temp != 0) {
+            while (temp.Compare(0) != 0) {
                 // OpenFHE count from 1???
-                auto rem = temp % 16;
+                auto rem = temp.Mod(16);
                 std::stringstream ss;
                 ss << std::hex << static_cast<int64_t>(rem.ConvertToInt());
                 hexStr = ss.str() + hexStr;
@@ -251,7 +251,7 @@ public:
         }
 
         // Convert fractional part to decimal
-        if (fractionalPart != 0 && log2Scale > 0) {
+        if (fractionalPart.Compare(0) != 0 && log2Scale > 0) {
             result += ".";
 
             // Convert fractional part (which is in base-2) to base-10
@@ -260,8 +260,8 @@ public:
 
             std::string fracStr;
 
-            for (int i = 0; i < maxDecimalDigits && frac != 0; i++) {
-                frac *= 16;                            // Multiply by 10 to get next decimal digit
+            for (int i = 0; i < maxDecimalDigits && frac.Compare(0) != 0; i++) {
+                frac.MulEq(16);                        // Multiply by 10 to get next decimal digit
                 BigInteger digit = frac >> log2Scale;  // Extract the digit
                 std::stringstream ss;
                 ss << std::hex << static_cast<int64_t>(digit.ConvertToInt());
@@ -269,13 +269,13 @@ public:
                 frac = frac - (digit << log2Scale);  // Remainder for next iteration
 
                 // Early exit if remainder becomes zero
-                if (frac == 0) {
+                if (frac.Compare(0) == 0) {
                     break;
                 }
                 // If there is still more digit
                 // And we have 8 char (32 bits)
                 // Add a '_'
-                if ((i + 1) % 8 == 0 && (i + 1) < maxDecimalDigits && frac != 0) {
+                if ((i + 1) % 8 == 0 && (i + 1) < maxDecimalDigits && frac.Compare(0) != 0) {
                     fracStr += "_";
                 }
             }
@@ -292,21 +292,21 @@ public:
     std::string toBinary(int prec = 64) const {
         std::string result;
 
-        if (neg && value != 0) {
+        if (neg && value.Compare(0) != 0) {
             result += "-";
         }
 
-        if (value == 0) {
+        if (value.Compare(0) == 0) {
             return "0";
         }
 
         // Convert integer part to binary manually
         BigInteger integerPart = value >> log2Scale;
-        if (integerPart != 0) {
+        if (integerPart.Compare(0) != 0) {
             // Manual binary conversion for integer part
             BigInteger temp = integerPart;
             std::string binaryStr;
-            while (temp != 0) {
+            while (temp.Compare(0) != 0) {
                 // OpenFHE count from 1???
                 if (temp.GetBitAtIndex(1)) {
                     binaryStr = "1" + binaryStr;
@@ -326,11 +326,11 @@ public:
         if (log2Scale > 0) {
             BigInteger fractionalPart = value - (integerPart << log2Scale);
 
-            if (fractionalPart != 0) {
+            if (fractionalPart.Compare(0) != 0) {
                 result += ".";
 
                 BigInteger frac = fractionalPart;
-                for (int i = 0; i < log2Scale && i < prec && frac != 0; i++) {
+                for (int i = 0; i < log2Scale && i < prec && frac.Compare(0) != 0; i++) {
                     frac <<= 1;  // Shift left to check next bit
                     if (frac >= (BigInteger(1) << log2Scale)) {
                         result += "1";
@@ -340,7 +340,7 @@ public:
                         result += "0";
                     }
 
-                    if (frac == 0) {
+                    if (frac.Compare(0) == 0) {
                         break;
                     }
                 }

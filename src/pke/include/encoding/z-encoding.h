@@ -90,7 +90,7 @@ public:
         for (size_t i = 0; i != outputSize; ++i) {
             auto valInteger = bigPoly[i * (ringDim / outputSize)];
             bool neg        = false;
-            if (valInteger > q / 2) {
+            if (valInteger > q.DividedBy(2)) {
                 neg        = true;
                 valInteger = q - valInteger;
             }
