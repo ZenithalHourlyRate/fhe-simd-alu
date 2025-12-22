@@ -110,6 +110,20 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         std::cout << msg << "  rPoly error log2Norm: " << ZPolynomial(errors).getLog2Norm() << std::endl;
     };
 
+    auto printCSlots = [&](const CSlots cSlots) {
+        uint64_t reconstructed = 0;
+        double log2MaxError    = -1000.0;
+        for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
+            auto realPart = cSlots[i].getReal();
+            auto fracPart = realPart - realPart.round();
+            auto k        = static_cast<int>(std::round(realPart.convertToDouble()));
+            reconstructed += (static_cast<uint64_t>(k) << (i));
+            log2MaxError = std::max(log2MaxError, fracPart.log2Norm());
+        }
+        std::cout << msg << "  CSlots Reconstructed: " << std::hex << reconstructed << std::dec
+                  << " with error: " << log2MaxError << std::endl;
+    };
+
     enum class DecodeMode { RDecode, CSlotsDecode, CSlotsTwiceDecode, ZDecode };
     std::map<std::string, DecodeMode> decodeMap = {
         // RDecode
@@ -120,6 +134,8 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
         {"Core", DecodeMode::CSlotsTwiceDecode},
+        {"Boolean", DecodeMode::CSlotsTwiceDecode},
+        {"BooleanAgain", DecodeMode::CSlotsTwiceDecode},
         // ZDecode
         {"Input", DecodeMode::ZDecode},
         {"CMult", DecodeMode::ZDecode},
@@ -138,15 +154,12 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
     }
     if (decodeMode == DecodeMode::CSlotsTwiceDecode) {
-        auto cSlotsTwice       = valuesTwice.toCSlots();
-        uint64_t reconstructed = 0;
+        auto cSlotsTwice = valuesTwice.toCSlots();
         for (size_t i = 0; i != cSlotsTwice.getSlots().size(); ++i) {
             std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(ceil(log2sf / 4.0))
                       << std::endl;
-            auto k = static_cast<int>(std::round(cSlotsTwice[i].getReal().convertToDouble()));
-            reconstructed += (static_cast<uint64_t>(k) << (i));
         }
-        std::cout << msg << "  complexValuesTwice Reconstructed: " << std::hex << reconstructed << std::endl;
+        printCSlots(cSlotsTwice);
     }
     if (decodeMode == DecodeMode::ZDecode) {
         ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
@@ -281,23 +294,12 @@ void SimpleBootstrapExample() {
     * you do not need to set the ring dimension.
     */
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 12);
+    parameters.SetRingDim(1 << 10);
     //parameters.SetNumLargeDigits(6);
 
-    /*  A3) Scaling parameters.
-    * By default, we set the modulus sizes and rescaling technique to the following values
-    * to obtain a good precision and performance tradeoff. We recommend keeping the parameters
-    * below unless you are an FHE expert.
-    */
-#if NATIVEINT == 128
     ScalingTechnique rescaleTech = FIXEDMANUAL;
-    uint32_t dcrtBits            = 78;
-    uint32_t firstMod            = 89;
-#else
-    ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 35;
-    uint32_t firstMod            = 35;
-#endif
+    uint32_t dcrtBits            = 40;
+    uint32_t firstMod            = 40;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
@@ -380,10 +382,22 @@ void SimpleBootstrapExample() {
     sk_global    = keyPair.secretKey;
     slots_global = 32 / 2;
 
-    auto sf = BigFixedPoint(BigInteger(1) << dcrtBits, 0, false).scaleTo(128);
-
     auto zero      = EncryptZero(keyPair.publicKey);
     auto elemParam = zero->GetElements()[0].GetParams();
+    auto sfq0      = BigFixedPoint::positive(elemParam->GetParams()[0]->GetModulus().ConvertToInt());
+
+    {
+        auto sfNow = sfq0;
+        auto sfMax = sfNow;
+        auto sfMin = sfNow;
+        for (size_t i = elemParam->GetParams().size() - 1; i != size_t(-1); --i) {
+            auto qi = BigFixedPoint::positive(elemParam->GetParams()[i]->GetModulus().ConvertToInt());
+            sfNow   = sfNow * sfNow / qi;
+            std::cout << "Level " << (elemParam->GetParams().size() - 1 - i)
+                      << " Scaling Factor log2: " << std::log2(sfNow.convertToDouble()) << std::endl;
+        }
+    }
+
     //
     //__heir_debug2(zero, "Input");
 
@@ -393,10 +407,10 @@ void SimpleBootstrapExample() {
         zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 25);
     }
     RPolynomial value1 = zPoly.toCSlots().toRPolynomial();
-    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
+    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sfq0);
 
     RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
-    Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sf);
+    Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sfq0);
 
     /// TEST ENCODE
     auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
@@ -413,7 +427,7 @@ void SimpleBootstrapExample() {
 
     /// TEST CT-PT-MULT
     RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
-    Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
+    Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sfq0);
 
     if (0) {
         auto ctMul = z->EvalMult(encoded, tPtxt);
@@ -438,6 +452,10 @@ void SimpleBootstrapExample() {
     }
 
     ct = fheZ->EvalArithToBoolean(ct);
+    __heir_debug2(ct, "Boolean");
+
+    ct = fheZ->EvalBooleanToBoolean(ct);
+    __heir_debug2(ct, "BooleanAgain");
 
     /// TEST Rotate
     if (0) {

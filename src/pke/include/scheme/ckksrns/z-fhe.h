@@ -135,6 +135,8 @@ public:
 
     Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
 
+    Ciphertext<DCRTPoly> EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
+
 private:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
         auto pair = m_bootPrecomMap.find(slots);
@@ -144,6 +146,14 @@ private:
     }
 
     void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIter) const;
+
+    Ciphertext<DCRTPoly> internalArithToBooleanIteration(ConstCiphertext<DCRTPoly>& ctxt,
+                                                         const std::vector<BigComplex>& lutCoeffs) const;
+
+    Ciphertext<DCRTPoly> internalBooleanToBooleanLTs(ConstCiphertext<DCRTPoly>& ctxt) const;
+
+    Ciphertext<DCRTPoly> internalBooleanToBooleanCustomLUT(ConstCiphertext<DCRTPoly>& ctxt,
+                                                           const std::vector<BigComplex>& lutCoeffs) const;
 
     Ciphertext<DCRTPoly> EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) const;
 

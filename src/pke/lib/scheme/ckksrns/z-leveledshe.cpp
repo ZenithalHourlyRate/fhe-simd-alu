@@ -130,6 +130,19 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalSub(ConstCiphertext<DCRTPoly> ct, ConstCi
     return ctNew;
 }
 
+void LeveledZImpl::EvalNegateInPlace(Ciphertext<DCRTPoly> ct) {
+    auto& cv1  = ct->GetElements();
+    uint32_t n = cv1.size();
+    for (uint32_t i = 0; i < n; ++i)
+        cv1[i] = -cv1[i];
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalNegate(ConstCiphertext<DCRTPoly> ct1) {
+    auto ctNew = ct1->Clone();
+    EvalNegateInPlace(ctNew);
+    return ctNew;
+}
+
 void LeveledZImpl::EvalMultInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt) {
     ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
@@ -165,6 +178,26 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMult(ConstCiphertext<DCRTPoly> ct1, Const
     auto ctNew = cc->EvalMult(ct1, ct2);
     ctNew->SetScalingFactorBFP(sfBFP1 * sfBFP2);
     return ctNew;
+}
+
+// Seems buggy.
+// After inplace mult, scaling factor is not set correctly.
+//void LeveledZImpl::EvalSquareInPlace(Ciphertext<DCRTPoly> ct) {
+//    auto sfBFP = ct->GetScalingFactorBFP();
+//    auto cc    = ct->GetCryptoContext();
+//    // We use cc here for automatic relinearization
+//    // But we do not rely on automatic rescaling
+//    // TODO: remove use of cc
+//    ct->SetScalingFactorBFP(sfBFP * sfBFP);
+//    cc->EvalSquareInPlace(ct);
+//    std::cout << "Scaling factor before squaring: " << std::log2(sfBFP.convertToDouble()) << std::endl;
+//    ct->SetScalingFactorBFP(sfBFP * sfBFP);
+//    std::cout << "Scaling factor after squaring: " << std::log2(ct->GetScalingFactorBFP().convertToDouble())
+//              << std::endl;
+//}
+//
+Ciphertext<DCRTPoly> LeveledZImpl::EvalSquare(ConstCiphertext<DCRTPoly> ct1) {
+    return EvalMult(ct1, ct1);
 }
 
 Ciphertext<DCRTPoly> LeveledZImpl::EvalMultWithAdjust(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
@@ -331,10 +364,14 @@ Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertext(ConstCiphertext<DCRTPoly> ct
     auto ctTargetBFP = ctTarget->GetScalingFactorBFP();
 
     auto ctBFPLog2       = std::log2(ctBFP.convertToDouble());
-    auto ctTargetBFPLog2 = std::log2(ctBFP.convertToDouble());
+    auto ctTargetBFPLog2 = std::log2(ctTargetBFP.convertToDouble());
     // The case of Noise Deg = 2 is not handled now.
-    // Should track noise degree...
+    // TODO: Should track noise degree...
+    // FIXME: actually very bad thing can happen here...
+    // The selection of moduli chain can lead to large scaling factors
+    // Use this as a safeguard for now
     if (ctBFPLog2 > 100 || ctTargetBFPLog2 > 100) {
+        std::cout << "ctBFPLog2: " << ctBFPLog2 << ", ctTargetBFPLog2: " << ctTargetBFPLog2 << std::endl;
         OPENFHE_THROW("Can not Adjust Ciphertext with large scaling factor");
     }
 

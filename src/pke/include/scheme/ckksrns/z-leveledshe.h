@@ -31,13 +31,18 @@ public:
     Ciphertext<DCRTPoly> EvalSub(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
     Ciphertext<DCRTPoly> EvalAdd(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
     Ciphertext<DCRTPoly> EvalSub(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    Ciphertext<DCRTPoly> EvalNegate(ConstCiphertext<DCRTPoly> ct1);
     Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
     Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
+    Ciphertext<DCRTPoly> EvalSquare(ConstCiphertext<DCRTPoly> ct1);
     void EvalAddInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
     void EvalAddInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2);
     void EvalSubInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
     void EvalSubInPlace(Ciphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ct2);
+    void EvalNegateInPlace(Ciphertext<DCRTPoly> ct);
     void EvalMultInPlace(Ciphertext<DCRTPoly> ct, Plaintext ptxt);
+    // Buggy
+    //void EvalSquareInPlace(Ciphertext<DCRTPoly> ct);
 
     // Special methods for MSB bootstrapping
     Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar);

@@ -92,7 +92,8 @@ public:
         return (value == BigInteger(0));
     }
 
-    bool almostEqual(const BigFixedPoint& other, int maxLog2Diff = -60) const {
+    // -40 is based on the consideration we often choose Delta = 2^40
+    bool almostEqual(const BigFixedPoint& other, int maxLog2Diff = -40) const {
         auto a = this->scaleTo(std::max(this->getLog2Scale(), other.getLog2Scale()));
         auto b = other.scaleTo(std::max(this->getLog2Scale(), other.getLog2Scale()));
         if (a.getNeg() != b.getNeg()) {

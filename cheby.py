@@ -333,5 +333,41 @@ def doubleAngleConstants():
     print("};")
     
 if __name__ == "__main__":
-    doubleAngleConstants()
+    #doubleAngleConstants()
+    pass
+
+COS_DEGREE = 50
+
+def cosHalfPi(x):
+    """
+    std::cos(Pi/2.0 * x) in [-16, 16] of degree 46
+    """
+    return mp.cos(mp.mpf(mp.pi) / mp.mpf(2) * x)
+
+def cosHalfPi_cheby_coeffs():
+    print("Computing Chebyshev coefficients for cosHalfPi...")
+    coeffs = EvalChebyshevCoefficients(cosHalfPi, mp.mpf(-16), mp.mpf(16), COS_DEGREE)
+    print("Chebyshev Coefficients for cosHalfPi:")
+    for i in range(len(coeffs)):
+        print(f"  coeffs[{i}] = {mp.nstr(coeffs[i], 50)}")
+
+def cosHalfPi_cheby(x):
+    return EvalChebyshevFunctionPtxt(cosHalfPi, [x], mp.mpf(-16), mp.mpf(16), COS_DEGREE)[0]
+
+def cosHalfPi_error():
+    print("Estimating error for cosHalfPi approximation...")
+    error = estimateError(cosHalfPi, cosHalfPi_cheby, mp.mpf(-16), mp.mpf(16))
+    print(f"Maximum error bits in cosHalfPi approximation: {mp.log(error) / mp.log(2)}")
+
+def printCosHalfPi():
+    coeffs = EvalChebyshevCoefficients(cosHalfPi, mp.mpf(-16), mp.mpf(16), COS_DEGREE)
+    print(f"coeff_cos_half_pi_big_complex_{COS_DEGREE} = ", "{")
+    for coeff in coeffs:
+        printC(coeff)
+    print("};")
+
+if __name__ == "__main__":
+    cosHalfPi_cheby_coeffs()
+    cosHalfPi_error()
+    printCosHalfPi()
     pass

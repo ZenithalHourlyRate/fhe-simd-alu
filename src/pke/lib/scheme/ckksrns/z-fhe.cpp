@@ -381,76 +381,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         auto coreMasked = z->EvalMult(core, oneHotPtxt);
         z->ModReduceInPlace(coreMasked);
 
-        auto c2r = EvalC2R(coreMasked);
-
-        //------------------------------------------------------------------------------
-        // Truncate and ModRaise
-        //------------------------------------------------------------------------------
-
-        auto truncated = EvalTruncate(c2r);
-        auto raised    = EvalModRaise(truncated);
-
-        //------------------------------------------------------------------------------
-        // Running PartialSum
-        //------------------------------------------------------------------------------
-
-        const uint32_t N     = cc->GetRingDimension();
-        const uint32_t limit = N / (cSlots * 2);
-        for (uint32_t j = 1; j < limit; j <<= 1) {
-            cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
-        }
-
-        //------------------------------------------------------------------------------
-        // R-To-C
-        //------------------------------------------------------------------------------
-
-        auto r2c = EvalR2C(raised);
-        // Now the message is N * m
-
-        //------------------------------------------------------------------------------
-        // Normalize
-        //------------------------------------------------------------------------------
-
-        // Normalize to [-1, 1] from [-16, 16]
-        // This is required by Chebyshev
-        {
-            auto sf                          = r2c->GetScalingFactorBFP();
-            auto NBigFP                      = BigFixedPoint::positive(N);
-            auto KBigFP                      = BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
-            BigFixedPoint normalizeFactorBFP = sf / (NBigFP * KBigFP);
-            BigInteger normalizeFactor = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-            r2c                        = z->EvalMultScalar(r2c, normalizeFactor);
-            r2c->SetScalingFactorBFP(sf * sf);
-            z->ModReduceInPlace(r2c);
-        }
-
-        // Note that there are other ways...some work first multiply by 1 / N
-        // Then PartialSum
-        // Then use CoeffsToSlots matrix to do the /16
-
-        //------------------------------------------------------------------------------
-        // Exp
-        //------------------------------------------------------------------------------
-
-        auto& coeff_exp = coeff_exp_16_big_complex_46;
-        auto res        = advZ->EvalChebyshevSeriesPS(r2c, coeff_exp);
-
-        // Double angle-iterations to get exp(2*Pi*i*x)
-        res = z->EvalMult(res, res);
-        z->ModReduceInPlace(res);
-        res = z->EvalMult(res, res);
-        z->ModReduceInPlace(res);
-
-        //------------------------------------------------------------------------------
-        // Running LUT
-        //------------------------------------------------------------------------------
-
-        auto powers = advZ->EvalPowers(res, lutIDCoeffsBC);
-        auto lut    = advZ->EvalPolyWithPrecomp(powers, lutIDCoeffsBC);
-        // Take the real part
-        z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
-        z->ModReduceInPlace(lut);
-        __heir_debug2(lut, "LUT");
+        auto lut = internalBooleanToBooleanCustomLUT(coreMasked, lutIDCoeffsBC);
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
@@ -469,7 +400,6 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
             if (nextIter * w >= zN / 2) {
                 rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
             }
-            std::cout << "Removing part from core with rotation index " << rotationIndex << std::endl;
             scaled = cc->EvalRotate(scaled, rotationIndex);
             z->ModReduceInPlace(scaled);
             z->EvalSubWithAdjustInPlace(core, scaled);
@@ -481,10 +411,19 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
     //------------------------------------------------------------------------------
 
     for (size_t i = 1; i != parts.size(); ++i) {
+        // They may have different scaling factors...
         z->EvalAddInPlace(parts[0], parts[i]);
     }
 
-    auto c2r = EvalC2R(parts[0]);
+    return internalBooleanToBooleanCustomLUT(parts[0], lutMSBCoeffsBC);
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc      = ct->GetCryptoContext();
+    auto cSlots  = ct->GetZEncodingParams().getCSlots();
+    auto precomp = GetBootPrecom(cSlots);
+
+    auto c2r = EvalC2R(ct);
 
     //------------------------------------------------------------------------------
     // Truncate and ModRaise
@@ -530,6 +469,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
     // Note that there are other ways...some work first multiply by 1 / N
     // Then PartialSum
     // Then use CoeffsToSlots matrix to do the /16
+    return r2c;
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanCustomLUT(ConstCiphertext<DCRTPoly>& ct,
+                                                                 const std::vector<BigComplex>& lutCoeffs) const {
+    auto r2c = internalBooleanToBooleanLTs(ct);
 
     //------------------------------------------------------------------------------
     // Exp
@@ -539,23 +484,53 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
     auto res        = advZ->EvalChebyshevSeriesPS(r2c, coeff_exp);
 
     // Double angle-iterations to get exp(2*Pi*i*x)
-    res = z->EvalMult(res, res);
+    res = z->EvalSquare(res);
     z->ModReduceInPlace(res);
-    res = z->EvalMult(res, res);
+    res = z->EvalSquare(res);
     z->ModReduceInPlace(res);
 
     //------------------------------------------------------------------------------
     // Running LUT
     //------------------------------------------------------------------------------
 
-    auto powers = advZ->EvalPowers(res, lutMSBCoeffsBC);
-    auto lut    = advZ->EvalPolyWithPrecomp(powers, lutMSBCoeffsBC);
+    auto powers = advZ->EvalPowers(res, lutCoeffs);
+    auto lut    = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
     // Take the real part
     z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
-    z->ModReduceInPlace(lut);
-    __heir_debug2(lut, "LUT");
+    return lut;
+}
 
-    return parts[0];
+Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ct) const {
+    auto ctNew = ct->Clone();
+    // Double scaling factor to divide by 2
+    ctNew->SetScalingFactorBFP(ctNew->GetScalingFactorBFP() * BigFixedPoint::two());
+    auto r2c = internalBooleanToBooleanLTs(ctNew);
+
+    //------------------------------------------------------------------------------
+    // Cosine
+    //------------------------------------------------------------------------------
+
+    auto& coeff_cos = coeff_cos_16_big_complex_50;
+    auto res        = advZ->EvalChebyshevSeriesPS(r2c, coeff_cos);
+
+    // Double angle-iterations to get cos(pi*x)
+    res = z->EvalSquare(res);
+    z->EvalAddInPlace(res, res);
+    z->EvalAddInPlaceInC(res, -BigFixedPoint::one());
+    z->ModReduceInPlace(res);  // cos(pi x)
+    res = z->EvalSquare(res);
+    z->ModReduceInPlace(res);  // cos^2(pi x)
+
+    //------------------------------------------------------------------------------
+    // The LUT (1 - cos^2(pi x))
+    // This is p == 2 and order == 1 of AKP25 for the identity map
+    // f(0) = 0, f(1) = 1
+    //------------------------------------------------------------------------------
+
+    z->EvalNegateInPlace(res);                        // -cos^2(pi x)
+    z->EvalAddInPlaceInC(res, BigFixedPoint::one());  // 1 - cos^2(pi x)
+
+    return res;
 }
 
 }  // namespace lbcrypto
