@@ -79,46 +79,109 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const
     return raised;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct) const {
+std::vector<Ciphertext<DCRTPoly>> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc       = ct->GetCryptoContext();
+    auto cSlots   = ct->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto N        = cc->GetRingDimension();
+    auto isSparse = (cSlots * 2 < N);
+
+    if (isSparse) {
+        auto z2c = EvalZLinearTransform(precomp.m_ZUInversePre, ct);
+        z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
+        z->ModReduceInPlace(z2c);
+        return {z2c};
+    }
+    else {
+        OPENFHE_THROW("Dense case unsupported");
+    }
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(const std::vector<Ciphertext<DCRTPoly>>& ct) const {
+    auto cc            = ct[0]->GetCryptoContext();
+    auto cSlots        = ct[0]->GetZEncodingParams().getCSlots();
+    auto precomp       = GetBootPrecom(cSlots);
+    auto N             = cc->GetRingDimension();
+    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
+    auto isSparse      = (cSlots * 2 < N);
+
+    if (isSparse) {
+        auto c2r =
+            isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct[0]) : EvalCoeffsToSlots(precomp.m_U0PreFFT, ct[0]);
+        // Trace
+        z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
+        z->ModReduceInPlace(c2r);
+        return c2r;
+    }
+    else {
+        OPENFHE_THROW("Dense case unsupported");
+    }
+}
+
+std::vector<Ciphertext<DCRTPoly>> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc            = ct->GetCryptoContext();
     auto cSlots        = ct->GetZEncodingParams().getCSlots();
     auto precomp       = GetBootPrecom(cSlots);
-    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
     auto N             = cc->GetRingDimension();
+    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
+    auto isSparse      = (cSlots * 2 < N);
 
-    //------------------------------------------------------------------------------
-    // Z-To-C
-    //------------------------------------------------------------------------------
-
-    auto z2c = EvalZLinearTransform(precomp.m_ZUInversePre, ct);
-    z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
-    z->ModReduceInPlace(z2c);
-
-    //------------------------------------------------------------------------------
-    // C-To-R
-    //------------------------------------------------------------------------------
-
-    auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, z2c) : EvalCoeffsToSlots(precomp.m_U0PreFFT, z2c);
-    // TODO: fix the scaling
-    // This is needed for sparsely packed case
-    {
-        z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
+    if (isSparse) {
+        // Then R2C here will multiply by rN because of the construction of U0HatT
+        auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) :
+                                   EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, ct);
+        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
+        z->ModReduceInPlace(r2c);
+        return {r2c};
     }
-    z->ModReduceInPlace(c2r);
+    else {
+        OPENFHE_THROW("Dense case unsupported");
+    }
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(const std::vector<Ciphertext<DCRTPoly>>& ct) const {
+    auto cc       = ct[0]->GetCryptoContext();
+    auto cSlots   = ct[0]->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto N        = cc->GetRingDimension();
+    auto isSparse = (cSlots * 2 < N);
+
+    if (isSparse) {
+        auto c2z = EvalZLinearTransform(precomp.m_ZUPre, ct[0]);
+        z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
+        z->ModReduceInPlace(c2z);
+        return c2z;
+    }
+    else {
+        OPENFHE_THROW("Dense case unsupported");
+    }
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const {
+    return EvalC2R(EvalZ2C(ct));
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct) const {
+    return EvalC2Z(EvalR2C(ct));
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc      = ct->GetCryptoContext();
+    auto cSlots  = ct->GetZEncodingParams().getCSlots();
+    auto precomp = GetBootPrecom(cSlots);
+    auto N       = cc->GetRingDimension();
+
+    auto z2r = EvalZ2R(ct);
 
     //------------------------------------------------------------------------------
     // Truncate and ModRaise
     //------------------------------------------------------------------------------
 
-    auto truncated = EvalTruncate(c2r);
+    auto truncated = EvalTruncate(z2r);
     auto raised    = EvalModRaise(truncated);
 
     //------------------------------------------------------------------------------
-    // SPARSELY PACKED CASE
-    //------------------------------------------------------------------------------
-
-    //------------------------------------------------------------------------------
-    // Running PartialSum
+    // Running PartialSum (Fully Packed case will just ignore this branch)
     //------------------------------------------------------------------------------
 
     const uint32_t limit = N / (cSlots * 2);
@@ -126,42 +189,27 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
         cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
     }
     // Now the message is multplied by N/(rN)
+    // R2C then will multiply by rN because of the construction of U0HatT
 
     //------------------------------------------------------------------------------
     // R-To-C
     //------------------------------------------------------------------------------
 
-    // Then R2C here will multiply by rN because of the construction of U0HatT
-    auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, raised) :
-                               EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, raised);
-    z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
-    z->ModReduceInPlace(r2c);
+    auto r2z = EvalR2Z(raised);
     // Now the message is N * m
 
     // Normalize to m
     {
-        auto sf     = r2c->GetScalingFactorBFP();
+        auto sf     = r2z->GetScalingFactorBFP();
         auto NBigFP = BigFixedPoint::positive(N);
         // Then C2S below will multiply by rN again because of the construction of U0HatT
         BigFixedPoint normalizeFactorBFP = sf / NBigFP;
         BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-        r2c                              = z->EvalMultScalar(r2c, normalizeFactor);
-        r2c->SetScalingFactorBFP(sf * sf);
-        z->ModReduceInPlace(r2c);
+        r2z                              = z->EvalMultScalar(r2z, normalizeFactor);
+        r2z->SetScalingFactorBFP(sf * sf);
+        z->ModReduceInPlace(r2z);
     }
-
-    //------------------------------------------------------------------------------
-    // C-To-Z
-    //------------------------------------------------------------------------------
-
-    auto c2z = EvalZLinearTransform(precomp.m_ZUPre, r2c);
-    // TODO: fix the scaling
-    // This is needed for sparsely packed case
-    {
-        z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
-    }
-    z->ModReduceInPlace(c2z);
-    return c2z;
+    return r2z;
 }
 
 }  // namespace lbcrypto

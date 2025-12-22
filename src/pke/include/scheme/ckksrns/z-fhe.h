@@ -113,11 +113,11 @@ public:
 
     std::vector<Ciphertext<DCRTPoly>> EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalC2R(std::vector<ConstCiphertext<DCRTPoly>>& ct) const;
+    Ciphertext<DCRTPoly> EvalC2R(const std::vector<Ciphertext<DCRTPoly>>& ct) const;
 
     std::vector<Ciphertext<DCRTPoly>> EvalR2C(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalC2Z(std::vector<ConstCiphertext<DCRTPoly>>& ct) const;
+    Ciphertext<DCRTPoly> EvalC2Z(const std::vector<Ciphertext<DCRTPoly>>& ct) const;
 
     Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
 
