@@ -1,0 +1,88 @@
+#ifndef SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_FHE_CONSTANTS_H_
+#define SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_FHE_CONSTANTS_H_
+
+#include "math/hal/bigfixedpoint.h"
+
+namespace lbcrypto {
+
+const std::vector<BigComplex> coeff_g0_big_complex_32 = {
+    BigComplex(BigFixedPoint(BigInteger("83554883558593341156762503528993204567"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("16306012819143647948975713401021095753"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("96601747242705937627150555596486294472"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("10189598517276305072350718402058306820"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("121060633236220369893857061438096148094"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("5140496634290316194783058668439513777"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("100495409965487171893958806222693651962"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("24229330335422135436851604093583455254"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("35210198440953349910397135793057630914"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("15311886605351491773147017323171236363"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("145473136138920781961207264747490262523"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("30741833736894896715423726116380449398"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("125097585517474914520603377430295523953"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("16782068243828144697612532317579843330"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("49463398143066233903337385547582654922"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("5140624783945922523649698647368979137"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("12233809707070413755946479415658393860"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("1056120164830265392342384475687453176"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("2131685501108436666954167368614470691"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("158603673235989998134290690894975991"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("279469820658646095142599816571795196"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("18344804074901673392718736965820196"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("28771401482185452351376264247803869"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("1693714708314538678609151232741534"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("2397854839256579916125159675533236"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("128149684565346523194831948305107"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("165542301805254342444294230167176"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("8109019875829502650635810444033"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("9640100595106718768996691169391"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("436164392778452373087215310130"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("480554329501726644416052973191"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("20180875894855208537597014500"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("21539486933367133352719181825"), 128, false),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+};
+
+const std::vector<BigComplex> r_sparse_scalars = {
+    BigComplex(BigFixedPoint(BigInteger("214928732683141070416123562033692253131"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("135753023439836232162591007175785461952"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+    BigComplex(BigFixedPoint(BigInteger("54157620742477409023451113735280473968"), 128, true),
+               BigFixedPoint(BigInteger("0"), 128, false)),
+};
+
+}  // namespace lbcrypto
+
+#endif  //SRC_PKE_INCLUDE_SCHEME_CKKSRNS_Z_FHE_CONSTANTS_H_
