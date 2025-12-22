@@ -86,7 +86,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
-        std::cout << msg << "  zPoly Decoded: " << decoded << std::endl;
+        std::cout << msg << "  zPoly Decoded: " << std::hex << decoded << std::dec << std::endl;
         auto I = ZPolynomial::extractI(zPoly);
         std::cout << msg << "  zPoly I: ";
         for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
@@ -452,29 +452,41 @@ void SimpleBootstrapExample() {
     }
 
     Ciphertext<DCRTPoly> ct2;
-    for (size_t i = 0; i != 3; ++i) {
+    for (size_t i = 0; i != 1; ++i) {
         ct2 = fheZ->EvalArithToBoolean(ct);
     }
+    __heir_debug2(ct2, "Boolean");
     std::cout << "Finished Warmup\n";
     auto start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i != 10; ++i) {
+    for (size_t i = 0; i != 3; ++i) {
         ct2 = fheZ->EvalArithToBoolean(ct);
     }
     auto end      = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "Average time for ArithToBoolean: " << double(duration) / 10.0 << " ms\n";
-    //__heir_debug2(ct, "Boolean");
+    std::cout << "Average time for ArithToBoolean: " << double(duration) / 3.0 << " ms\n";
 
+    Ciphertext<DCRTPoly> ct3;
+    for (size_t i = 0; i != 1; ++i) {
+        ct3 = fheZ->EvalArithToArith(ct);
+    }
+    start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
+        ct3 = fheZ->EvalArithToArith(ct);
+    }
+    end      = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Average time for ArithToArith: " << double(duration) / 3.0 << " ms\n";
+
+    for (size_t i = 0; i != 1; ++i) {
         ct = fheZ->EvalBooleanToBoolean(ct2);
     }
     start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i != 10; ++i) {
+    for (size_t i = 0; i != 3; ++i) {
         ct = fheZ->EvalBooleanToBoolean(ct2);
     }
     end      = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "Average time for BooleanToBoolean: " << double(duration) / 10.0 << " ms\n";
+    std::cout << "Average time for BooleanToBoolean: " << double(duration) / 3.0 << " ms\n";
     //ct = fheZ->EvalBooleanToBoolean(ct);
     //__heir_debug2(ct, "BooleanAgain");
 

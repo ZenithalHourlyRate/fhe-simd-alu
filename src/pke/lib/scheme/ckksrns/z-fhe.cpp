@@ -314,7 +314,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
     uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
 
     auto lutMSBOrder  = 1;  // TODO: make it a parameter
-    auto lutMSBCoeffs = GetHermiteTrigCoefficientsFullComplex(
+    auto lutMSBCoeffs = GetHermiteTrigCoefficients(
         [&](int64_t x) -> int64_t {
             // Input x is in {0, 1, ..., p-1}
             // Extract the negated MSB
@@ -328,7 +328,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         },
         p, lutMSBOrder, 1);  // We do not rescale here
     auto lutIDOrder  = 1;    // TODO: make it a parameter
-    auto lutIDCoeffs = GetHermiteTrigCoefficientsFullComplex(
+    auto lutIDCoeffs = GetHermiteTrigCoefficients(
         [&](int64_t x) -> int64_t {
             // Input x is in {0, 1, ..., p-1}
             // Because we work in (-1, 0] after Flatten
