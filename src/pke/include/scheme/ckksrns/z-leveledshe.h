@@ -96,6 +96,8 @@ public:
     Ciphertext<DCRTPoly> EvalMultInC(ConstCiphertext<DCRTPoly> ct, const BigComplex& ptxt,
                                      BigFixedPoint scalingFactor = BigFixedPoint::zero());
 
+    Ciphertext<DCRTPoly> EvalConjugateInC(ConstCiphertext<DCRTPoly> ct);
+
 private:
     // value, scalingFactor, modulus
     using BCInCPlaintextKey = std::tuple<BigComplex, BigFixedPoint, BigInteger>;

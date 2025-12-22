@@ -400,6 +400,24 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInC(ConstCiphertext<DCRTPoly> ct, con
     return EvalMult(ct, ptxtEnc);
 }
 
+Ciphertext<DCRTPoly> LeveledZImpl::EvalConjugateInC(ConstCiphertext<DCRTPoly> ct) {
+    uint32_t N = ct->GetElements()[0].GetRingDimension();
+    std::vector<uint32_t> vec(N);
+    PrecomputeAutoMap(N, 2 * N - 1, &vec);
+
+    auto result = ct->Clone();
+
+    auto cc         = ct->GetCryptoContext();
+    auto algo       = ct->GetCryptoContext()->GetScheme();
+    auto evalKeyMap = cc->GetEvalAutomorphismKeyMap(ct->GetKeyTag());
+    algo->KeySwitchInPlace(result, evalKeyMap.at(2 * N - 1));
+
+    auto& rcv = result->GetElements();
+    rcv[0]    = rcv[0].AutomorphismTransform(2 * N - 1, vec);
+    rcv[1]    = rcv[1].AutomorphismTransform(2 * N - 1, vec);
+    return result;
+}
+
 //
 // Plaintext Caches
 //

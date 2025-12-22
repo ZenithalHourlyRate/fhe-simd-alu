@@ -104,6 +104,12 @@ public:
 
     Ciphertext<DCRTPoly> EvalSlotsToCoeffs(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
                                            ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
+
+    Ciphertext<DCRTPoly> EvalTruncate(ConstCiphertext<DCRTPoly>& ctxt) const;
+
+    Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ctxt) const;
+
+    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
     // Temporary:
 public:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {

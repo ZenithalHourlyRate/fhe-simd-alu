@@ -559,6 +559,11 @@ void SimpleBootstrapExample() {
         ct = ctMul;
     }
 
+    ct = fheZ->EvalArithToArithHigh(ct, cSlots);
+    __heir_debug2(ct, "CMult");
+
+    return;
+
     /// TEST Rotate
     if (0) {
         auto ctRot = cc->EvalRotate(encoded, 1);
@@ -570,7 +575,7 @@ void SimpleBootstrapExample() {
     Ciphertext<DCRTPoly> zC2S;
     if (1) {
         zC2S = fheZ->EvalZLinearTransform(precom.m_ZUInversePre, ct);
-        z->EvalAddInPlace(zC2S, Conjugate(zC2S, cc->GetEvalAutomorphismKeyMap(zC2S->GetKeyTag())));
+        z->EvalAddInPlace(zC2S, z->EvalConjugateInC(zC2S));
         z->ModReduceInPlace(zC2S);
 
         //__heir_debug2(zC2S, "Upper");
