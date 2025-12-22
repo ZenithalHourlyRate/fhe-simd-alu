@@ -307,4 +307,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     return r2z;
 }
 
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct) const {
+    auto high  = EvalArithToArithHigh(ct);
+    auto noise = EvalArithToArithNoise(ct);
+    return z->EvalSubWithAdjust(high, noise);
+}
+
 }  // namespace lbcrypto

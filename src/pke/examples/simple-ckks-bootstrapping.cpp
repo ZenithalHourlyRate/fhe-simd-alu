@@ -57,7 +57,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     auto b = DecryptCore(ct->GetElements(), sk_global);
 
     auto sfBigFP = ct->GetScalingFactorBFP();
-    std::cout << msg << "  Ciphertext Scaling Factor BFP: " << sfBigFP.toHexString() << std::endl;
+    //std::cout << msg << "  Ciphertext Scaling Factor BFP: " << sfBigFP.toHexString() << std::endl;
     auto log2sf = std::log2(sfBigFP.convertToDouble());
     std::cout << msg << "  Scaling factor log2: " << std::setprecision(20) << log2sf << std::endl;
     auto q = ct->GetElements()[0].GetParams()->GetModulus();
@@ -110,29 +110,43 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         std::cout << msg << "  rPoly error log2Norm: " << ZPolynomial(errors).getLog2Norm() << std::endl;
     };
 
+    enum class DecodeMode { RDecode, CSlotsDecode, CSlotsTwiceDecode, ZDecode };
+    std::map<std::string, DecodeMode> decodeMap = {
+        // RDecode
+        {"ModRaise", DecodeMode::RDecode},
+        // CSlotsDecode
+        {"CSlotsDecode", DecodeMode::CSlotsDecode},
+        // CSlotsTwiceDecode
+        {"LUT", DecodeMode::CSlotsTwiceDecode},
+        {"Normalize", DecodeMode::CSlotsTwiceDecode},
+        // ZDecode
+        {"Input", DecodeMode::ZDecode},
+        {"CMult", DecodeMode::ZDecode},
+    };
+
+    auto decodeModeIt = decodeMap.find(msg);
+    if (decodeModeIt == decodeMap.end()) {
+        return 0;
+    }
+    auto decodeMode = decodeModeIt->second;
+
     // Check the r encoding?
-    if (msg == "S2RC" || msg == "MSB" || msg == "Low4" || msg == "ModRaise" || msg == "PSum" || msg == "Normalize" ||
-        msg == "LUTR" || msg.find("MSB") != std::string::npos || msg == "Reconstructed" || msg == "Binary") {
+    if (decodeMode == DecodeMode::RDecode) {
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
-            std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(16) << std::endl;
+            std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
         }
     }
-    if (msg == "Rotate") {
-        auto cSlots = values.toCSlots();
-        for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-            std::cout << msg << "  complexValues [" << i << "]: " << cSlots[i].toHexString(16) << std::endl;
-        }
-    }
-    if (msg == "Upper" || msg == "C2S" || msg == "LUT") {
+    if (decodeMode == DecodeMode::CSlotsTwiceDecode) {
         auto cSlotsTwice = valuesTwice.toCSlots();
         for (size_t i = 0; i != cSlotsTwice.getSlots().size(); ++i) {
-            std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(16) << std::endl;
+            std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(ceil(log2sf / 4.0))
+                      << std::endl;
         }
     }
-    if (msg == "Encode" || msg == "Input" || msg == "Add" || msg == "Mult" || msg == "CMult" || msg == "Z2S2Z") {
+    if (decodeMode == DecodeMode::ZDecode) {
         ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
         for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
-            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(16) << std::endl;
+            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
         }
         printZPoly(zValues);
     }
@@ -276,8 +290,8 @@ void SimpleBootstrapExample() {
     uint32_t firstMod            = 89;
 #else
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 59;
-    uint32_t firstMod            = 59;
+    uint32_t dcrtBits            = 35;
+    uint32_t firstMod            = 35;
 #endif
 
     parameters.SetScalingModSize(dcrtBits);
@@ -298,7 +312,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(25);
+    parameters.SetMultiplicativeDepth(20);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -368,7 +382,12 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    RPolynomial value1 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
+    auto zPoly = ZPolynomial::encode(32, 0);
+    // add some noise
+    for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
+        zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 15);
+    }
+    RPolynomial value1 = zPoly.toCSlots().toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
 
     RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
@@ -399,15 +418,16 @@ void SimpleBootstrapExample() {
     }
 
     /// TEST CT-CT-MULT
-    Ciphertext<DCRTPoly> ct;
-    if (1) {
+    Ciphertext<DCRTPoly> ct = encoded;
+    if (0) {
         auto ctMul = zEvalMultFull(z, encoded, encoded2, tPtxt);
         z->ModReduceInPlace(ctMul, 2);
         __heir_debug2(ctMul, "CMult");
         ct = ctMul;
     }
+    __heir_debug2(ct, "Input");
 
-    ct = fheZ->EvalArithToArithNoise(ct);
+    ct = fheZ->EvalArithToArith(ct);
     __heir_debug2(ct, "CMult");
 
     /// TEST Rotate
