@@ -93,6 +93,18 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
     return {z2c};
 }
 
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc      = ct->GetCryptoContext();
+    auto cSlots  = ct->GetZEncodingParams().getCSlots();
+    auto precomp = GetBootPrecom(cSlots);
+
+    // We force a sparse packing
+    auto z2c = EvalZLinearTransform(precomp.m_ZVSpecialB0Pre, ct);
+    z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
+    z->ModReduceInPlace(z2c);
+    return {z2c};
+}
+
 Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc            = ct->GetCryptoContext();
     auto cSlots        = ct->GetZEncodingParams().getCSlots();
@@ -291,7 +303,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
     auto precomp = GetBootPrecom(cSlots);
 
     // Our core ct
-    auto z2c = EvalZ2C(ct);
+    auto z2c = EvalZ2CSpecialB0(ct);
     // We need to keep core ct at bottom
     auto elemParam = z2c->GetElements()[0].GetParams();
     auto sf        = z2c->GetScalingFactorBFP();

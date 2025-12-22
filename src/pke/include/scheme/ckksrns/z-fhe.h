@@ -81,6 +81,9 @@ public:
     std::vector<ZBootstrapPlaintextCache> m_ZUPre;
     std::vector<ZBootstrapPlaintextCache> m_ZVPre;
 
+    // coefficients for ZV with preprocessing for b0
+    std::vector<ZBootstrapPlaintextCache> m_ZVSpecialB0Pre;
+
     std::vector<ZBootstrapPlaintextCache> m_ZU0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZU1Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV0Pre;
@@ -141,6 +144,8 @@ private:
     }
 
     void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIter) const;
+
+    Ciphertext<DCRTPoly> EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) const;
 
     //------------------------------------------------------------------------------
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs

@@ -142,11 +142,19 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         }
     }
 
+    // Special matrix for Arith-To-Boolean
+    BigCMatrix ZV0SpecialB0 = ZV0;
+    for (size_t i = 0; i != zN / 2; ++i) {
+        ZV0SpecialB0[0][i] = ZV0SpecialB0[1][i] * BigFixedPoint::two();
+    }
+
     if (isSparse) {
-        precom->m_ZUPre = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
-        precom->m_ZVPre = EvalZLinearTransformPrecompute(cc, ZV0, ZV1, zSlots);
+        precom->m_ZUPre          = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
+        precom->m_ZVPre          = EvalZLinearTransformPrecompute(cc, ZV0, ZV1, zSlots);
+        precom->m_ZVSpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, ZV1, zSlots);
     }
     else {
+        // TODO: deprecate them
         precom->m_ZU0Pre = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
         precom->m_ZU1Pre = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
         precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots);
