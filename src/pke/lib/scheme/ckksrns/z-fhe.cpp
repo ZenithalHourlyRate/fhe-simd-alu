@@ -1,6 +1,7 @@
 #include "scheme/ckksrns/z-fhe.h"
 #include "scheme/ckksrns/ckksrns-fhe.h"
 #include "encoding/z-encoding.h"
+#include "math/hermite.h"
 
 double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) __attribute__((weak));
 
@@ -80,82 +81,54 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const
     return raised;
 }
 
-std::vector<Ciphertext<DCRTPoly>> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
-    auto cc       = ct->GetCryptoContext();
-    auto cSlots   = ct->GetZEncodingParams().getCSlots();
-    auto precomp  = GetBootPrecom(cSlots);
-    auto N        = cc->GetRingDimension();
-    auto isSparse = (cSlots * 2 < N);
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc      = ct->GetCryptoContext();
+    auto cSlots  = ct->GetZEncodingParams().getCSlots();
+    auto precomp = GetBootPrecom(cSlots);
 
-    if (isSparse) {
-        auto z2c = EvalZLinearTransform(precomp.m_ZVPre, ct);
-        z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
-        z->ModReduceInPlace(z2c);
-        return {z2c};
-    }
-    else {
-        OPENFHE_THROW("Dense case unsupported");
-    }
+    // We force a sparse packing
+    auto z2c = EvalZLinearTransform(precomp.m_ZVPre, ct);
+    z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
+    z->ModReduceInPlace(z2c);
+    return {z2c};
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(const std::vector<Ciphertext<DCRTPoly>>& ct) const {
-    auto cc            = ct[0]->GetCryptoContext();
-    auto cSlots        = ct[0]->GetZEncodingParams().getCSlots();
-    auto precomp       = GetBootPrecom(cSlots);
-    auto N             = cc->GetRingDimension();
-    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
-    auto isSparse      = (cSlots * 2 < N);
-
-    if (isSparse) {
-        auto c2r =
-            isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct[0]) : EvalCoeffsToSlots(precomp.m_U0PreFFT, ct[0]);
-        // Trace
-        z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
-        z->ModReduceInPlace(c2r);
-        return c2r;
-    }
-    else {
-        OPENFHE_THROW("Dense case unsupported");
-    }
-}
-
-std::vector<Ciphertext<DCRTPoly>> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc            = ct->GetCryptoContext();
     auto cSlots        = ct->GetZEncodingParams().getCSlots();
     auto precomp       = GetBootPrecom(cSlots);
-    auto N             = cc->GetRingDimension();
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
-    auto isSparse      = (cSlots * 2 < N);
 
-    if (isSparse) {
-        // Then R2C here will multiply by rN because of the construction of U0HatT
-        auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) :
-                                   EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, ct);
-        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
-        z->ModReduceInPlace(r2c);
-        return {r2c};
-    }
-    else {
-        OPENFHE_THROW("Dense case unsupported");
-    }
+    auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalCoeffsToSlots(precomp.m_U0PreFFT, ct);
+    // Trace
+    z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
+    z->ModReduceInPlace(c2r);
+    return c2r;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(const std::vector<Ciphertext<DCRTPoly>>& ct) const {
-    auto cc       = ct[0]->GetCryptoContext();
-    auto cSlots   = ct[0]->GetZEncodingParams().getCSlots();
-    auto precomp  = GetBootPrecom(cSlots);
-    auto N        = cc->GetRingDimension();
-    auto isSparse = (cSlots * 2 < N);
+Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc            = ct->GetCryptoContext();
+    auto cSlots        = ct->GetZEncodingParams().getCSlots();
+    auto precomp       = GetBootPrecom(cSlots);
+    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
 
-    if (isSparse) {
-        auto c2z = EvalZLinearTransform(precomp.m_ZUPre, ct[0]);
-        z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
-        z->ModReduceInPlace(c2z);
-        return c2z;
-    }
-    else {
-        OPENFHE_THROW("Dense case unsupported");
-    }
+    // Then R2C here will multiply by rN because of the construction of U0HatT
+    auto r2c =
+        isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) : EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, ct);
+    z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
+    z->ModReduceInPlace(r2c);
+    return {r2c};
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc      = ct->GetCryptoContext();
+    auto cSlots  = ct->GetZEncodingParams().getCSlots();
+    auto precomp = GetBootPrecom(cSlots);
+
+    auto c2z = EvalZLinearTransform(precomp.m_ZUPre, ct);
+    z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
+    z->ModReduceInPlace(c2z);
+    return c2z;
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const {
@@ -182,7 +155,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     auto raised    = EvalModRaise(truncated);
 
     //------------------------------------------------------------------------------
-    // Running PartialSum (Fully Packed case will just ignore this branch)
+    // Running PartialSum
     //------------------------------------------------------------------------------
 
     const uint32_t limit = N / (cSlots * 2);
@@ -258,8 +231,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     // R-To-C
     //------------------------------------------------------------------------------
 
-    auto r2cVec = EvalR2C(raised);
-    auto r2c    = r2cVec[0];
+    auto r2c = EvalR2C(raised);
     // Now the message is N * m
 
     // Normalize to m / K_SPARSE_ENCAPSULATED
@@ -311,6 +283,176 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct) c
     auto high  = EvalArithToArithHigh(ct);
     auto noise = EvalArithToArithNoise(ct);
     return z->EvalSubWithAdjust(high, noise);
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc      = ct->GetCryptoContext();
+    auto cSlots  = ct->GetZEncodingParams().getCSlots();
+    auto precomp = GetBootPrecom(cSlots);
+
+    // Our core ct
+    auto z2c = EvalZ2C(ct);
+    // We need to keep core ct at bottom
+    auto elemParam = z2c->GetElements()[0].GetParams();
+    auto sf        = z2c->GetScalingFactorBFP();
+
+    auto zN     = ct->GetZEncodingParams().getZN();
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    auto w      = 8;  // TODO: make it a parameter
+    auto p      = 1l << w;
+    // We ask zN to be multiple of w now...
+    auto numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+
+    auto lutMSBOrder  = 1;  // TODO: make it a parameter
+    auto lutMSBCoeffs = GetHermiteTrigCoefficientsFullComplex(
+        [&](int64_t x) -> int64_t {
+            // Input x is in {0, 1, ..., p-1}
+            // Extract the negated MSB
+            // Because we work in (-1, 0] after Flatten
+            if (x <= p / 2 && x != 0) {
+                return 1;
+            }
+            else {
+                return 0;
+            }
+        },
+        p, lutMSBOrder, p);
+    auto lutIDOrder  = 1;  // TODO: make it a parameter
+    auto lutIDCoeffs = GetHermiteTrigCoefficientsFullComplex(
+        [&](int64_t x) -> int64_t {
+            // Input x is in {0, 1, ..., p-1}
+            // Because we work in (-1, 0] after Flatten
+            if (x == 0)
+                return 0;
+            else
+                return x - p;
+        },
+        p, lutIDOrder, p);
+
+    // Temporary: directly convert to BigComplex
+    std::vector<BigComplex> lutMSBCoeffsBC(lutMSBCoeffs.size());
+    for (size_t i = 0; i != lutMSBCoeffsBC.size(); ++i) {
+        lutMSBCoeffsBC[i] = BigComplex(BigFixedPoint::fromDouble(lutMSBCoeffs[i].real()),
+                                       BigFixedPoint::fromDouble(lutMSBCoeffs[i].imag()));
+    }
+    std::vector<BigComplex> lutIDCoeffsBC(lutIDCoeffs.size());
+    for (size_t i = 0; i != lutIDCoeffsBC.size(); ++i) {
+        lutIDCoeffsBC[i] = BigComplex(BigFixedPoint::fromDouble(lutIDCoeffs[i].real()),
+                                      BigFixedPoint::fromDouble(lutIDCoeffs[i].imag()));
+    }
+
+    std::vector<Ciphertext<DCRTPoly>> parts;
+
+    // Iteratively process each low bits
+    for (uint32_t iter = 0; iter != numIter; ++iter) {
+        // Encode low-hot vector
+        std::vector<BigComplex> oneHotVec(2 * cSlots, BigFixedPoint::zero());
+        for (uint32_t j = 0; j != zSlots; ++j) {
+            if (iter * w < zN / 2) {
+                for (uint32_t b = 0; b != w; ++b) {
+                    oneHotVec[j * (zN / 2) + (iter * w) + b] = BigFixedPoint::one();
+                }
+            }
+            else {
+                for (uint32_t b = 0; b != w; ++b) {
+                    oneHotVec[zSlots * zN / 2 + j * (zN / 2) + (iter * w) + b] = BigFixedPoint::one();
+                }
+            }
+        }
+
+        ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots * 2);  // sparse packing
+        RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
+        Plaintext oneHotPtxt   = ZEncodingImpl::encodeR(oneHotPoly, elemParam, sf);
+
+        auto z2cMasked = z->EvalMult(z2c, oneHotPtxt);
+        z->ModReduceInPlace(z2cMasked);
+
+        auto c2r = EvalC2R(z2cMasked);
+
+        //------------------------------------------------------------------------------
+        // Truncate and ModRaise
+        //------------------------------------------------------------------------------
+
+        auto truncated = EvalTruncate(c2r);
+        auto raised    = EvalModRaise(truncated);
+
+        //------------------------------------------------------------------------------
+        // Running PartialSum
+        //------------------------------------------------------------------------------
+
+        const uint32_t N     = cc->GetRingDimension();
+        const uint32_t limit = N / (cSlots * 2);
+        for (uint32_t j = 1; j < limit; j <<= 1) {
+            cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
+        }
+
+        //------------------------------------------------------------------------------
+        // R-To-C
+        //------------------------------------------------------------------------------
+
+        auto r2c = EvalR2C(raised);
+        // Now the message is N * m
+
+        //------------------------------------------------------------------------------
+        // Normalize
+        //------------------------------------------------------------------------------
+
+        // Normalize to [-1, 1] from [-16, 16]
+        // This is required by Chebyshev
+        {
+            auto sf                          = r2c->GetScalingFactorBFP();
+            auto NBigFP                      = BigFixedPoint::positive(N);
+            auto KBigFP                      = BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
+            BigFixedPoint normalizeFactorBFP = sf / (NBigFP * KBigFP);
+            BigInteger normalizeFactor = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
+            r2c                        = z->EvalMultScalar(r2c, normalizeFactor);
+            r2c->SetScalingFactorBFP(sf * sf);
+            z->ModReduceInPlace(r2c);
+        }
+
+        // Note that there are other ways...some work first multiply by 1 / N
+        // Then PartialSum
+        // Then use CoeffsToSlots matrix to do the /16
+
+        //------------------------------------------------------------------------------
+        // Exp
+        //------------------------------------------------------------------------------
+
+        auto& coeff_exp = coeff_exp_16_big_complex_46;
+        auto res        = advZ->EvalChebyshevSeriesPS(r2c, coeff_exp);
+
+        // Double angle-iterations to get exp(2*Pi*i*x)
+        res = z->EvalMult(res, res);
+        z->ModReduceInPlace(res);
+        res = z->EvalMult(res, res);
+        z->ModReduceInPlace(res);
+
+        //__heir_debug2(res, "Cheby1");
+
+        //------------------------------------------------------------------------------
+        // Running LUT
+        //------------------------------------------------------------------------------
+
+        auto powers = advZ->EvalPowers(res, lutIDCoeffsBC);
+        auto lut    = advZ->EvalPolyWithPrecomp(powers, lutIDCoeffsBC);
+        // Take the real part
+        z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
+        z->ModReduceInPlace(lut);
+        __heir_debug2(lut, "LUT");
+
+        //------------------------------------------------------------------------------
+        // Store the parts and remove it from core
+        //------------------------------------------------------------------------------
+
+        parts.push_back(lut);
+
+        // remove part from core
+        //for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
+        //
+        //}
+        return lut;
+    }
+    return parts[0];
 }
 
 }  // namespace lbcrypto

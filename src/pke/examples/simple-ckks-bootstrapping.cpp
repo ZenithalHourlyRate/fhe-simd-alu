@@ -312,7 +312,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(20);
+    parameters.SetMultiplicativeDepth(25);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -382,10 +382,10 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    auto zPoly = ZPolynomial::encode(32, 0);
+    auto zPoly = ZPolynomial::encode(32, -1);
     // add some noise
     for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
-        zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 15);
+        zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 25);
     }
     RPolynomial value1 = zPoly.toCSlots().toRPolynomial();
     Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sf);
@@ -427,8 +427,12 @@ void SimpleBootstrapExample() {
     }
     __heir_debug2(ct, "Input");
 
-    ct = fheZ->EvalArithToArith(ct);
-    __heir_debug2(ct, "CMult");
+    if (0) {
+        ct = fheZ->EvalArithToArith(ct);
+        __heir_debug2(ct, "CMult");
+    }
+
+    ct = fheZ->EvalArithToBoolean(ct);
 
     /// TEST Rotate
     if (0) {

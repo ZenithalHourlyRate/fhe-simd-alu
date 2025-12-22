@@ -112,13 +112,13 @@ public:
 
     Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const;
 
-    std::vector<Ciphertext<DCRTPoly>> EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalC2R(const std::vector<Ciphertext<DCRTPoly>>& ct) const;
+    Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
-    std::vector<Ciphertext<DCRTPoly>> EvalR2C(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalR2C(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalC2Z(const std::vector<Ciphertext<DCRTPoly>>& ct) const;
+    Ciphertext<DCRTPoly> EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
 
@@ -129,6 +129,8 @@ public:
     Ciphertext<DCRTPoly> EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ctxt) const;
 
     Ciphertext<DCRTPoly> EvalArithToArith(ConstCiphertext<DCRTPoly>& ctxt) const;
+
+    Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
 
 private:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
