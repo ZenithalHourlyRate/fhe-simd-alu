@@ -355,7 +355,6 @@ void SimpleBootstrapExample() {
     ZLinearTransform::Initialize(zN);
 
     fheZ->EvalBootstrapSetup(*cc, zN * zSlots / 2, {1, 1});
-    auto precom = fheZ->GetBootPrecom(cSlots);
 
     cc_global    = cc;
     pk_global    = keyPair.publicKey;
@@ -408,7 +407,7 @@ void SimpleBootstrapExample() {
         ct = ctMul;
     }
 
-    ct = fheZ->EvalArithToArithHigh(ct);
+    ct = fheZ->EvalArithToArithNoise(ct);
     __heir_debug2(ct, "CMult");
 
     /// TEST Rotate

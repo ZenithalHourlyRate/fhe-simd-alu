@@ -1,5 +1,6 @@
 #include "scheme/ckksrns/z-fhe.h"
 #include "scheme/ckksrns/ckksrns-fhe.h"
+#include "encoding/z-encoding.h"
 
 double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) __attribute__((weak));
 
@@ -192,7 +193,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     // R2C then will multiply by rN because of the construction of U0HatT
 
     //------------------------------------------------------------------------------
-    // R-To-C
+    // R-To-Z
     //------------------------------------------------------------------------------
 
     auto r2z = EvalR2Z(raised);
@@ -200,15 +201,109 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
 
     // Normalize to m
     {
-        auto sf     = r2z->GetScalingFactorBFP();
-        auto NBigFP = BigFixedPoint::positive(N);
-        // Then C2S below will multiply by rN again because of the construction of U0HatT
+        auto sf                          = r2z->GetScalingFactorBFP();
+        auto NBigFP                      = BigFixedPoint::positive(N);
         BigFixedPoint normalizeFactorBFP = sf / NBigFP;
         BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
         r2z                              = z->EvalMultScalar(r2z, normalizeFactor);
         r2z->SetScalingFactorBFP(sf * sf);
         z->ModReduceInPlace(r2z);
     }
+    return r2z;
+}
+
+void FHEZImpl::ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ct, uint32_t numIter) const {
+    auto cc = ct->GetCryptoContext();
+    for (int32_t i = 0; i != numIter; ++i) {
+        ct = z->EvalMult(ct, ct);
+        z->EvalAddInPlace(ct, z->EvalAddInC(ct, r_sparse_scalars[i]));
+        z->ModReduceInPlace(ct);
+    }
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc        = ct->GetCryptoContext();
+    auto cSlots    = ct->GetZEncodingParams().getCSlots();
+    auto precomp   = GetBootPrecom(cSlots);
+    auto N         = cc->GetRingDimension();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+
+    // TODO: cache tPtxt and adjust to zN/zSlots
+    RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
+    Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
+    auto ctT        = z->EvalMult(ct, tPtxt);
+
+    auto z2r = EvalZ2R(ctT);
+
+    //------------------------------------------------------------------------------
+    // Truncate and ModRaise
+    //------------------------------------------------------------------------------
+
+    auto truncated = EvalTruncate(z2r);
+    auto raised    = EvalModRaise(truncated);
+
+    //------------------------------------------------------------------------------
+    // Running PartialSum (Fully Packed case will just ignore this branch)
+    //------------------------------------------------------------------------------
+
+    const uint32_t limit = N / (cSlots * 2);
+    for (uint32_t j = 1; j < limit; j <<= 1) {
+        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
+    }
+    // Now the message is multplied by N/(rN)
+    // R2C then will multiply by rN because of the construction of U0HatT
+
+    //------------------------------------------------------------------------------
+    // R-To-C
+    //------------------------------------------------------------------------------
+
+    auto r2cVec = EvalR2C(raised);
+    auto r2c    = r2cVec[0];
+    // Now the message is N * m
+
+    // Normalize to m / K_SPARSE_ENCAPSULATED
+    // So [-16, 16] becomes [-1, 1]
+    {
+        auto sf                          = r2c->GetScalingFactorBFP();
+        auto NBigFP                      = BigFixedPoint::positive(N);
+        auto KBigFP                      = BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
+        BigFixedPoint normalizeFactorBFP = sf / (NBigFP * KBigFP);
+        BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
+        r2c                              = z->EvalMultScalar(r2c, normalizeFactor);
+        r2c->SetScalingFactorBFP(sf * sf);
+        z->ModReduceInPlace(r2c);
+    }
+
+    //------------------------------------------------------------------------------
+    // Approximate Mod Reduction
+    //------------------------------------------------------------------------------
+
+    // Evaluate Chebyshev series for the sine wave
+    auto& coeff_g0 = coeff_g0_big_complex_32;
+    auto g0        = advZ->EvalChebyshevSeriesPS(r2c, coeff_g0);
+
+    // Double-angle iterations
+    uint32_t numIter = FHEZImpl::R_SPARSE;
+    ApplyDoubleAngleIterations(g0, numIter);
+
+    //------------------------------------------------------------------------------
+    // C-To-Z
+    //------------------------------------------------------------------------------
+
+    auto r2z = EvalC2Z({g0});
+
+    //------------------------------------------------------------------------------
+    // Multiply by t^{-1} in Z
+    //------------------------------------------------------------------------------
+
+    auto tInv          = ZPolynomial::getTInv(32).toCSlots().toRPolynomial();
+    auto r2zElemParam  = r2z->GetElements()[0].GetParams();
+    Plaintext tInvPtxt = ZEncodingImpl::encodeR(tInv, r2zElemParam, r2z->GetScalingFactorBFP());
+
+    r2z = z->EvalMult(r2z, tInvPtxt);
+    z->ModReduceInPlace(r2z);
+
     return r2z;
 }
 

@@ -4,6 +4,7 @@
 #include "z-leveledshe.h"
 #include "z-advancedshe.h"
 #include "z-fhe-utils.h"
+#include "z-fhe-constants.h"
 
 namespace lbcrypto {
 
@@ -124,8 +125,10 @@ public:
     Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt) const;
-    // Temporary:
-public:
+
+    Ciphertext<DCRTPoly> EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ctxt) const;
+
+private:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
         auto pair = m_bootPrecomMap.find(slots);
         if (pair != m_bootPrecomMap.end())
@@ -133,7 +136,8 @@ public:
         OPENFHE_THROW("Precomputations for " + std::to_string(slots) + " slots not found.");
     }
 
-private:
+    void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIter) const;
+
     //------------------------------------------------------------------------------
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
     //------------------------------------------------------------------------------
@@ -166,6 +170,10 @@ private:
 private:
     // corresponds to probability of less than 2^{-128}
     static constexpr uint32_t K_SPARSE_ENCAPSULATED = 16;
+
+    // number of double-angle iterations in CKKS bootstrapping. Must be static because it is used in a static function.
+    // same value is used for both SPARSE and ENCAPSULATED_SPARSE
+    static constexpr uint32_t R_SPARSE = 3;
 
 private:
     LeveledZ z;

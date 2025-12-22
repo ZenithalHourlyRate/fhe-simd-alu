@@ -94,6 +94,26 @@ std::vector<double> EvalChebyshevFunctionPtxt(std::function<double(double)> func
 }
 """
 
+
+def printC(z):
+    a = mp.re(z)
+    b = mp.im(z)
+
+    aNeg = (a < 0)
+    bNeg = (b < 0)
+
+    # c = abs(round(a * 2^128)), d similarly
+    scale_int = 1 << 128
+    c = abs(int(mp.nint(a * scale_int)))
+    d = abs(int(mp.nint(b * scale_int)))
+
+    aNeg = "true" if aNeg else "false"
+    bNeg = "true" if bNeg else "false"
+
+    # Print in the requested format
+    # (Python bools print as True/False, which is usually fine for code-gen style)
+    print(f"BigComplex(BigFixedPoint(BigInteger(\"{c}\"), 128, {aNeg}), BigFixedPoint(BigInteger(\"{d}\"), 128, {bNeg})),")
+
 def EvalChebyshevFunctionPtxt(f, ptxt, a, b, degree):
     """
     Evaluate the Chebyshev function approximation on plaintext data.
@@ -123,6 +143,8 @@ def EvalChebyshevFunctionPtxt(f, ptxt, a, b, degree):
         result[i] = y
     return result
 
+G0_DEGREE = 32
+
 def g0(x):
     """
     auto K = 16.0;
@@ -139,13 +161,13 @@ def g0(x):
 
 def g0_cheby_coeffs():
     print("Computing Chebyshev coefficients for g0...")
-    coeffs = EvalChebyshevCoefficients(g0, mp.mpf(-1), mp.mpf(1), 48)
+    coeffs = EvalChebyshevCoefficients(g0, mp.mpf(-1), mp.mpf(1), G0_DEGREE)
     print("Chebyshev Coefficients for g0:")
     for i in range(len(coeffs)):
         print(f"  coeffs[{i}] = {mp.nstr(coeffs[i], 50)}")
 
 def g0_cheby(x):
-    return EvalChebyshevFunctionPtxt(g0, [x], mp.mpf(-1), mp.mpf(1), 48)[0]
+    return EvalChebyshevFunctionPtxt(g0, [x], mp.mpf(-1), mp.mpf(1), G0_DEGREE)[0]
 
 # estimate the errors of the approximation on a dense grid
 def estimateError(f, g, a, b, num_points=100):
@@ -162,9 +184,18 @@ def g0_error():
     error = estimateError(g0, g0_cheby, mp.mpf(-1), mp.mpf(1))
     print(f"Maximum error bits in g0 approximation: {mp.log(error) / mp.log(2)}")
 
-#if __name__ == "__main__":
-#    g0_cheby_coeffs()
-#    g0_error()
+def printG0():
+    coeffs = EvalChebyshevCoefficients(g0, mp.mpf(-1), mp.mpf(1), G0_DEGREE)
+    print(f"coeff_g0_big_complex_{G0_DEGREE} = ", "{")
+    for coeff in coeffs:
+        printC(coeff)
+    print("};")
+
+if __name__ == "__main__":
+    #g0_cheby_coeffs()
+    #g0_error()
+    #printG0()
+    pass
 
 def expHalf(x):
     """
@@ -220,27 +251,9 @@ def expHalf_plot():
 
 if __name__ == "__main__":
     #expHalf_cheby_coeffs()
-    expHalf_error()
+    #expHalf_error()
     #expHalf_plot()
-
-def printC(z):
-    a = mp.re(z)
-    b = mp.im(z)
-
-    aNeg = (a < 0)
-    bNeg = (b < 0)
-
-    # c = abs(round(a * 2^128)), d similarly
-    scale_int = 1 << 128
-    c = abs(int(mp.nint(a * scale_int)))
-    d = abs(int(mp.nint(b * scale_int)))
-
-    aNeg = "true" if aNeg else "false"
-    bNeg = "true" if bNeg else "false"
-
-    # Print in the requested format
-    # (Python bools print as True/False, which is usually fine for code-gen style)
-    print(f"BigComplex(BigFixedPoint(BigInteger(\"{c}\"), 128, {aNeg}), BigFixedPoint(BigInteger(\"{d}\"), 128, {bNeg})),")
+    pass
 
 def printExpHalf():
     coeffs = EvalChebyshevCoefficients(expHalf, mp.mpf(-16), mp.mpf(16), EXP_HALF_DEGREE)
@@ -250,7 +263,8 @@ def printExpHalf():
     print("};")
 #
 if __name__ == "__main__":
-    printExpHalf()
+    #printExpHalf()
+    pass
 
 def expFull(x):
     """
@@ -306,4 +320,18 @@ if __name__ == "__main__":
     #expFull_cheby_coeffs()
     #expFull_error()
     #expFull_plot()
+    pass
+
+def doubleAngleConstants():
+    twoPi = mp.mpf(2) * mp.pi
+    R = 3
+    print(f"r_sparse_scalars = ", "{")
+    for i in range(1-R, 0 + 1):
+        scalar = -mp.power(twoPi, -mp.power(mp.mpf(2), i))
+        printC(scalar)
+        #print(f"Double angle iteration {i+R - 1}: scalar = {mp.nstr(scalar, 50)}")
+    print("};")
+    
+if __name__ == "__main__":
+    doubleAngleConstants()
     pass
