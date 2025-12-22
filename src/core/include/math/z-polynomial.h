@@ -61,6 +61,17 @@ public:
         }
     }
 
+    uint32_t getCSlots() const {
+        if (m_encodingType == ZMode) {
+            // Equivalent number of C slots
+            // Useful inside bootstrapping
+            return m_zSlots * m_zN / 2;
+        }
+        else {
+            return m_cSlots;
+        }
+    }
+
     uint32_t getZN() const {
         if (m_encodingType == ZMode) {
             return m_zN;

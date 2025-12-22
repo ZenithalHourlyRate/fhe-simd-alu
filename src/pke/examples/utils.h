@@ -113,6 +113,7 @@ Ciphertext<DCRTPoly> Encrypt(Plaintext ptxt, const PublicKey<DCRTPoly> publicKey
     ctxt->SetElements(std::move(*ba));
     ctxt->SetNoiseScaleDeg(1);
     ctxt->SetScalingFactorBFP(zEnc->GetScalingFactorBFP());
+    ctxt->SetZEncodingParams(zEnc->GetZEncodingParams());
     return ctxt;
 }
 

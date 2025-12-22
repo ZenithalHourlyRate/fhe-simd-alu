@@ -13,18 +13,17 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const
     auto q     = ct->GetElements()[0].GetModulus();
     auto sfNow = ct->GetScalingFactorBFP();
     auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
-    auto two   = BigFixedPoint::two();
-    // q / (2 * Delta)
-    auto div       = (qBFP / sfNow / two).round();
+    // q / Delta
+    auto div       = (qBFP / sfNow).round();
     auto divScalar = div.getValue() >> div.getLog2Scale();
     auto ct2       = z->EvalMultScalar(ct, divScalar);
-    ct2->SetScalingFactorBFP(qBFP / two);
+    ct2->SetScalingFactorBFP(qBFP);
     // Reduce all the way to the bottom
     z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
     // To make sure the scaling factor is exactly q0 / 2
     auto q0     = ct2->GetElements()[0].GetModulus();
     auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
-    auto sfNow2 = q0BFP / two;
+    auto sfNow2 = q0BFP;
     ct2->SetScalingFactorBFP(sfNow2);
     return ct2;
 }
@@ -80,8 +79,9 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const
     return raised;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct, uint32_t cSlots) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc            = ct->GetCryptoContext();
+    auto cSlots        = ct->GetZEncodingParams().getCSlots();
     auto precomp       = GetBootPrecom(cSlots);
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
     auto N             = cc->GetRingDimension();
@@ -98,8 +98,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     // C-To-R
     //------------------------------------------------------------------------------
 
-    auto c2r =
-        isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, z2c) : EvalCoeffsToSlots(precomp.m_U0PreFFT, z2c, cSlots);
+    auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, z2c) : EvalCoeffsToSlots(precomp.m_U0PreFFT, z2c);
     // TODO: fix the scaling
     // This is needed for sparsely packed case
     {
@@ -134,7 +133,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
 
     // Then R2C here will multiply by rN because of the construction of U0HatT
     auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, raised) :
-                               EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, raised, cSlots);
+                               EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, raised);
     z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
     z->ModReduceInPlace(r2c);
     // Now the message is N * m

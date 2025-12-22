@@ -39,6 +39,7 @@
 #include "ciphertext-fwd.h"
 #include "cryptoobject.h"
 #include "key/key.h"
+#include "math/z-polynomial.h"
 #include "metadata.h"
 #include "math/hal/bigfixedpoint.h"
 
@@ -331,6 +332,14 @@ public:
         m_encodingType = et;
     }
 
+    ZEncodingParams GetZEncodingParams() const {
+        return m_zEncodingParams;
+    }
+
+    void SetZEncodingParams(const ZEncodingParams& params) {
+        m_zEncodingParams = params;
+    }
+
     /**
    * Get the Metadata map of the ciphertext.
    */
@@ -410,7 +419,9 @@ public:
         ct->m_noiseScaleDeg    = m_noiseScaleDeg;
         ct->m_scalingFactor    = m_scalingFactor;
         ct->m_scalingFactorInt = m_scalingFactorInt;
-        ct->m_scalingFactorBFP  = m_scalingFactorBFP;
+        // Custom Z fields
+        ct->m_scalingFactorBFP = m_scalingFactorBFP;
+        ct->m_zEncodingParams  = m_zEncodingParams;
         *(ct->m_metadataMap)   = *(m_metadataMap);
         return ct;
     }
@@ -527,6 +538,8 @@ private:
 
     // Custom field for z-related scaling factor tracking
     BigFixedPoint m_scalingFactorBFP{BigFixedPoint()};
+    // Custom field for z-related scaling factor tracking
+    ZEncodingParams m_zEncodingParams{ZEncodingParams()};
 
     NativeInteger m_scalingFactorInt{1};
 

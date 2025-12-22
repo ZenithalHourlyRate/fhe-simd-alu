@@ -559,7 +559,7 @@ void SimpleBootstrapExample() {
         ct = ctMul;
     }
 
-    ct = fheZ->EvalArithToArithHigh(ct, cSlots);
+    ct = fheZ->EvalArithToArithHigh(ct);
     __heir_debug2(ct, "CMult");
 
     return;

@@ -172,9 +172,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalLinearTransform(std::vector<ZBootstrapPlainte
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalCoeffsToSlots(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
-                                                 ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const {
+                                                 ConstCiphertext<DCRTPoly>& ctxt) const {
     //const uint32_t slots = ctxt->GetSlots();
 
+    auto cSlots   = ctxt->GetZEncodingParams().getCSlots();
     const auto& p = GetBootPrecom(cSlots).m_paramsEnc;
 
     // precompute the inner and outer rotations
@@ -336,9 +337,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalCoeffsToSlots(const std::vector<std::vector<Z
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalSlotsToCoeffs(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
-                                                 ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const {
-    //const uint32_t slots = ctxt->GetSlots();
-
+                                                 ConstCiphertext<DCRTPoly>& ctxt) const {
+    auto cSlots   = ctxt->GetZEncodingParams().getCSlots();
     const auto& p = GetBootPrecom(cSlots).m_paramsDec;
 
     // precompute the inner and outer rotations

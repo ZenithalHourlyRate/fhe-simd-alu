@@ -93,6 +93,7 @@ public:
     void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numCSlots,
                             std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1 = {0, 0});
 
+public:
     Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
                                              ConstCiphertext<DCRTPoly>& ct) const;
 
@@ -100,16 +101,29 @@ public:
                                               ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalCoeffsToSlots(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
-                                           ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
+                                           ConstCiphertext<DCRTPoly>& ctxt) const;
 
     Ciphertext<DCRTPoly> EvalSlotsToCoeffs(const std::vector<std::vector<ZBootstrapPlaintextCache>>& A,
-                                           ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
+                                           ConstCiphertext<DCRTPoly>& ctxt) const;
 
-    Ciphertext<DCRTPoly> EvalTruncate(ConstCiphertext<DCRTPoly>& ctxt) const;
+public:
+    Ciphertext<DCRTPoly> EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt, uint32_t cSlots) const;
+    std::vector<Ciphertext<DCRTPoly>> EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalC2R(std::vector<ConstCiphertext<DCRTPoly>>& ct) const;
+
+    std::vector<Ciphertext<DCRTPoly>> EvalR2C(ConstCiphertext<DCRTPoly>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalC2Z(std::vector<ConstCiphertext<DCRTPoly>>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt) const;
     // Temporary:
 public:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
