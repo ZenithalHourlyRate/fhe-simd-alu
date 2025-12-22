@@ -74,16 +74,16 @@ public:
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFT;
 
     //
-    // coefficients for ZU and ZUInverse
+    // coefficients for ZU and ZV = ZUInverse
     //
     // digonal, 1st digonal, ..., zN/2-1th diagonal, -1th diagonal, ..., -zN/2+1 th diagonal
     std::vector<ZBootstrapPlaintextCache> m_ZUPre;
-    std::vector<ZBootstrapPlaintextCache> m_ZUInversePre;
+    std::vector<ZBootstrapPlaintextCache> m_ZVPre;
 
     std::vector<ZBootstrapPlaintextCache> m_ZU0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZU1Pre;
-    std::vector<ZBootstrapPlaintextCache> m_ZUInverse0Pre;
-    std::vector<ZBootstrapPlaintextCache> m_ZUInverse1Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZV0Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZV1Pre;
 };
 
 class FHEZImpl {

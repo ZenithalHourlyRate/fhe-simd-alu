@@ -87,7 +87,7 @@ std::vector<Ciphertext<DCRTPoly>> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& c
     auto isSparse = (cSlots * 2 < N);
 
     if (isSparse) {
-        auto z2c = EvalZLinearTransform(precomp.m_ZUInversePre, ct);
+        auto z2c = EvalZLinearTransform(precomp.m_ZVPre, ct);
         z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
         z->ModReduceInPlace(z2c);
         return {z2c};

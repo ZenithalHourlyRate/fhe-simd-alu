@@ -126,31 +126,31 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
 
     // We note that ZUInverse is scaled.
     ZLinearTransform::Initialize(zN);
-    auto& ZU        = ZLinearTransform::GetZU(zN);
-    auto& ZUInverse = ZLinearTransform::GetZUInverse(zN);
+    auto& ZU = ZLinearTransform::GetZU(zN);
+    auto& ZV = ZLinearTransform::GetZUInverse(zN);
 
     BigCMatrix ZU0(zN / 2, BigCVector(zN / 2));
     BigCMatrix ZU1(zN / 2, BigCVector(zN / 2));
-    BigCMatrix ZUInverse0(zN / 2, BigCVector(zN / 2));
-    BigCMatrix ZUInverse1(zN / 2, BigCVector(zN / 2));
+    BigCMatrix ZV0(zN / 2, BigCVector(zN / 2));
+    BigCMatrix ZV1(zN / 2, BigCVector(zN / 2));
     for (size_t i = 0; i != zN / 2; ++i) {
         for (size_t j = 0; j != zN / 2; ++j) {
-            ZU0[i][j]        = ZU[i][j];
-            ZU1[i][j]        = ZU[i][j + zN / 2];
-            ZUInverse0[i][j] = ZUInverse[i][j];
-            ZUInverse1[i][j] = ZUInverse[i + zN / 2][j];
+            ZU0[i][j] = ZU[i][j];
+            ZU1[i][j] = ZU[i][j + zN / 2];
+            ZV0[i][j] = ZV[i][j];
+            ZV1[i][j] = ZV[i + zN / 2][j];
         }
     }
 
     if (isSparse) {
-        precom->m_ZUPre        = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
-        precom->m_ZUInversePre = EvalZLinearTransformPrecompute(cc, ZUInverse0, ZUInverse1, zSlots);
+        precom->m_ZUPre = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
+        precom->m_ZVPre = EvalZLinearTransformPrecompute(cc, ZV0, ZV1, zSlots);
     }
     else {
-        precom->m_ZU0Pre        = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
-        precom->m_ZU1Pre        = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
-        precom->m_ZUInverse0Pre = EvalZLinearTransformPrecompute(cc, ZUInverse0, zSlots);
-        precom->m_ZUInverse1Pre = EvalZLinearTransformPrecompute(cc, ZUInverse1, zSlots);
+        precom->m_ZU0Pre = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
+        precom->m_ZU1Pre = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
+        precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots);
+        precom->m_ZV1Pre = EvalZLinearTransformPrecompute(cc, ZV1, zSlots);
     }
 }
 
