@@ -58,6 +58,9 @@ namespace lbcrypto {
 std::vector<std::complex<double>> GetHermiteTrigCoefficients(std::function<int64_t(int64_t)> func, uint32_t p,
                                                              size_t order, double scale);
 
+std::vector<std::complex<double>> GetHermiteTrigCoefficientsFullComplex(std::function<int64_t(int64_t)> func,
+                                                                        uint32_t p, size_t order, double scale);
+
 }  // namespace lbcrypto
 
 #endif
