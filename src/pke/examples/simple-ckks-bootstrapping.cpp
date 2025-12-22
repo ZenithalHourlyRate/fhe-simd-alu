@@ -451,11 +451,32 @@ void SimpleBootstrapExample() {
         __heir_debug2(ct, "CMult");
     }
 
-    ct = fheZ->EvalArithToBoolean(ct);
-    __heir_debug2(ct, "Boolean");
+    Ciphertext<DCRTPoly> ct2;
+    for (size_t i = 0; i != 3; ++i) {
+        ct2 = fheZ->EvalArithToBoolean(ct);
+    }
+    std::cout << "Finished Warmup\n";
+    auto start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i != 10; ++i) {
+        ct2 = fheZ->EvalArithToBoolean(ct);
+    }
+    auto end      = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Average time for ArithToBoolean: " << double(duration) / 10.0 << " ms\n";
+    //__heir_debug2(ct, "Boolean");
 
-    ct = fheZ->EvalBooleanToBoolean(ct);
-    __heir_debug2(ct, "BooleanAgain");
+    for (size_t i = 0; i != 3; ++i) {
+        ct = fheZ->EvalBooleanToBoolean(ct2);
+    }
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i != 10; ++i) {
+        ct = fheZ->EvalBooleanToBoolean(ct2);
+    }
+    end      = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Average time for BooleanToBoolean: " << double(duration) / 10.0 << " ms\n";
+    //ct = fheZ->EvalBooleanToBoolean(ct);
+    //__heir_debug2(ct, "BooleanAgain");
 
     /// TEST Rotate
     if (0) {
