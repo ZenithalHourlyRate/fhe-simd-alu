@@ -303,17 +303,15 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
     auto precomp = GetBootPrecom(cSlots);
 
     // Our core ct
-    auto z2c = EvalZ2CSpecialB0(ct);
+    auto core = EvalZ2CSpecialB0(ct);
     // We need to keep core ct at bottom
-    auto elemParam = z2c->GetElements()[0].GetParams();
-    auto sf        = z2c->GetScalingFactorBFP();
 
     auto zN     = ct->GetZEncodingParams().getZN();
     auto zSlots = ct->GetZEncodingParams().getZSlots();
-    auto w      = 8;  // TODO: make it a parameter
-    auto p      = 1l << w;
+    uint32_t w  = 8;  // TODO: make it a parameter
+    uint64_t p  = 1l << w;
     // We ask zN to be multiple of w now...
-    auto numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+    uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
 
     auto lutMSBOrder  = 1;  // TODO: make it a parameter
     auto lutMSBCoeffs = GetHermiteTrigCoefficientsFullComplex(
@@ -328,8 +326,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
                 return 0;
             }
         },
-        p, lutMSBOrder, p);
-    auto lutIDOrder  = 1;  // TODO: make it a parameter
+        p, lutMSBOrder, 1);  // We do not rescale here
+    auto lutIDOrder  = 1;    // TODO: make it a parameter
     auto lutIDCoeffs = GetHermiteTrigCoefficientsFullComplex(
         [&](int64_t x) -> int64_t {
             // Input x is in {0, 1, ..., p-1}
@@ -367,19 +365,23 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
             }
             else {
                 for (uint32_t b = 0; b != w; ++b) {
-                    oneHotVec[zSlots * zN / 2 + j * (zN / 2) + (iter * w) + b] = BigFixedPoint::one();
+                    oneHotVec[(zSlots - 1) * zN / 2 + j * (zN / 2) + (iter * w) + b] = BigFixedPoint::one();
                 }
             }
         }
 
         ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots * 2);  // sparse packing
         RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
-        Plaintext oneHotPtxt   = ZEncodingImpl::encodeR(oneHotPoly, elemParam, sf);
 
-        auto z2cMasked = z->EvalMult(z2c, oneHotPtxt);
-        z->ModReduceInPlace(z2cMasked);
+        // core may change over time
+        auto elemParam       = core->GetElements()[0].GetParams();
+        auto sf              = core->GetScalingFactorBFP();
+        Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elemParam, sf);
 
-        auto c2r = EvalC2R(z2cMasked);
+        auto coreMasked = z->EvalMult(core, oneHotPtxt);
+        z->ModReduceInPlace(coreMasked);
+
+        auto c2r = EvalC2R(coreMasked);
 
         //------------------------------------------------------------------------------
         // Truncate and ModRaise
@@ -439,8 +441,6 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         res = z->EvalMult(res, res);
         z->ModReduceInPlace(res);
 
-        //__heir_debug2(res, "Cheby1");
-
         //------------------------------------------------------------------------------
         // Running LUT
         //------------------------------------------------------------------------------
@@ -459,11 +459,102 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         parts.push_back(lut);
 
         // remove part from core
-        //for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
-        //
-        //}
-        return lut;
+        //std::vector<Ciphertext<DCRTPoly>> toRemoveVec;
+        for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
+            int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
+            // Multiply by 1 / (2^{nextIter - iter} * p)
+            auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
+            // Note the rotation index is negative here
+            int32_t rotationIndex = diff * w;
+            if (nextIter * w >= zN / 2) {
+                rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
+            }
+            std::cout << "Removing part from core with rotation index " << rotationIndex << std::endl;
+            scaled = cc->EvalRotate(scaled, rotationIndex);
+            z->ModReduceInPlace(scaled);
+            z->EvalSubWithAdjustInPlace(core, scaled);
+        }
     }
+
+    //------------------------------------------------------------------------------
+    // Combine all parts
+    //------------------------------------------------------------------------------
+
+    for (size_t i = 1; i != parts.size(); ++i) {
+        z->EvalAddInPlace(parts[0], parts[i]);
+    }
+
+    auto c2r = EvalC2R(parts[0]);
+
+    //------------------------------------------------------------------------------
+    // Truncate and ModRaise
+    //------------------------------------------------------------------------------
+
+    auto truncated = EvalTruncate(c2r);
+    auto raised    = EvalModRaise(truncated);
+
+    //------------------------------------------------------------------------------
+    // Running PartialSum
+    //------------------------------------------------------------------------------
+
+    const uint32_t N     = cc->GetRingDimension();
+    const uint32_t limit = N / (cSlots * 2);
+    for (uint32_t j = 1; j < limit; j <<= 1) {
+        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
+    }
+
+    //------------------------------------------------------------------------------
+    // R-To-C
+    //------------------------------------------------------------------------------
+
+    auto r2c = EvalR2C(raised);
+    // Now the message is N * m
+
+    //------------------------------------------------------------------------------
+    // Normalize
+    //------------------------------------------------------------------------------
+
+    // Normalize to [-1, 1] from [-16, 16]
+    // This is required by Chebyshev
+    {
+        auto sf                          = r2c->GetScalingFactorBFP();
+        auto NBigFP                      = BigFixedPoint::positive(N);
+        auto KBigFP                      = BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
+        BigFixedPoint normalizeFactorBFP = sf / (NBigFP * KBigFP);
+        BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
+        r2c                              = z->EvalMultScalar(r2c, normalizeFactor);
+        r2c->SetScalingFactorBFP(sf * sf);
+        z->ModReduceInPlace(r2c);
+    }
+
+    // Note that there are other ways...some work first multiply by 1 / N
+    // Then PartialSum
+    // Then use CoeffsToSlots matrix to do the /16
+
+    //------------------------------------------------------------------------------
+    // Exp
+    //------------------------------------------------------------------------------
+
+    auto& coeff_exp = coeff_exp_16_big_complex_46;
+    auto res        = advZ->EvalChebyshevSeriesPS(r2c, coeff_exp);
+
+    // Double angle-iterations to get exp(2*Pi*i*x)
+    res = z->EvalMult(res, res);
+    z->ModReduceInPlace(res);
+    res = z->EvalMult(res, res);
+    z->ModReduceInPlace(res);
+
+    //------------------------------------------------------------------------------
+    // Running LUT
+    //------------------------------------------------------------------------------
+
+    auto powers = advZ->EvalPowers(res, lutMSBCoeffsBC);
+    auto lut    = advZ->EvalPolyWithPrecomp(powers, lutMSBCoeffsBC);
+    // Take the real part
+    z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
+    z->ModReduceInPlace(lut);
+    __heir_debug2(lut, "LUT");
+
     return parts[0];
 }
 

@@ -119,6 +119,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
+        {"Core", DecodeMode::CSlotsTwiceDecode},
         // ZDecode
         {"Input", DecodeMode::ZDecode},
         {"CMult", DecodeMode::ZDecode},
@@ -137,11 +138,15 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
     }
     if (decodeMode == DecodeMode::CSlotsTwiceDecode) {
-        auto cSlotsTwice = valuesTwice.toCSlots();
+        auto cSlotsTwice       = valuesTwice.toCSlots();
+        uint64_t reconstructed = 0;
         for (size_t i = 0; i != cSlotsTwice.getSlots().size(); ++i) {
             std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(ceil(log2sf / 4.0))
                       << std::endl;
+            auto k = static_cast<int>(std::round(cSlotsTwice[i].getReal().convertToDouble()));
+            reconstructed += (static_cast<uint64_t>(k) << (i));
         }
+        std::cout << msg << "  complexValuesTwice Reconstructed: " << std::hex << reconstructed << std::endl;
     }
     if (decodeMode == DecodeMode::ZDecode) {
         ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
@@ -382,7 +387,7 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    auto zPoly = ZPolynomial::encode(32, -1);
+    auto zPoly = ZPolynomial::encode(32, 0xdeadbeaf);
     // add some noise
     for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
         zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 25);

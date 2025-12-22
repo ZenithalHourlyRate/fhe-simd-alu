@@ -33,6 +33,10 @@ public:
     static BigFixedPoint two(int log2S = 128) {
         return BigFixedPoint(BigInteger(2) << log2S, log2S, false);
     }
+    // Requires power > -128
+    static BigFixedPoint pow2(int power, int log2S = 128) {
+        return BigFixedPoint(BigInteger(1) << (log2S + power), log2S, false);
+    }
     static BigFixedPoint half(int log2S = 128) {
         return BigFixedPoint(BigInteger(1) << (log2S - 1), log2S, false);
     }
