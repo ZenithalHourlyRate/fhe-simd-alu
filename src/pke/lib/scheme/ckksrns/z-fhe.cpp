@@ -1,6 +1,12 @@
 #include "scheme/ckksrns/z-fhe.h"
 #include "scheme/ckksrns/ckksrns-fhe.h"
 
+double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) __attribute__((weak));
+
+double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) {
+    return 0.0;
+}
+
 namespace lbcrypto {
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const {
@@ -127,8 +133,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     //------------------------------------------------------------------------------
 
     // Then R2C here will multiply by rN because of the construction of U0HatT
-    auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, raised) :
-                               EvalSlotsToCoeffs(precomp.m_U0PreFFT, raised, cSlots);
+    auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, raised) :
+                               EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, raised, cSlots);
     z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
     z->ModReduceInPlace(r2c);
     // Now the message is N * m
