@@ -169,11 +169,11 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    uint32_t zN     = 16;
-    uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
-    //uint32_t zSlots = 128;
-    zN_global     = zN;
-    zSlots_global = zSlots;
+    uint32_t zN = 32;
+    //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
+    uint32_t zSlots = 128;
+    zN_global       = zN;
+    zSlots_global   = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
 
     fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16);

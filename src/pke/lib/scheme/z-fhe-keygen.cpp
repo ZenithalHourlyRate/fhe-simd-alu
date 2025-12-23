@@ -77,19 +77,9 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
     {
         // Computing the baby-step g and the giant-step h.
         auto zNDiv2 = zN / 2;
-        auto M      = zN * 2;
         // FUNNY that bStep = g...
         const uint32_t g = std::ceil(std::sqrt(zNDiv2));
         const uint32_t h = std::ceil(static_cast<double>(zNDiv2) / g);
-
-        // To avoid overflowing uint32_t variables, we do some math operations below in a specific order
-        // computing all indices for baby-step giant-step procedure
-        const int32_t indexListSz = static_cast<int32_t>(g) + h + M - 2;
-        if (indexListSz < 0)
-            OPENFHE_THROW("indexListSz can not be negative");
-
-        std::vector<uint32_t> indexList;
-        indexList.reserve(indexListSz);
 
         // We have both positive and negative rotations
         for (int32_t i = 1; i <= g; ++i) {
@@ -118,6 +108,7 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
                 if (nextIter * w >= zN / 2) {
                     rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
                 }
+                std::cout << "Adding rotation index: " << rotationIndex << std::endl;
                 s.insert(rotationIndex);
             }
         }

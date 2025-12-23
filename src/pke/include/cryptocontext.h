@@ -2302,6 +2302,7 @@ public:
     */
     Ciphertext<Element> EvalRotate(ConstCiphertext<Element>& ciphertext, int32_t index) const {
         ValidateCiphertext(ciphertext);
+        std::cout << "EvalRotate index: " << index << std::endl;
 
         auto evalKeyMap = CryptoContextImpl<Element>::GetEvalAutomorphismKeyMap(ciphertext->GetKeyTag());
         return GetScheme()->EvalAtIndex(ciphertext, index, evalKeyMap);
