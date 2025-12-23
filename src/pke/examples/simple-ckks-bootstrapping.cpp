@@ -294,10 +294,10 @@ void SimpleBootstrapExample() {
     * you do not need to set the ring dimension.
     */
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 10);
+    parameters.SetRingDim(1 << 15);
     //parameters.SetNumLargeDigits(6);
 
-    ScalingTechnique rescaleTech = FIXEDMANUAL;
+    ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
     uint32_t dcrtBits            = 33;
     uint32_t firstMod            = 33;
 
@@ -459,7 +459,7 @@ void SimpleBootstrapExample() {
     std::cout << "Finished Warmup\n";
     auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
-        //ct2 = fheZ->EvalArithToBoolean(ct);
+        ct2 = fheZ->EvalArithToBoolean(ct);
     }
     auto end      = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -472,7 +472,7 @@ void SimpleBootstrapExample() {
     __heir_debug2(ct3, "CMult");
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
-        //    ct3 = fheZ->EvalArithToArith(ct);
+        ct3 = fheZ->EvalArithToArith(ct);
     }
     end      = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -484,13 +484,11 @@ void SimpleBootstrapExample() {
     __heir_debug2(ct, "BooleanAgain");
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
-        //    ct = fheZ->EvalBooleanToBoolean(ct2);
+        ct = fheZ->EvalBooleanToBoolean(ct2);
     }
     end      = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     std::cout << "Average time for BooleanToBoolean: " << double(duration) / 3.0 << " ms\n";
-    //ct = fheZ->EvalBooleanToBoolean(ct);
-    //__heir_debug2(ct, "BooleanAgain");
 
     /// TEST Rotate
     if (0) {
