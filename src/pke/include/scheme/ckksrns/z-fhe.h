@@ -117,6 +117,8 @@ public:
                             uint32_t w = 4, int32_t arithToBooleanCutoff = -12, uint32_t lutMSBOrder = 1,
                             uint32_t lutIDOrder = 1);
 
+    void EvalBootstrapKeyGen(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots);
+
 public:
     Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
                                              ConstCiphertext<DCRTPoly>& ct) const;
@@ -213,6 +215,18 @@ private:
     std::vector<std::vector<ZBootstrapPlaintextCache>> EvalSlotsToCoeffsPrecompute(
         const CryptoContextImpl<DCRTPoly>& cc, const BigCVector& pows, const std::vector<uint32_t>& rotGroup,
         bool flag_i) const;
+
+    //------------------------------------------------------------------------------
+    // Find Rotation Indices
+    //------------------------------------------------------------------------------
+    std::vector<int32_t> FindBootstrapRotationIndices(uint32_t zN, uint32_t zSlots, uint32_t M);
+
+    // ATTN: The following 3 functions are helper methods to be called in FindBootstrapRotationIndices() only.
+    // so they DO NOT remove possible duplicates and automorphisms corresponding to 0 and M/4.
+    // These methods completely depend on FindBootstrapRotationIndices() to do that.
+    std::vector<uint32_t> FindLinearTransformRotationIndices(uint32_t slots, uint32_t M);
+    std::vector<uint32_t> FindCoeffsToSlotsRotationIndices(uint32_t slots, uint32_t M);
+    std::vector<uint32_t> FindSlotsToCoeffsRotationIndices(uint32_t slots, uint32_t M);
 
 private:
     // corresponds to probability of less than 2^{-128}

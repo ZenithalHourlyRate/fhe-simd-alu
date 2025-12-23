@@ -332,12 +332,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         parts.push_back(lut);
 
         // remove part from core
-        //std::vector<Ciphertext<DCRTPoly>> toRemoveVec;
         for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
             int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
             // Note the rotation index is negative here
             int32_t rotationIndex = diff * w;
-            // TODO: make this a parameter
             if (rotationIndex <= precomp.m_cutoff) {
                 // We do not remove them any more
                 // Just treat the lower parts as noises

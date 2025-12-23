@@ -124,23 +124,6 @@ Ciphertext<DCRTPoly> EncryptZero(const PublicKey<DCRTPoly> publicKey) {
     return ctxt;
 }
 
-Ciphertext<DCRTPoly> Conjugate(ConstCiphertext<DCRTPoly> ciphertext,
-                               const std::map<uint32_t, EvalKey<DCRTPoly>>& evalKeyMap) {
-    uint32_t N = ciphertext->GetElements()[0].GetRingDimension();
-    std::vector<uint32_t> vec(N);
-    PrecomputeAutoMap(N, 2 * N - 1, &vec);
-
-    auto result = ciphertext->Clone();
-
-    auto algo = ciphertext->GetCryptoContext()->GetScheme();
-    algo->KeySwitchInPlace(result, evalKeyMap.at(2 * N - 1));
-
-    auto& rcv = result->GetElements();
-    rcv[0]    = rcv[0].AutomorphismTransform(2 * N - 1, vec);
-    rcv[1]    = rcv[1].AutomorphismTransform(2 * N - 1, vec);
-    return result;
-}
-
 //=============================================================================
 // KeyGen Related
 //=============================================================================
