@@ -15,9 +15,10 @@ ZPolynomial CSlots::getZPolynomial(size_t slotIndex) const {
         OPENFHE_THROW("CSlots::getZPolynomial: slotIndex out of range");
     }
     auto zN = params.getZN();
-    std::vector<BigComplex> cSlotsForIndex(zN / 2);
+    std::vector<BigComplex> cSlotsForIndex(zN / 2, BigFixedPoint::zero());
     for (size_t i = 0; i != zN / 2; ++i) {
-        cSlotsForIndex[i] = slots[slotIndex * (zN / 2) + i % (zN / 2)];
+        // scale down it by zSlots as we did scale up during Z2C
+        cSlotsForIndex[i] = slots[(slotIndex * (zN / 2)) + i] / BigFixedPoint::positive(params.getZSlots());
     }
     return ZPolynomial(ZLinearTransform::MultZUInverse(zN, cSlotsForIndex));
 }

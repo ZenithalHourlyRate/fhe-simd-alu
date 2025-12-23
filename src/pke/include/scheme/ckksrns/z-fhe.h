@@ -183,11 +183,12 @@ private:
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
     //------------------------------------------------------------------------------
     std::vector<ZBootstrapPlaintextCache> EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
-                                                                         const BigCMatrix& A, uint32_t zSlots) const;
+                                                                         const BigCMatrix& A, uint32_t zSlots,
+                                                                         BigFixedPoint scale) const;
 
     std::vector<ZBootstrapPlaintextCache> EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                          const BigCMatrix& A, const BigCMatrix& B,
-                                                                         uint32_t zSlots) const;
+                                                                         uint32_t zSlots, BigFixedPoint scale) const;
 
     //------------------------------------------------------------------------------
     // Precomputations for CoeffsToSlots and SlotsToCoeffs

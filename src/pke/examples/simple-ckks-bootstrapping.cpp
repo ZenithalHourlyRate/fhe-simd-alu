@@ -164,107 +164,12 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
     if (decodeMode == DecodeMode::ZDecode) {
         ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
-        for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
+        for (size_t i = 0; i != zValues.getCoefficients().size(); ++i) {
             std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
         }
         printZPoly(zValues);
     }
     return 0;
-}
-
-std::vector<BigComplex> another_interpolate(size_t p, int order = 1) {
-    auto f = [&](auto x) {
-        return -(p - double(x)) / p;
-    };
-
-    auto omega = std::exp(2i * M_PI / double(p));
-
-    std::vector<std::complex<double>> beta;
-
-    for (size_t m = 0; m != p; ++m) {
-        std::complex<double> ret = 0;
-        for (size_t ell = 0; ell != p; ++ell) {
-            ret += double(f(ell)) * std::pow(omega, -double(ell) * m);
-        }
-        ret /= double(p);
-        beta.push_back(ret);
-    }
-    std::vector<std::complex<double>> alpha;
-
-    if (order == 1) {
-        for (size_t m = 0; m != p; ++m) {
-            alpha.push_back((1.0 + double(m) / p) * beta[m]);
-        }
-        for (size_t m = p; m != 2 * p; ++m) {
-            alpha.push_back((1.0 - double(m) / p) * beta[m - p]);
-        }
-    }
-    if (order == 2) {
-        for (size_t m = 0; m != p; ++m) {
-            alpha.push_back((1.0 + double(m) * (double(m) + 3 * p) / (2.0 * p * p)) * beta[m]);
-        }
-        for (size_t m = p; m != 2 * p; ++m) {
-            alpha.push_back((-double(m - p) * (double(m - p) + 2 * p) / (double(p) * p)) * beta[m - p]);
-        }
-        for (size_t m = 2 * p; m != 3 * p; ++m) {
-            alpha.push_back((double(m - p - p) * (double(m - p - p) + p) / (2.0 * double(p) * p)) * beta[m - p - p]);
-        }
-    }
-
-    std::vector<BigComplex> alphaBigComplex(alpha.size());
-    for (size_t i = 0; i != alpha.size(); ++i) {
-        alphaBigComplex[i] =
-            BigComplex(BigFixedPoint::fromDouble(alpha[i].real()), BigFixedPoint::fromDouble(alpha[i].imag()));
-    }
-    return alphaBigComplex;
-}
-
-void MSBBootstrap(CiphertextT ct, LeveledZ z, AdvancedZ advZ, FHEZ fheZ, uint32_t oneHotBit) {
-    // Normalize to [-1, 1] from [-16, 16]
-    // This is required by Chebyshev
-    // Multiply by 2 * (rN / N / 32) * Delta, so the result is m / 16 * Delta^2
-    // NOTE: two here should be changed.
-    //auto raisedSF = raised->GetScalingFactorBFP();
-    //auto NBigFP   = BigFixedPoint::positive(N);
-    //auto two      = BigFixedPoint::two();
-    //auto rNBFP    = BigFixedPoint::positive(zN_global * zSlots_global);
-    //auto BFP32    = BigFixedPoint::positive(32);
-    //// Then C2S below will multiply by rN again because of the construction of U0HatT
-    //BigFixedPoint normalizeFactorBFP = raisedSF * two * rNBFP / NBigFP / BFP32 / rNBFP;
-    //BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-    //raised                           = z->EvalMultScalar(raised, normalizeFactor);
-    //raised->SetScalingFactorBFP(raisedSF * raisedSF);
-    //z->ModReduceInPlace(raised);
-    //__heir_debug2(raised, "Normalize");
-
-    // Note that there are other ways...some work first multiply by 1 / N
-    // Then PartialSum
-    // Then use CoeffsToSlots matrix to do the /16
-    // //__heir_debug2(c2s, "C2S");
-
-    //------------------------------------------------------------------------------
-    // Running Approximate Mod Reduction
-    //------------------------------------------------------------------------------
-
-    //auto& coeff_exp = coeff_exp_16_big_complex_46;
-    //auto res        = advZ->EvalChebyshevSeriesPS(c2s, coeff_exp);
-
-    //// Double angle-iterations to get exp(2*Pi*i*x)
-    //res = z->EvalMult(res, res);
-    //z->ModReduceInPlace(res);
-    //res = z->EvalMult(res, res);
-    //z->ModReduceInPlace(res);
-
-    //__heir_debug2(res, "Cheby1");
-
-    //------------------------------------------------------------------------------
-    // Running LUT
-    //------------------------------------------------------------------------------
-
-    //auto lutCoeffs = another_interpolate(1l << 8, 2);
-    //auto powers    = advZ->EvalPowers(res, lutCoeffs);
-    //auto lut       = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
-    ////__heir_debug2(lut, "LUT");
 }
 
 void SimpleBootstrapExample();
@@ -363,7 +268,7 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    uint32_t zN = 32;
+    uint32_t zN = 8;
     //uint32_t N  = cc->GetCyclotomicOrder();
     //uint32_t zSlots = N / zN / 2;  // Maximal sparse packing
     uint32_t zSlots = 2;  // Maximal sparse packing
@@ -406,7 +311,7 @@ void SimpleBootstrapExample() {
     ZEncodingParams paramsMaximalSparse(ZMode, zN, zSlots);
     std::vector<BigComplex> maximalSlots;
     for (size_t i = 0; i != zSlots; ++i) {
-        auto zPoly        = ZPolynomial::encode(32, 0xFFFFFFFFl - i);
+        auto zPoly        = ZPolynomial::encode(zN, 0xFFl - i);
         auto singleCSlots = zPoly.toCSlots();
         for (size_t j = 0; j != singleCSlots.getSlots().size(); ++j) {
             maximalSlots.push_back(singleCSlots[j] * BigFixedPoint::positive(zSlots));
@@ -426,7 +331,7 @@ void SimpleBootstrapExample() {
     auto encoded = Encrypt(ptxt1, keyPair.publicKey);
     //auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
-    //__heir_debug2(encoded, "Encode");
+    __heir_debug2(encoded, "Input");
 
     /// TEST ADD
     if (0) {

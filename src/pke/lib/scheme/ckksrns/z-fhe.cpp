@@ -307,15 +307,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         // Encode low-hot vector
         std::vector<BigComplex> oneHotVec(2 * cSlots, BigFixedPoint::zero());
         for (uint32_t j = 0; j != zSlots; ++j) {
-            if (iter * w < zN / 2) {
-                for (uint32_t b = 0; b != w; ++b) {
-                    oneHotVec[j * (zN / 2) + (iter * w) + b] = BigFixedPoint::one();
-                }
+            auto index = j * (zN / 2) + (iter * w);
+            if (iter * w >= zN / 2) {
+                index += (zSlots - 1) * (zN / 2);
             }
-            else {
-                for (uint32_t b = 0; b != w; ++b) {
-                    oneHotVec[(zSlots - 1) * zN / 2 + j * (zN / 2) + (iter * w) + b] = BigFixedPoint::one();
-                }
+            for (uint32_t b = 0; b != w; ++b) {
+                oneHotVec[index + b] = BigFixedPoint::one();
             }
         }
 

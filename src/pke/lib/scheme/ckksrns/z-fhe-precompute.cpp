@@ -180,17 +180,22 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         ZV0SpecialB0[0][i] = ZV0SpecialB0[1][i] * BigFixedPoint::two();
     }
 
+    // scaled during encoding
+    BigFixedPoint scaleZU = BigFixedPoint::positive(zSlots);
+    BigFixedPoint scaleZV = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+
     if (isSparse) {
-        precom->m_ZUPre          = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots);
-        precom->m_ZVPre          = EvalZLinearTransformPrecompute(cc, ZV0, ZV1, zSlots);
-        precom->m_ZVSpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, ZV1, zSlots);
+        precom->m_ZUPre          = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots, scaleZU);
+        precom->m_ZVPre          = EvalZLinearTransformPrecompute(cc, ZV0, ZV1, zSlots, scaleZV);
+        precom->m_ZVSpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, ZV1, zSlots, scaleZV);
     }
     else {
         // TODO: deprecate them
-        precom->m_ZU0Pre = EvalZLinearTransformPrecompute(cc, ZU0, zSlots);
-        precom->m_ZU1Pre = EvalZLinearTransformPrecompute(cc, ZU1, zSlots);
-        precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots);
-        precom->m_ZV1Pre = EvalZLinearTransformPrecompute(cc, ZV1, zSlots);
+        precom->m_ZU0Pre = EvalZLinearTransformPrecompute(cc, ZU0, zSlots, scaleZU);
+        precom->m_ZU1Pre = EvalZLinearTransformPrecompute(cc, ZU1, zSlots, scaleZU);
+        precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots, scaleZV);
+        precom->m_ZV1Pre = EvalZLinearTransformPrecompute(cc, ZV1, zSlots, scaleZV);
+        // TODO: add precomputation for ZV0SpecialB0
     }
 
     // LUTs for ArithToBoolean
@@ -245,7 +250,8 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
 
 std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                                const BigCMatrix& A,
-                                                                               uint32_t zSlotsUnsigned) const {
+                                                                               uint32_t zSlotsUnsigned,
+                                                                               BigFixedPoint scale) const {
     int32_t zSlots = zSlotsUnsigned;
     int32_t zNDiv2 = A.size();
     if (zNDiv2 != static_cast<int32_t>(A[0].size()))
@@ -271,8 +277,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
                 repeatedDiag[r * zNDiv2 + k] = diag[k];
             }
         }
-        //for (auto& d : diag)
-        //    d *= scale;
+        for (auto& d : diag)
+            d *= scale;
         result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
     }
 #if !defined(__MINGW32__) && !defined(__MINGW64__)
@@ -289,8 +295,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
                 repeatedDiag[r * zNDiv2 + k] = diag[k];
             }
         }
-        //for (auto& d : diag)
-        //    d *= scale;
+        for (auto& d : diag)
+            d *= scale;
         result[zNDiv2 - 1 - ji] =
             std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
     }
@@ -299,7 +305,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
 
 std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                                const BigCMatrix& A, const BigCMatrix& B,
-                                                                               uint32_t zSlotsUnsigned) const {
+                                                                               uint32_t zSlotsUnsigned,
+                                                                               BigFixedPoint scale) const {
     int32_t zSlots = zSlotsUnsigned;
     int32_t zNDiv2 = A.size();
     if (zNDiv2 != static_cast<int32_t>(A[0].size()))
@@ -325,8 +332,6 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
             vecB[k] = BigFixedPoint::zero();
         }
         //vecA.insert(vecA.end(), vecB.begin(), vecB.end());
-        //for (auto& d : diag)
-        //    d *= scale;
         auto repeatedDiag = BigCVector(2 * cSlots, BigFixedPoint::zero());
         for (int32_t r = 0; r < zSlots; ++r) {
             for (int32_t k = 0; k < zNDiv2; ++k) {
@@ -334,6 +339,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
                 repeatedDiag[r * zNDiv2 + k + cSlots] = vecB[k];
             }
         }
+        for (auto& d : repeatedDiag)
+            d *= scale;
         result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
     }
 #if !defined(__MINGW32__) && !defined(__MINGW64__)
@@ -349,8 +356,6 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
             vecB[k] = BigFixedPoint::zero();
         }
         //vecA.insert(vecA.end(), vecB.begin(), vecB.end());
-        //for (auto& d : diag)
-        //    d *= scale;
         auto repeatedDiag = BigCVector(2 * cSlots, BigFixedPoint::zero());
         for (int32_t r = 0; r < zSlots; ++r) {
             for (int32_t k = 0; k < zNDiv2; ++k) {
@@ -358,6 +363,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
                 repeatedDiag[r * zNDiv2 + k + cSlots] = vecB[k];
             }
         }
+        for (auto& d : repeatedDiag)
+            d *= scale;
         result[zNDiv2 - 1 - ji] =
             std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
     }
