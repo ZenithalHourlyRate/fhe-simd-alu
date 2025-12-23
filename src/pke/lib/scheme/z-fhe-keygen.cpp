@@ -105,19 +105,21 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
     {
         auto w       = p.m_w;
         auto numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
-        for (uint32_t nextIter = 1; nextIter != numIter; ++nextIter) {
-            int32_t diff = -static_cast<int32_t>(nextIter);
-            // Note the rotation index is negative here
-            int32_t rotationIndex = diff * w;
-            if (rotationIndex <= p.m_cutoff) {
-                // We do not remove them any more
-                // Just treat the lower parts as noises
-                break;
+        for (uint32_t iter = 0; iter != numIter; ++iter) {
+            for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
+                int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
+                // Note the rotation index is negative here
+                int32_t rotationIndex = diff * w;
+                if (rotationIndex <= p.m_cutoff) {
+                    // We do not remove them any more
+                    // Just treat the lower parts as noises
+                    break;
+                }
+                if (nextIter * w >= zN / 2) {
+                    rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
+                }
+                s.insert(rotationIndex);
             }
-            if (nextIter * w >= zN / 2) {
-                rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
-            }
-            s.insert(rotationIndex);
         }
     }
 
