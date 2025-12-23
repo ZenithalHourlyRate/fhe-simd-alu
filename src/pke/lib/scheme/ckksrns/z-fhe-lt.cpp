@@ -141,6 +141,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalLinearTransform(std::vector<ZBootstrapPlainte
     auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
     auto sfBFP         = ct->GetScalingFactorBFP();
 
+    // Now initialize cache if not cached
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A.size()))
+    for (size_t i = 0; i < A.size(); ++i) {
+        A[i]->GetPlaintext(sfBFP, elementParams);
+    }
+
     const uint32_t M = cc->GetCyclotomicOrder();
     const uint32_t N = cc->GetRingDimension();
     std::vector<uint32_t> map(N);
@@ -244,6 +250,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalCoeffsToSlots(const std::vector<std::vector<Z
         auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
         auto sfBFP         = fastRotation[0]->GetScalingFactorBFP();
 
+        // Now initialize cache if not cached
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[s].size()))
+        for (size_t i = 0; i < A[s].size(); ++i) {
+            A[s][i]->GetPlaintext(sfBFP, elementParams);
+        }
+
         Ciphertext<DCRTPoly> outer;
         DCRTPoly first;
         for (uint32_t i = 0; i < p.b; ++i) {
@@ -298,6 +310,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalCoeffsToSlots(const std::vector<std::vector<Z
 
         auto elementParams = fastRotationRem[0]->GetElements()[0].GetParams();
         auto sfBFP         = fastRotationRem[0]->GetScalingFactorBFP();
+
+        // Now initialize cache if not cached
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[stop].size()))
+        for (size_t i = 0; i < A[stop].size(); ++i) {
+            A[stop][i]->GetPlaintext(sfBFP, elementParams);
+        }
 
         Ciphertext<DCRTPoly> outer;
         DCRTPoly first;
@@ -403,6 +421,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalSlotsToCoeffs(const std::vector<std::vector<Z
         auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
         auto sfBFP         = fastRotation[0]->GetScalingFactorBFP();
 
+        // Now initialize cache if not cached
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[s].size()))
+        for (size_t i = 0; i < A[s].size(); ++i) {
+            A[s][i]->GetPlaintext(sfBFP, elementParams);
+        }
+
         Ciphertext<DCRTPoly> outer;
         DCRTPoly first;
         for (uint32_t i = 0; i < p.b; ++i) {
@@ -460,6 +484,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalSlotsToCoeffs(const std::vector<std::vector<Z
 
         auto elementParams = fastRotationRem[0]->GetElements()[0].GetParams();
         auto sfBFP         = fastRotationRem[0]->GetScalingFactorBFP();
+
+        // Now initialize cache if not cached
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[smax].size()))
+        for (size_t i = 0; i < A[smax].size(); ++i) {
+            A[smax][i]->GetPlaintext(sfBFP, elementParams);
+        }
 
         Ciphertext<DCRTPoly> outer;
         DCRTPoly first;

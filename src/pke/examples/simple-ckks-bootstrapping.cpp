@@ -133,7 +133,7 @@ void SimpleBootstrapExample() {
     parameters.SetSecretKeyDist(secretKeyDist);
 
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 10);
+    parameters.SetRingDim(1 << 14);
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
@@ -171,7 +171,7 @@ void SimpleBootstrapExample() {
 
     uint32_t zN     = 16;
     uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
-    //uint32_t zSlots = 8;
+    //uint32_t zSlots = 128;
     zN_global     = zN;
     zSlots_global = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
