@@ -1,4 +1,5 @@
 #include "encoding/z-encoding.h"
+#include "math/hermite.h"
 #include "math/z-constants.h"
 #include "scheme/ckksrns/z-fhe.h"
 #include "math/dftransform-bigcomplex.h"
@@ -10,7 +11,8 @@ namespace lbcrypto {
 //------------------------------------------------------------------------------
 
 void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numCSlots,
-                                  std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1) {
+                                  std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1, uint32_t w,
+                                  int32_t arithToBooleanCutoff, uint32_t lutMSBOrder, uint32_t lutIDOrder) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
     uint32_t M     = cc.GetCyclotomicOrder();
@@ -160,6 +162,51 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots);
         precom->m_ZV1Pre = EvalZLinearTransformPrecompute(cc, ZV1, zSlots);
     }
+
+    // LUTs for ArithToBoolean
+    uint64_t p            = 1l << w;
+    precom->m_w           = w;
+    precom->m_cutoff      = arithToBooleanCutoff;
+    precom->m_lutIDOrder  = lutIDOrder;
+    precom->m_lutMSBOrder = lutMSBOrder;
+
+    auto lutMSBCoeffs = GetHermiteTrigCoefficients(
+        [&](int64_t x) -> int64_t {
+            // Input x is in {0, 1, ..., p-1}
+            // Extract the negated MSB
+            // Because we work in (-1, 0] after Flatten
+            if (x <= p / 2 && x != 0) {
+                return 1;
+            }
+            else {
+                return 0;
+            }
+        },
+        p, lutMSBOrder, 1);  // We do not rescale here
+    auto lutIDCoeffs = GetHermiteTrigCoefficients(
+        [&](int64_t x) -> int64_t {
+            // Input x is in {0, 1, ..., p-1}
+            // Because we work in (-1, 0] after Flatten
+            if (x == 0)
+                return 0;
+            else
+                return x - p;
+        },
+        p, lutIDOrder, p);
+
+    // Temporary: directly convert to BigComplex
+    std::vector<BigComplex> lutMSBCoeffsBC(lutMSBCoeffs.size());
+    for (size_t i = 0; i != lutMSBCoeffsBC.size(); ++i) {
+        lutMSBCoeffsBC[i] = BigComplex(BigFixedPoint::fromDouble(lutMSBCoeffs[i].real()),
+                                       BigFixedPoint::fromDouble(lutMSBCoeffs[i].imag()));
+    }
+    std::vector<BigComplex> lutIDCoeffsBC(lutIDCoeffs.size());
+    for (size_t i = 0; i != lutIDCoeffsBC.size(); ++i) {
+        lutIDCoeffsBC[i] = BigComplex(BigFixedPoint::fromDouble(lutIDCoeffs[i].real()),
+                                      BigFixedPoint::fromDouble(lutIDCoeffs[i].imag()));
+    }
+    precom->m_lutMSBCoeffs = lutMSBCoeffsBC;
+    precom->m_lutIDCoeffs  = lutIDCoeffsBC;
 }
 
 //------------------------------------------------------------------------------

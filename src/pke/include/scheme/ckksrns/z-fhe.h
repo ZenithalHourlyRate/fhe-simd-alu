@@ -88,6 +88,18 @@ public:
     std::vector<ZBootstrapPlaintextCache> m_ZU1Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV1Pre;
+
+    // Parameters for ArithToBoolean
+    // Num bits per iteration
+    uint32_t m_w;
+    // lower bits below this threshold is not cleaned
+    int32_t m_cutoff;
+    // Interpolation order
+    uint32_t m_lutIDOrder;
+    uint32_t m_lutMSBOrder;
+    // coefficients for LUTs
+    std::vector<BigComplex> m_lutIDCoeffs;
+    std::vector<BigComplex> m_lutMSBCoeffs;
 };
 
 class FHEZImpl {
@@ -95,7 +107,9 @@ public:
     FHEZImpl(LeveledZ z, AdvancedZ advZ) : z(z), advZ(advZ) {}
 
     void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numCSlots,
-                            std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1 = {0, 0});
+                            std::vector<uint32_t> levelBudget = {2, 2}, std::vector<uint32_t> dim1 = {0, 0},
+                            uint32_t w = 4, int32_t arithToBooleanCutoff = -12, uint32_t lutMSBOrder = 1,
+                            uint32_t lutIDOrder = 1);
 
 public:
     Ciphertext<DCRTPoly> EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,

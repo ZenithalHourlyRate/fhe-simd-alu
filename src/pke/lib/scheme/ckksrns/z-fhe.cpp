@@ -308,48 +308,9 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
 
     auto zN     = ct->GetZEncodingParams().getZN();
     auto zSlots = ct->GetZEncodingParams().getZSlots();
-    uint32_t w  = 4;  // TODO: make it a parameter
-    uint64_t p  = 1l << w;
+    uint32_t w  = precomp.m_w;
     // We ask zN to be multiple of w now...
     uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
-
-    auto lutMSBOrder  = 1;  // TODO: make it a parameter
-    auto lutMSBCoeffs = GetHermiteTrigCoefficients(
-        [&](int64_t x) -> int64_t {
-            // Input x is in {0, 1, ..., p-1}
-            // Extract the negated MSB
-            // Because we work in (-1, 0] after Flatten
-            if (x <= p / 2 && x != 0) {
-                return 1;
-            }
-            else {
-                return 0;
-            }
-        },
-        p, lutMSBOrder, 1);  // We do not rescale here
-    auto lutIDOrder  = 1;    // TODO: make it a parameter
-    auto lutIDCoeffs = GetHermiteTrigCoefficients(
-        [&](int64_t x) -> int64_t {
-            // Input x is in {0, 1, ..., p-1}
-            // Because we work in (-1, 0] after Flatten
-            if (x == 0)
-                return 0;
-            else
-                return x - p;
-        },
-        p, lutIDOrder, p);
-
-    // Temporary: directly convert to BigComplex
-    std::vector<BigComplex> lutMSBCoeffsBC(lutMSBCoeffs.size());
-    for (size_t i = 0; i != lutMSBCoeffsBC.size(); ++i) {
-        lutMSBCoeffsBC[i] = BigComplex(BigFixedPoint::fromDouble(lutMSBCoeffs[i].real()),
-                                       BigFixedPoint::fromDouble(lutMSBCoeffs[i].imag()));
-    }
-    std::vector<BigComplex> lutIDCoeffsBC(lutIDCoeffs.size());
-    for (size_t i = 0; i != lutIDCoeffsBC.size(); ++i) {
-        lutIDCoeffsBC[i] = BigComplex(BigFixedPoint::fromDouble(lutIDCoeffs[i].real()),
-                                      BigFixedPoint::fromDouble(lutIDCoeffs[i].imag()));
-    }
 
     std::vector<Ciphertext<DCRTPoly>> parts;
 
@@ -381,9 +342,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         auto coreMasked = z->EvalMult(core, oneHotPtxt);
         z->ModReduceInPlace(coreMasked);
 
-        std::cout << "masked level: " << coreMasked->GetLevel() << std::endl;
-        auto lut = internalBooleanToBooleanCustomLUT(coreMasked, lutIDCoeffsBC);
-        std::cout << "lut level: " << lut->GetLevel() << std::endl;
+        auto lut = internalBooleanToBooleanCustomLUT(coreMasked, precomp.m_lutIDCoeffs);
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
@@ -395,10 +354,16 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         //std::vector<Ciphertext<DCRTPoly>> toRemoveVec;
         for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
             int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
-            // Multiply by 1 / (2^{nextIter - iter} * p)
-            auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
             // Note the rotation index is negative here
             int32_t rotationIndex = diff * w;
+            // TODO: make this a parameter
+            if (rotationIndex <= precomp.m_cutoff) {
+                // We do not remove them any more
+                // Just treat the lower parts as noises
+                break;
+            }
+            // Multiply by 1 / (2^{nextIter - iter} * p)
+            auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
             if (nextIter * w >= zN / 2) {
                 rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
             }
@@ -417,7 +382,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         z->EvalAddInPlace(parts[0], parts[i]);
     }
 
-    return internalBooleanToBooleanCustomLUT(parts[0], lutMSBCoeffsBC);
+    return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTPoly>& ct) const {
