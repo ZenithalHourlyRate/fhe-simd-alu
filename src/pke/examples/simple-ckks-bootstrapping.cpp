@@ -299,8 +299,8 @@ void SimpleBootstrapExample() {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 59;
-    uint32_t firstMod            = 59;
+    uint32_t dcrtBits            = 45;
+    uint32_t firstMod            = 45;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
@@ -364,21 +364,14 @@ void SimpleBootstrapExample() {
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
     uint32_t zN = 32;
-    uint32_t N  = cc->GetCyclotomicOrder();
+    //uint32_t N  = cc->GetCyclotomicOrder();
     //uint32_t zSlots = N / zN / 2;  // Maximal sparse packing
-    uint32_t zSlots = 1;  // Maximal sparse packing
-    zN_global       = zN;
-    zSlots_global   = zSlots;
+    uint32_t zSlots = 2;  // Maximal sparse packing
+    //uint32_t zSlots = 1;  // Maximal sparse packing
+    zN_global     = zN;
+    zSlots_global = zSlots;
 
-    auto cSlots  = zN * zSlots / 2;
-    auto cSlots2 = cSlots * 2;
-    // For regular encoding
-    DiscreteFourierTransformBigComplex::Initialize(cSlots * 4, cSlots);
-    // For encoding of bootstrapping related plaintext for sparse bootstrapping
-    DiscreteFourierTransformBigComplex::Initialize(cSlots2 * 4, cSlots2);
-    ZLinearTransform::Initialize(zN);
-
-    fheZ->EvalBootstrapSetup(*cc, zN * zSlots / 2, levelBudget);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16);
 
     cc_global = cc;
     pk_global = keyPair.publicKey;
@@ -403,66 +396,65 @@ void SimpleBootstrapExample() {
     //
     //__heir_debug2(zero, "Input");
 
-    auto zPoly = ZPolynomial::encode(32, 0x1);
+    //auto zPoly = ZPolynomial::encode(32, 0xdeadbeaf);
     // add some noise
     //for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
     //    zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 25);
     //}
-    auto singleCSlots = zPoly.toCSlots();
+    //auto singleCSlots = zPoly.toCSlots();
     // Multiply by N/(2 * n) for maximal sparse packing
     ZEncodingParams paramsMaximalSparse(ZMode, zN, zSlots);
-    std::vector<BigComplex> scaledSlots;
-    for (size_t i = 0; i != singleCSlots.getSlots().size(); ++i) {
-        scaledSlots.push_back(singleCSlots[i] * BigFixedPoint::positive(N) / BigFixedPoint::positive(2 * zN));
-    }
     std::vector<BigComplex> maximalSlots;
     for (size_t i = 0; i != zSlots; ++i) {
+        auto zPoly        = ZPolynomial::encode(32, 0xFFFFFFFFl - i);
+        auto singleCSlots = zPoly.toCSlots();
         for (size_t j = 0; j != singleCSlots.getSlots().size(); ++j) {
-            maximalSlots.push_back(scaledSlots[j]);
+            maximalSlots.push_back(singleCSlots[j] * BigFixedPoint::positive(zSlots));
         }
     }
     CSlots maximalCSlots(paramsMaximalSparse, maximalSlots);
     RPolynomial scaledRPoly = maximalCSlots.toRPolynomial();
 
-    RPolynomial value1 = zPoly.toCSlots().toRPolynomial();
-    Plaintext ptxt1    = ZEncodingImpl::encodeR(value1, elemParam, sfq0);
+    //RPolynomial value1 = zPoly.toCSlots().toRPolynomial();
+    auto value1     = scaledRPoly;
+    Plaintext ptxt1 = ZEncodingImpl::encodeR(value1, elemParam, sfq0);
 
-    RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
-    Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sfq0);
+    //RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
+    //Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sfq0);
 
     /// TEST ENCODE
-    auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
-    auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
+    auto encoded = Encrypt(ptxt1, keyPair.publicKey);
+    //auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
     //__heir_debug2(encoded, "Encode");
 
     /// TEST ADD
     if (0) {
-        auto ctAdd = z->EvalAdd(encoded, ptxt2);
+        auto ctAdd = z->EvalAdd(encoded, encoded);
 
         __heir_debug2(ctAdd, "Add");
     }
 
     /// TEST CT-PT-MULT
-    RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
-    Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sfq0);
+    //RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
+    //Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sfq0);
 
-    if (0) {
-        auto ctMul = z->EvalMult(encoded, tPtxt);
-        __heir_debug2(ctMul, "Mult");
-        z->ModReduceInPlace(ctMul);
-        __heir_debug2(ctMul, "Mult");
-    }
+    //if (0) {
+    //    auto ctMul = z->EvalMult(encoded, tPtxt);
+    //    __heir_debug2(ctMul, "Mult");
+    //    z->ModReduceInPlace(ctMul);
+    //    __heir_debug2(ctMul, "Mult");
+    //}
 
     /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct = encoded;
-    if (0) {
-        auto ctMul = zEvalMultFull(z, encoded, encoded2, tPtxt);
-        z->ModReduceInPlace(ctMul, 2);
-        __heir_debug2(ctMul, "CMult");
-        ct = ctMul;
-    }
-    __heir_debug2(ct, "Input");
+    //if (0) {
+    //    auto ctMul = zEvalMultFull(z, encoded, encoded, tPtxt);
+    //    z->ModReduceInPlace(ctMul, 2);
+    //    __heir_debug2(ctMul, "CMult");
+    //    ct = ctMul;
+    //}
+    //__heir_debug2(ct, "Input");
 
     if (0) {
         ct = fheZ->EvalArithToArith(ct);

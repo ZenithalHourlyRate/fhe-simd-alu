@@ -112,7 +112,7 @@ class FHEZImpl {
 public:
     FHEZImpl(LeveledZ z, AdvancedZ advZ) : z(z), advZ(advZ) {}
 
-    void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numCSlots,
+    void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                             std::vector<uint32_t> levelBudget = {2, 2}, std::vector<uint32_t> dim1 = {0, 0},
                             uint32_t w = 4, int32_t arithToBooleanCutoff = -12, uint32_t lutMSBOrder = 1,
                             uint32_t lutIDOrder = 1);

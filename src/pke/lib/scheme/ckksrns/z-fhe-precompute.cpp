@@ -10,23 +10,32 @@ namespace lbcrypto {
 // Bootstrap Wrapper
 //------------------------------------------------------------------------------
 
-void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numCSlots,
+void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                                   std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1, uint32_t w,
                                   int32_t arithToBooleanCutoff, uint32_t lutMSBOrder, uint32_t lutIDOrder) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
-    uint32_t N     = cc.GetRingDimension();
-    uint32_t M     = cc.GetCyclotomicOrder();
-    uint32_t slots = (numCSlots == 0) ? M / 4 : numCSlots;
+    uint32_t N  = cc.GetRingDimension();
+    uint32_t M  = cc.GetCyclotomicOrder();
+    auto cSlots = zN * zSlots / 2;
 
-    m_bootPrecomMap[slots] = std::make_shared<ZBootstrapPrecom>();
+    // Initialize transforms
+    ZLinearTransform::Initialize(zN);
+    auto cSlots2 = cSlots * 2;
+    // For regular encoding
+    DiscreteFourierTransformBigComplex::Initialize(cSlots * 4, cSlots);
+    // For encoding of bootstrapping related plaintext for sparse bootstrapping
+    DiscreteFourierTransformBigComplex::Initialize(cSlots2 * 4, cSlots2);
+    auto& ZU = ZLinearTransform::GetZU(zN);
+    auto& ZV = ZLinearTransform::GetZUInverse(zN);
 
-    auto& precom     = m_bootPrecomMap[slots];
-    precom->m_cSlots = slots;
+    m_bootPrecomMap[cSlots] = std::make_shared<ZBootstrapPrecom>();
+
+    auto& precom     = m_bootPrecomMap[cSlots];
+    precom->m_cSlots = cSlots;
 
     // even for the case of a single slot we need one level for rescaling
-    uint32_t logSlots = (slots < 3) ? 1 : std::log2(slots);
-
+    uint32_t logSlots = (cSlots < 3) ? 1 : std::log2(cSlots);
     // Perform some checks on the level budget and compute parameters
     uint32_t newBudget0 = levelBudget[0];
     if (newBudget0 > logSlots) {
@@ -47,17 +56,17 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         newBudget1 = 1;
     }
 
-    precom->m_paramsEnc = GetCollapsedFFTParams(slots, newBudget0, dim1[0]);
-    precom->m_paramsDec = GetCollapsedFFTParams(slots, newBudget1, dim1[1]);
+    precom->m_paramsEnc = GetCollapsedFFTParams(cSlots, newBudget0, dim1[0]);
+    precom->m_paramsDec = GetCollapsedFFTParams(cSlots, newBudget1, dim1[1]);
 
-    uint32_t m     = 4 * slots;
+    uint32_t m     = 4 * cSlots;
     uint32_t mmask = m - 1;  // assumes m is power of 2
     bool isSparse  = (M != m);
 
     // computes indices for all primitive roots of unity
-    std::vector<uint32_t> rotGroup(slots);
+    std::vector<uint32_t> rotGroup(cSlots);
     uint32_t fivePows = 1;
-    for (uint32_t i = 0; i < slots; ++i) {
+    for (uint32_t i = 0; i < cSlots; ++i) {
         rotGroup[i] = fivePows;
         fivePows *= 5;
         fivePows &= mmask;
@@ -114,12 +123,12 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
 
     if (isLTBootstrap) {
         if (isSparse) {
-            BigCMatrix U0(slots, BigCVector(slots));
-            BigCMatrix U0hatT(slots, BigCVector(slots));
-            BigCMatrix U1(slots, BigCVector(slots));
-            BigCMatrix U1hatT(slots, BigCVector(slots));
-            for (uint32_t i = 0; i < slots; ++i) {
-                for (uint32_t j = 0; j < slots; ++j) {
+            BigCMatrix U0(cSlots, BigCVector(cSlots));
+            BigCMatrix U0hatT(cSlots, BigCVector(cSlots));
+            BigCMatrix U1(cSlots, BigCVector(cSlots));
+            BigCMatrix U1hatT(cSlots, BigCVector(cSlots));
+            for (uint32_t i = 0; i < cSlots; ++i) {
+                for (uint32_t j = 0; j < cSlots; ++j) {
                     U0[i][j]     = ksiPows[(j * rotGroup[i]) & mmask];
                     U0hatT[j][i] = U0[i][j].conj();
                     U1[i][j]     = I * U0[i][j];
@@ -131,10 +140,10 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
             precom->m_U0hatTPreScaledK = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CWithK);
         }
         else {
-            BigCMatrix U0(slots, BigCVector(slots));
-            BigCMatrix U0hatT(slots, BigCVector(slots));
-            for (uint32_t i = 0; i < slots; ++i) {
-                for (uint32_t j = 0; j < slots; ++j) {
+            BigCMatrix U0(cSlots, BigCVector(cSlots));
+            BigCMatrix U0hatT(cSlots, BigCVector(cSlots));
+            for (uint32_t i = 0; i < cSlots; ++i) {
+                for (uint32_t j = 0; j < cSlots; ++j) {
                     U0[i][j]     = ksiPows[(j * rotGroup[i]) & mmask];
                     U0hatT[j][i] = U0[i][j].conj();
                 }
@@ -151,15 +160,7 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     }
 
     // Now deal with Z Linear Transform
-    size_t zBits  = 32;
-    size_t zSlots = 1;
-    size_t zN     = zBits;
-
     // We note that ZUInverse is scaled.
-    ZLinearTransform::Initialize(zN);
-    auto& ZU = ZLinearTransform::GetZU(zN);
-    auto& ZV = ZLinearTransform::GetZUInverse(zN);
-
     BigCMatrix ZU0(zN / 2, BigCVector(zN / 2));
     BigCMatrix ZU1(zN / 2, BigCVector(zN / 2));
     BigCMatrix ZV0(zN / 2, BigCVector(zN / 2));
