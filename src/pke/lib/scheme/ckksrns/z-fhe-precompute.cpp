@@ -15,6 +15,7 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                                   int32_t arithToBooleanCutoff, uint32_t lutMSBOrder, uint32_t lutIDOrder) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
+    uint32_t N     = cc.GetRingDimension();
     uint32_t M     = cc.GetCyclotomicOrder();
     uint32_t slots = (numCSlots == 0) ? M / 4 : numCSlots;
 
@@ -71,20 +72,45 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     }
     ksiPows[m] = ksiPows[0];
 
-    //uint32_t approxModDepth = GetModDepthInternal(cryptoParams->GetSecretKeyDist());
-
-    //uint32_t depthBT = approxModDepth + precom->m_paramsEnc.lvlb + precom->m_paramsDec.lvlb;
-
-    // compute # of levels to remain when encoding the coefficients
-    // for FLEXIBLEAUTOEXT we do not need extra modulus in auxiliary plaintexts
-    //uint32_t L0 = cryptoParams->GetElementParams()->GetParams().size();
-
-    //uint32_t lEnc = L0 - (precom->m_paramsEnc.lvlb + 1);
-    //uint32_t lDec = L0 - depthBT;
-
     bool isLTBootstrap = (precom->m_paramsEnc.lvlb == 1) && (precom->m_paramsDec.lvlb == 1);
 
     auto I = BigComplex(BigFixedPoint::zero(), BigFixedPoint::one());
+
+    // Scale R2C by 1/N so we don't have to normalize after R2C
+    BigFixedPoint scaleC2R      = BigFixedPoint::one();  // No scaling for C2R
+    BigFixedPoint scaleR2C      = BigFixedPoint::one() / BigFixedPoint::positive(N);
+    BigFixedPoint scaleR2CWithK = scaleR2C / BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
+
+    // For FFT-like, scale can be distributed among levels
+    auto r2clvlb = precom->m_paramsEnc.lvlb;
+    std::vector<BigFixedPoint> scaleR2CFFT;
+    std::vector<BigFixedPoint> scaleR2CWithKFFT;
+    uint32_t log2N = std::round(std::log2(N));
+    // We require K to be power of 2
+    uint32_t log2K = std::round(std::log2(K_SPARSE_ENCAPSULATED));
+    // distribute log2N among levels
+    uint32_t baseScale = log2N / r2clvlb;
+    uint32_t remScale  = log2N % r2clvlb;
+    for (uint32_t i = 0; i < r2clvlb; ++i) {
+        if (i != r2clvlb - 1) {
+            auto scaleBFP = BigFixedPoint::positive(1l << (baseScale));
+            scaleR2CFFT.push_back(BigFixedPoint::one() / scaleBFP);
+        }
+        else {
+            auto scaleBFP = BigFixedPoint::positive(1l << (baseScale + remScale));
+            scaleR2CFFT.push_back(BigFixedPoint::one() / scaleBFP);
+        }
+    }
+    uint32_t baseScaleK = (log2N + log2K) / r2clvlb;
+    uint32_t remScaleK  = (log2N + log2K) % r2clvlb;
+    for (uint32_t i = 0; i < r2clvlb; ++i) {
+        if (i != r2clvlb - 1) {
+            scaleR2CWithKFFT.push_back(BigFixedPoint::one() / BigFixedPoint::positive(1l << (baseScaleK)));
+        }
+        else {
+            scaleR2CWithKFFT.push_back(BigFixedPoint::one() / BigFixedPoint::positive(1l << (baseScaleK + remScaleK)));
+        }
+    }
 
     if (isLTBootstrap) {
         if (isSparse) {
@@ -100,8 +126,9 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U1hatT[j][i] = U1[i][j].conj();
                 }
             }
-            precom->m_U0Pre     = EvalLinearTransformPrecompute(cc, U0, U1, 1);
-            precom->m_U0hatTPre = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0);
+            precom->m_U0Pre            = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
+            precom->m_U0hatTPre        = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
+            precom->m_U0hatTPreScaledK = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CWithK);
         }
         else {
             BigCMatrix U0(slots, BigCVector(slots));
@@ -112,13 +139,15 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U0hatT[j][i] = U0[i][j].conj();
                 }
             }
-            precom->m_U0Pre     = EvalLinearTransformPrecompute(cc, U0);
-            precom->m_U0hatTPre = EvalLinearTransformPrecompute(cc, U0hatT);
+            precom->m_U0Pre            = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
+            precom->m_U0hatTPre        = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
+            precom->m_U0hatTPreScaledK = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CWithK);
         }
     }
     else {
-        precom->m_U0PreFFT     = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
-        precom->m_U0hatTPreFFT = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false);
+        precom->m_U0PreFFT            = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
+        precom->m_U0hatTPreFFT        = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
+        precom->m_U0hatTPreFFTScaledK = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CWithKFFT);
     }
 
     // Now deal with Z Linear Transform
@@ -339,7 +368,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
 //------------------------------------------------------------------------------
 
 std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
-                                                                              const BigCMatrix& A) const {
+                                                                              const BigCMatrix& A,
+                                                                              BigFixedPoint scale) const {
     const int32_t slots = A.size();
     if (slots != static_cast<int32_t>(A[0].size()))
         OPENFHE_THROW("The matrix passed to EvalLTPrecompute is not square");
@@ -354,8 +384,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
 #endif
     for (int32_t ji = 0; ji < slots; ++ji) {
         auto diag = ExtractShiftedDiagonal(A, ji);
-        //for (auto& d : diag)
-        //    d *= scale;
+        for (auto& d : diag)
+            d *= scale;
         result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(diag, -step * (ji / step)));
     }
     return result;
@@ -363,7 +393,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
 
 std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                               const BigCMatrix& A, const BigCMatrix& B,
-                                                                              uint32_t orientation) const {
+                                                                              uint32_t orientation,
+                                                                              BigFixedPoint scale) const {
     const int32_t slots = static_cast<int32_t>(A.size());
 
     auto g = GetBootPrecom(slots).m_paramsEnc.g;
@@ -381,8 +412,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
             auto vecA = ExtractShiftedDiagonal(A, ji);
             auto vecB = ExtractShiftedDiagonal(B, ji);
             vecA.insert(vecA.end(), vecB.begin(), vecB.end());
-            //for (auto& d : diag)
-            //    d *= scale;
+            for (auto& d : vecA)
+                d *= scale;
             result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(vecA, -step * (ji / step)));
         }
     }
@@ -405,8 +436,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
             // slots x 2*slots
             auto vec = ExtractShiftedDiagonal(newA, ji);
             auto res = Rotate(vec, -step * (ji / step));
-            //for (auto& d : diag)
-            //    d *= scale;
+            for (auto& d : vec)
+                d *= scale;
             result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(res);
         }
     }
@@ -415,8 +446,8 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalLinearTransformPrecompute(co
 }
 
 std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPrecompute(
-    const CryptoContextImpl<DCRTPoly>& cc, const BigCVector& A, const std::vector<uint32_t>& rotGroup,
-    bool flag_i) const {
+    const CryptoContextImpl<DCRTPoly>& cc, const BigCVector& A, const std::vector<uint32_t>& rotGroup, bool flag_i,
+    std::vector<BigFixedPoint> scales) const {
     const uint32_t slots = rotGroup.size();
 
     const auto& p = GetBootPrecom(slots).m_paramsEnc;
@@ -453,11 +484,12 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
             for (uint32_t ij = 0; ij < limit; ++ij) {
                 if (ij != p.numRotations) {
                     // Maybe we need it one day???
-                    if ((flagRem == 0) && (s == stop + 1)) {
-                        // do the scaling only at the last set of coefficients
-                        //for (auto& c : coeff[s][ij])
-                        //    c *= scale;
-                    }
+                    //if ((flagRem == 0) && (s == stop + 1)) {
+                    //    // do the scaling only at the last set of coefficients
+                    //}
+                    // We do the scaling at every level
+                    for (auto& c : coeff[s][ij])
+                        c *= scales[s];
 
                     auto rot = Rotate(coeff[s][ij], ReduceRotation(-rotScale * (ij / p.g), slots));
 
@@ -473,8 +505,8 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
 #endif
             for (uint32_t ij = 0; ij < limit; ++ij) {
                 if (ij != p.numRotationsRem) {
-                    //for (auto& c : coeff[stop][ij])
-                    //    c *= scale;
+                    for (auto& c : coeff[stop][ij])
+                        c *= scales[stop];
 
                     auto rot = Rotate(coeff[stop][ij], ReduceRotation(-p.gRem * (ij / p.gRem), slots));
 
@@ -504,11 +536,14 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
                     auto& clearTmpi = coeffi[s][ij];
                     clearTmp.insert(clearTmp.end(), clearTmpi.begin(), clearTmpi.end());
                     // Maybe we need it one day
-                    if ((flagRem == 0) && (s == stop + 1)) {
-                        // do the scaling only at the last set of coefficients
-                        //for (auto& c : clearTmp)
-                        //    c *= scale;
-                    }
+                    //if ((flagRem == 0) && (s == stop + 1)) {
+                    //    // do the scaling only at the last set of coefficients
+                    //    //for (auto& c : clearTmp)
+                    //    //    c *= scale;
+                    //}
+                    // We do the scaling at every level
+                    for (auto& c : clearTmp)
+                        c *= scales[s];
 
                     auto rot = Rotate(clearTmp, ReduceRotation(-rotScale * (ij / p.g), M4));
 
@@ -528,8 +563,8 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalCoeffsToSlotsPr
                     auto clearTmp   = coeff[stop][ij];
                     auto& clearTmpi = coeffi[stop][ij];
                     clearTmp.insert(clearTmp.end(), clearTmpi.begin(), clearTmpi.end());
-                    //for (auto& c : clearTmp)
-                    //    c *= scale;
+                    for (auto& c : clearTmp)
+                        c *= scales[stop];
 
                     auto rot = Rotate(clearTmp, ReduceRotation(-p.gRem * (ij / p.gRem), M4));
 

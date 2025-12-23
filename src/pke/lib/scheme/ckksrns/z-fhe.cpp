@@ -132,6 +132,20 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct) const {
     return {r2c};
 }
 
+Ciphertext<DCRTPoly> FHEZImpl::EvalR2CScaleK(ConstCiphertext<DCRTPoly>& ct) const {
+    auto cc            = ct->GetCryptoContext();
+    auto cSlots        = ct->GetZEncodingParams().getCSlots();
+    auto precomp       = GetBootPrecom(cSlots);
+    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
+
+    // Then R2C here will multiply by rN because of the construction of U0HatT
+    auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledK, ct) :
+                               EvalSlotsToCoeffs(precomp.m_U0hatTPreFFTScaledK, ct);
+    z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
+    z->ModReduceInPlace(r2c);
+    return {r2c};
+}
+
 Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
@@ -175,25 +189,13 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
         cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
     }
     // Now the message is multplied by N/(rN)
-    // R2C then will multiply by rN because of the construction of U0HatT
 
     //------------------------------------------------------------------------------
     // R-To-Z
     //------------------------------------------------------------------------------
 
+    // R2C then will multiply by rN then divide by N because of our scaling
     auto r2z = EvalR2Z(raised);
-    // Now the message is N * m
-
-    // Normalize to m
-    {
-        auto sf                          = r2z->GetScalingFactorBFP();
-        auto NBigFP                      = BigFixedPoint::positive(N);
-        BigFixedPoint normalizeFactorBFP = sf / NBigFP;
-        BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-        r2z                              = z->EvalMultScalar(r2z, normalizeFactor);
-        r2z->SetScalingFactorBFP(sf * sf);
-        z->ModReduceInPlace(r2z);
-    }
     return r2z;
 }
 
@@ -237,27 +239,13 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
         cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
     }
     // Now the message is multplied by N/(rN)
-    // R2C then will multiply by rN because of the construction of U0HatT
 
     //------------------------------------------------------------------------------
     // R-To-C
     //------------------------------------------------------------------------------
 
-    auto r2c = EvalR2C(raised);
-    // Now the message is N * m
-
-    // Normalize to m / K_SPARSE_ENCAPSULATED
-    // So [-16, 16] becomes [-1, 1]
-    {
-        auto sf                          = r2c->GetScalingFactorBFP();
-        auto NBigFP                      = BigFixedPoint::positive(N);
-        auto KBigFP                      = BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
-        BigFixedPoint normalizeFactorBFP = sf / (NBigFP * KBigFP);
-        BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-        r2c                              = z->EvalMultScalar(r2c, normalizeFactor);
-        r2c->SetScalingFactorBFP(sf * sf);
-        z->ModReduceInPlace(r2c);
-    }
+    // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
+    auto r2c = EvalR2CScaleK(raised);
 
     //------------------------------------------------------------------------------
     // Approximate Mod Reduction
@@ -275,7 +263,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     // C-To-Z
     //------------------------------------------------------------------------------
 
-    auto r2z = EvalC2Z({g0});
+    auto r2z = EvalC2Z(g0);
 
     //------------------------------------------------------------------------------
     // Multiply by t^{-1} in Z
@@ -371,6 +359,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
             z->ModReduceInPlace(scaled);
             z->EvalSubWithAdjustInPlace(core, scaled);
         }
+
+        std::cout << "Core level after iteration " << iter << ": " << core->GetLevel() << std::endl;
     }
 
     //------------------------------------------------------------------------------
@@ -408,34 +398,14 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTP
     for (uint32_t j = 1; j < limit; j <<= 1) {
         cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
     }
+    // Now the message is multplied by N/(rN)
 
     //------------------------------------------------------------------------------
     // R-To-C
     //------------------------------------------------------------------------------
 
-    auto r2c = EvalR2C(raised);
-    // Now the message is N * m
-
-    //------------------------------------------------------------------------------
-    // Normalize
-    //------------------------------------------------------------------------------
-
-    // Normalize to [-1, 1] from [-16, 16]
-    // This is required by Chebyshev
-    {
-        auto sf                          = r2c->GetScalingFactorBFP();
-        auto NBigFP                      = BigFixedPoint::positive(N);
-        auto KBigFP                      = BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
-        BigFixedPoint normalizeFactorBFP = sf / (NBigFP * KBigFP);
-        BigInteger normalizeFactor       = (normalizeFactorBFP.round().getValue()) >> normalizeFactorBFP.getLog2Scale();
-        r2c                              = z->EvalMultScalar(r2c, normalizeFactor);
-        r2c->SetScalingFactorBFP(sf * sf);
-        z->ModReduceInPlace(r2c);
-    }
-
-    // Note that there are other ways...some work first multiply by 1 / N
-    // Then PartialSum
-    // Then use CoeffsToSlots matrix to do the /16
+    // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
+    auto r2c = EvalR2CScaleK(raised);
     return r2c;
 }
 

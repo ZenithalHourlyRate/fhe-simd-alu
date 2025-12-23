@@ -312,14 +312,14 @@ void SimpleBootstrapExample() {
     * using GetBootstrapDepth, and add it to levelsAvailableAfterBootstrap to set our initial multiplicative
     * depth. We recommend using the input parameters below to get started.
     */
-    std::vector<uint32_t> levelBudget = {1, 1};
+    std::vector<uint32_t> levelBudget = {2, 2};
 
     // Note that the actual number of levels avalailable after bootstrapping before next bootstrapping
     // will be levelsAvailableAfterBootstrap - 1 because an additional level
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(19);
+    parameters.SetMultiplicativeDepth(18);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -459,7 +459,7 @@ void SimpleBootstrapExample() {
     std::cout << "Finished Warmup\n";
     auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
-        ct2 = fheZ->EvalArithToBoolean(ct);
+        //ct2 = fheZ->EvalArithToBoolean(ct);
     }
     auto end      = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -469,9 +469,10 @@ void SimpleBootstrapExample() {
     for (size_t i = 0; i != 1; ++i) {
         ct3 = fheZ->EvalArithToArith(ct);
     }
+    __heir_debug2(ct3, "CMult");
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
-        ct3 = fheZ->EvalArithToArith(ct);
+        //    ct3 = fheZ->EvalArithToArith(ct);
     }
     end      = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -480,9 +481,10 @@ void SimpleBootstrapExample() {
     for (size_t i = 0; i != 1; ++i) {
         ct = fheZ->EvalBooleanToBoolean(ct2);
     }
+    __heir_debug2(ct, "BooleanAgain");
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i != 3; ++i) {
-        ct = fheZ->EvalBooleanToBoolean(ct2);
+        //    ct = fheZ->EvalBooleanToBoolean(ct2);
     }
     end      = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();

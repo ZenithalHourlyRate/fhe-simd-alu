@@ -68,11 +68,17 @@ public:
     // Conj(U0^T); used in encoding
     std::vector<ZBootstrapPlaintextCache> m_U0hatTPre;
 
+    // Conj(U0^T); used in encoding; scaled K so do not need to normalize
+    std::vector<ZBootstrapPlaintextCache> m_U0hatTPreScaledK;
+
     // coefficients corresponding to U0; used in decoding
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0PreFFT;
 
     // coefficients corresponding to conj(U0^T); used in encoding
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFT;
+
+    // coefficients corresponding to conj(U0^T); used in encoding; scaled K so do not need to normalize
+    std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFTScaledK;
 
     //
     // coefficients for ZU and ZV = ZUInverse
@@ -135,6 +141,8 @@ public:
 
     Ciphertext<DCRTPoly> EvalR2C(ConstCiphertext<DCRTPoly>& ct) const;
 
+    Ciphertext<DCRTPoly> EvalR2CScaleK(ConstCiphertext<DCRTPoly>& ct) const;
+
     Ciphertext<DCRTPoly> EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
@@ -186,15 +194,16 @@ private:
     //------------------------------------------------------------------------------
 
     std::vector<ZBootstrapPlaintextCache> EvalLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
-                                                                        const BigCMatrix& A) const;
+                                                                        const BigCMatrix& A, BigFixedPoint scale) const;
 
     std::vector<ZBootstrapPlaintextCache> EvalLinearTransformPrecompute(const CryptoContextImpl<DCRTPoly>& cc,
                                                                         const BigCMatrix& A, const BigCMatrix& B,
-                                                                        uint32_t orientation = 0) const;
+                                                                        uint32_t orientation,
+                                                                        BigFixedPoint scale) const;
 
     std::vector<std::vector<ZBootstrapPlaintextCache>> EvalCoeffsToSlotsPrecompute(
         const CryptoContextImpl<DCRTPoly>& cc, const BigCVector& pows, const std::vector<uint32_t>& rotGroup,
-        bool flag_i) const;
+        bool flag_i, std::vector<BigFixedPoint> scales) const;
 
     std::vector<std::vector<ZBootstrapPlaintextCache>> EvalSlotsToCoeffsPrecompute(
         const CryptoContextImpl<DCRTPoly>& cc, const BigCVector& pows, const std::vector<uint32_t>& rotGroup,
