@@ -149,16 +149,52 @@ public:
         return encodeR(cSlots.toRPolynomial(), elementParams, scalingFactor);
     }
 
-    static ZEncoding encodeOneHotInC(uint32_t zN, uint32_t zSlots, uint32_t bit,
-                                     const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                     const BigFixedPoint& scalingFactor, uint32_t downScale) {
-        // TODO: handle sparse packing and full packing
-        ZEncodingParams params(CMode, zN * zSlots * 2);  // for sparse packing now...
-        std::vector<BigComplex> vec(zN * zSlots, BigFixedPoint::zero());
-        // TODO: fix it
-        vec[bit - 1] = BigFixedPoint::one() / BigFixedPoint::positive(downScale);
-        CSlots cSlots(params, vec);
-        return encodeC(cSlots, elementParams, scalingFactor);
+    static ZEncoding encodeZ(std::vector<ZPolynomial> input, uint32_t zN, uint32_t zSlots,
+                             const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                             const BigFixedPoint& scalingFactor) {
+        if (input.size() < zSlots) {
+            input.resize(zSlots, ZPolynomial::encode(zN, 0));
+        }
+        std::vector<BigComplex> mergedSlots(zSlots * (zN / 2));
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zSlots))
+        for (size_t i = 0; i != zSlots; ++i) {
+            auto singleCSlots = input[i].toCSlots();
+            // Note: here we scale by zSlots for compensating mismatch
+            // between the different scaling in R-canonical map and Z-canonical map
+            for (size_t j = 0; j != zN / 2; ++j) {
+                mergedSlots[i * (zN / 2) + j] = singleCSlots[j] * BigFixedPoint::positive(zSlots);
+            }
+        }
+        ZEncodingParams params(ZMode, zN, zSlots);
+        CSlots mergedCSlots(params, mergedSlots);
+        return encodeC(mergedCSlots, elementParams, scalingFactor);
+    }
+
+    static ZEncoding encodeArith(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
+                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                 const BigFixedPoint& scalingFactor) {
+        if (input.size() < zSlots) {
+            input.resize(zSlots, 0);
+        }
+        std::vector<ZPolynomial> zPolys;
+        for (size_t i = 0; i != zSlots; ++i) {
+            zPolys.push_back(ZPolynomial::encode(zN, input[i]));
+        }
+        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
+    }
+
+    static ZEncoding encodeTInZ(uint32_t zN, uint32_t zSlots,
+                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                const BigFixedPoint& scalingFactor) {
+        std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial::getT(zN));
+        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
+    }
+
+    static ZEncoding encodeTInvInZ(uint32_t zN, uint32_t zSlots,
+                                   const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                   const BigFixedPoint& scalingFactor) {
+        std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial::getTInv(zN));
+        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
     }
 };
 

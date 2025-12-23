@@ -135,6 +135,10 @@ public:
 
     Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const;
 
+    void EvalPartialSumInPlace(Ciphertext<DCRTPoly>& ct) const;
+
+    Ciphertext<DCRTPoly> EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
+
     Ciphertext<DCRTPoly> EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;

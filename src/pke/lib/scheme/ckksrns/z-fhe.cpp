@@ -81,6 +81,24 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const
     return raised;
 }
 
+void FHEZImpl::EvalPartialSumInPlace(Ciphertext<DCRTPoly>& ct) const {
+    auto cc     = ct->GetCryptoContext();
+    auto cSlots = ct->GetZEncodingParams().getCSlots();
+    auto N      = cc->GetRingDimension();
+
+    const uint32_t limit = N / (cSlots * 2);
+    for (uint32_t j = 1; j < limit; j <<= 1) {
+        cc->EvalAddInPlace(ct, cc->EvalRotate(ct, j * (cSlots)));
+    }
+    // Now the message is multplied by N/(rN)
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const {
+    auto ctNew = EvalModRaise(EvalTruncate(ct));
+    EvalPartialSumInPlace(ctNew);
+    return ctNew;
+}
+
 Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
@@ -169,32 +187,20 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
-    auto N       = cc->GetRingDimension();
 
     auto z2r = EvalZ2R(ct);
 
     //------------------------------------------------------------------------------
-    // Truncate and ModRaise
+    // Truncate, ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto truncated = EvalTruncate(z2r);
-    auto raised    = EvalModRaise(truncated);
-
-    //------------------------------------------------------------------------------
-    // Running PartialSum
-    //------------------------------------------------------------------------------
-
-    const uint32_t limit = N / (cSlots * 2);
-    for (uint32_t j = 1; j < limit; j <<= 1) {
-        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
-    }
-    // Now the message is multplied by N/(rN)
+    auto raised = EvalTruncateModRaisePartialSum(z2r);
 
     //------------------------------------------------------------------------------
     // R-To-Z
     //------------------------------------------------------------------------------
 
-    // R2C then will multiply by rN then divide by N because of our scaling
+    // R2C then will multiply by rN then divide by N because of our scaling in pre-compute
     auto r2z = EvalR2Z(raised);
     return r2z;
 }
@@ -212,32 +218,22 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto cc        = ct->GetCryptoContext();
     auto cSlots    = ct->GetZEncodingParams().getCSlots();
     auto precomp   = GetBootPrecom(cSlots);
-    auto N         = cc->GetRingDimension();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
 
-    // TODO: cache tPtxt and adjust to zN/zSlots
-    RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
-    Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sf);
+    // TODO: cache tPtxt
+    auto zN         = ct->GetZEncodingParams().getZN();
+    auto zSlots     = ct->GetZEncodingParams().getZSlots();
+    Plaintext tPtxt = ZEncodingImpl::encodeTInZ(zN, zSlots, elemParam, sf);
     auto ctT        = z->EvalMult(ct, tPtxt);
 
     auto z2r = EvalZ2R(ctT);
 
     //------------------------------------------------------------------------------
-    // Truncate and ModRaise
+    // Truncate, ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto truncated = EvalTruncate(z2r);
-    auto raised    = EvalModRaise(truncated);
-
-    //------------------------------------------------------------------------------
-    // Running PartialSum (Fully Packed case will just ignore this branch)
-    //------------------------------------------------------------------------------
-
-    const uint32_t limit = N / (cSlots * 2);
-    for (uint32_t j = 1; j < limit; j <<= 1) {
-        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
-    }
+    auto raised = EvalTruncateModRaisePartialSum(z2r);
     // Now the message is multplied by N/(rN)
 
     //------------------------------------------------------------------------------
@@ -269,9 +265,9 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     // Multiply by t^{-1} in Z
     //------------------------------------------------------------------------------
 
-    auto tInv          = ZPolynomial::getTInv(32).toCSlots().toRPolynomial();
-    auto r2zElemParam  = r2z->GetElements()[0].GetParams();
-    Plaintext tInvPtxt = ZEncodingImpl::encodeR(tInv, r2zElemParam, r2z->GetScalingFactorBFP());
+    auto r2zElemParam = r2z->GetElements()[0].GetParams();
+    // TODO: cache tInvPtxt
+    Plaintext tInvPtxt = ZEncodingImpl::encodeTInvInZ(zN, zSlots, r2zElemParam, r2z->GetScalingFactorBFP());
 
     r2z = z->EvalMult(r2z, tInvPtxt);
     z->ModReduceInPlace(r2z);
@@ -378,21 +374,10 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTP
     auto c2r = EvalC2R(ct);
 
     //------------------------------------------------------------------------------
-    // Truncate and ModRaise
+    // Truncate, ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto truncated = EvalTruncate(c2r);
-    auto raised    = EvalModRaise(truncated);
-
-    //------------------------------------------------------------------------------
-    // Running PartialSum
-    //------------------------------------------------------------------------------
-
-    const uint32_t N     = cc->GetRingDimension();
-    const uint32_t limit = N / (cSlots * 2);
-    for (uint32_t j = 1; j < limit; j <<= 1) {
-        cc->EvalAddInPlace(raised, cc->EvalRotate(raised, j * (cSlots)));
-    }
+    auto raised = EvalTruncateModRaisePartialSum(c2r);
     // Now the message is multplied by N/(rN)
 
     //------------------------------------------------------------------------------

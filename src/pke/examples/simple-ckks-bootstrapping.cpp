@@ -285,31 +285,7 @@ void SimpleBootstrapExample() {
         }
     }
 
-    //
-    //__heir_debug2(zero, "Input");
-
-    //auto zPoly = ZPolynomial::encode(32, 0xdeadbeaf);
-    // add some noise
-    //for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
-    //    zPoly[i] += BigFixedPoint::positive(i + 1) / BigFixedPoint::positive(1 << 25);
-    //}
-    //auto singleCSlots = zPoly.toCSlots();
-    // Multiply by N/(2 * n) for maximal sparse packing
-    ZEncodingParams paramsMaximalSparse(ZMode, zN, zSlots);
-    std::vector<BigComplex> maximalSlots;
-    for (size_t i = 0; i != zSlots; ++i) {
-        auto zPoly        = ZPolynomial::encode(zN, 0xFFl - i);
-        auto singleCSlots = zPoly.toCSlots();
-        for (size_t j = 0; j != singleCSlots.getSlots().size(); ++j) {
-            maximalSlots.push_back(singleCSlots[j] * BigFixedPoint::positive(zSlots));
-        }
-    }
-    CSlots maximalCSlots(paramsMaximalSparse, maximalSlots);
-    RPolynomial scaledRPoly = maximalCSlots.toRPolynomial();
-
-    //RPolynomial value1 = zPoly.toCSlots().toRPolynomial();
-    auto value1     = scaledRPoly;
-    Plaintext ptxt1 = ZEncodingImpl::encodeR(value1, elemParam, sfq0);
+    Plaintext ptxt1 = ZEncodingImpl::encodeArith({0xFF, 0xFE}, zN, 2, elemParam, sfq0);
 
     //RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
     //Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sfq0);
