@@ -367,7 +367,7 @@ def printCosHalfPi():
     print("};")
 
 if __name__ == "__main__":
-    cosHalfPi_cheby_coeffs()
+    #cosHalfPi_cheby_coeffs()
     cosHalfPi_error()
-    printCosHalfPi()
+    #printCosHalfPi()
     pass

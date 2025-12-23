@@ -308,7 +308,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
 
     auto zN     = ct->GetZEncodingParams().getZN();
     auto zSlots = ct->GetZEncodingParams().getZSlots();
-    uint32_t w  = 8;  // TODO: make it a parameter
+    uint32_t w  = 4;  // TODO: make it a parameter
     uint64_t p  = 1l << w;
     // We ask zN to be multiple of w now...
     uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
@@ -381,7 +381,9 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
         auto coreMasked = z->EvalMult(core, oneHotPtxt);
         z->ModReduceInPlace(coreMasked);
 
+        std::cout << "masked level: " << coreMasked->GetLevel() << std::endl;
         auto lut = internalBooleanToBooleanCustomLUT(coreMasked, lutIDCoeffsBC);
+        std::cout << "lut level: " << lut->GetLevel() << std::endl;
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core

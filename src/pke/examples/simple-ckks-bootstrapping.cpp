@@ -298,8 +298,8 @@ void SimpleBootstrapExample() {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FIXEDMANUAL;
-    uint32_t dcrtBits            = 40;
-    uint32_t firstMod            = 40;
+    uint32_t dcrtBits            = 33;
+    uint32_t firstMod            = 33;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
@@ -319,7 +319,7 @@ void SimpleBootstrapExample() {
     // is used for scaling the ciphertext before next bootstrapping (in 64-bit CKKS bootstrapping)
     //uint32_t levelsAvailableAfterBootstrap = 10;
     //uint32_t depth = levelsAvailableAfterBootstrap + FHECKKSRNS::GetBootstrapDepth(levelBudget, secretKeyDist);
-    parameters.SetMultiplicativeDepth(25);
+    parameters.SetMultiplicativeDepth(19);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
