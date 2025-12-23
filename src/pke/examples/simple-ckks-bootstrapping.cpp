@@ -169,12 +169,11 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    uint32_t zN = 8;
-    //uint32_t N  = cc->GetCyclotomicOrder();
-    //uint32_t zSlots = N / zN / 2;  // Maximal sparse packing
-    uint32_t zSlots = 8;  // Maximal sparse packing
-    zN_global       = zN;
-    zSlots_global   = zSlots;
+    uint32_t zN     = 16;
+    uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
+    //uint32_t zSlots = 8;
+    zN_global     = zN;
+    zSlots_global = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
 
     fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16);
@@ -200,7 +199,11 @@ void SimpleBootstrapExample() {
         }
     }
 
-    Plaintext ptxt1 = ZEncodingImpl::encodeArith({0xFF, 0xFE}, zN, zSlots, elemParam, sfq0);
+    std::vector<uint64_t> vec(zSlots, 0);
+    for (size_t i = 0; i != zSlots; ++i) {
+        vec[i] = i + 1;
+    }
+    Plaintext ptxt1 = ZEncodingImpl::encodeArith(vec, zN, zSlots, elemParam, sfq0);
 
     //RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
     //Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sfq0);

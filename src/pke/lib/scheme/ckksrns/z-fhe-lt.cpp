@@ -30,6 +30,12 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaint
     auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
     auto sfBFP         = ct->GetScalingFactorBFP();
 
+    // Now initialize cache if not cached
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A.size()))
+    for (size_t i = 0; i < A.size(); ++i) {
+        A[i]->GetPlaintext(sfBFP, elementParams);
+    }
+
     const uint32_t M = cc->GetCyclotomicOrder();
     const uint32_t N = cc->GetRingDimension();
     std::vector<uint32_t> map(N);

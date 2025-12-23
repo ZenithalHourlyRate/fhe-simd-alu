@@ -195,6 +195,7 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         precom->m_ZU1Pre = EvalZLinearTransformPrecompute(cc, ZU1, zSlots, scaleZU);
         precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots, scaleZV);
         precom->m_ZV1Pre = EvalZLinearTransformPrecompute(cc, ZV1, zSlots, scaleZV);
+        OPENFHE_THROW("Dense not supported now.");
         // TODO: add precomputation for ZV0SpecialB0
     }
 
