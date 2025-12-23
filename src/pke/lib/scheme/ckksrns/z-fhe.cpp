@@ -111,7 +111,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     auto precomp       = GetBootPrecom(cSlots);
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
 
-    auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalCoeffsToSlots(precomp.m_U0PreFFT, ct);
+    auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
     // Trace
     z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
     z->ModReduceInPlace(c2r);
@@ -126,7 +126,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct) const {
 
     // Then R2C here will multiply by rN because of the construction of U0HatT
     auto r2c =
-        isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) : EvalSlotsToCoeffs(precomp.m_U0hatTPreFFT, ct);
+        isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) : EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
     z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
     z->ModReduceInPlace(r2c);
     return {r2c};
@@ -140,7 +140,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalR2CScaleK(ConstCiphertext<DCRTPoly>& ct) cons
 
     // Then R2C here will multiply by rN because of the construction of U0HatT
     auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledK, ct) :
-                               EvalSlotsToCoeffs(precomp.m_U0hatTPreFFTScaledK, ct);
+                               EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledK, ct);
     z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
     z->ModReduceInPlace(r2c);
     return {r2c};
@@ -292,7 +292,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
 
     // Our core ct
     auto core = EvalZ2CSpecialB0(ct);
-    // We need to keep core ct at bottom
+    // TODO: We need to keep core ct at bottom; rescale if necessary
 
     auto zN     = ct->GetZEncodingParams().getZN();
     auto zSlots = ct->GetZEncodingParams().getZSlots();
@@ -359,8 +359,6 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
             z->ModReduceInPlace(scaled);
             z->EvalSubWithAdjustInPlace(core, scaled);
         }
-
-        std::cout << "Core level after iteration " << iter << ": " << core->GetLevel() << std::endl;
     }
 
     //------------------------------------------------------------------------------
