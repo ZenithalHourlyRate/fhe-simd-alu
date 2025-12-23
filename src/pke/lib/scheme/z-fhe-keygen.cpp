@@ -108,7 +108,6 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
                 if (nextIter * w >= zN / 2) {
                     rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
                 }
-                std::cout << "Adding rotation index: " << rotationIndex << std::endl;
                 s.insert(rotationIndex);
             }
         }
