@@ -386,29 +386,15 @@ public:
 
     RPolynomial toRPolynomial() const;
 
-    //static CSlots Merge(const std::vector<CSlots>& cslotVec) {
-    //    if (cslotVec.size() == 0) {
-    //        OPENFHE_THROW("CSlots::Merge: empty input");
-    //    }
-    //    auto zN         = cslotVec[0].zN;
-    //    uint32_t zSlots = 0;
-    //    for (const auto& cs : cslotVec) {
-    //        if (cs.zN != zN) {
-    //            OPENFHE_THROW("CSlots::Merge: inconsistent zN");
-    //        }
-    //        zSlots += cs.zSlots;
-    //    }
-    //    std::vector<BigComplex> mergedSlots(zN * zSlots / 2);
-    //    size_t offset = 0;
-    //    for (const auto& cs : cslotVec) {
-    //        for (size_t i = 0; i != cs.slots.size(); ++i) {
-    //            mergedSlots[offset + i] = cs.slots[i];
-    //        }
-    //        offset += cs.slots.size();
-    //    }
-    //    return CSlots(zN, zSlots, mergedSlots);
-    //}
+    // These three functions requires sparse packing
+    // Or if at full packing, concat cSlots of two ciphertexts
+    std::pair<uint64_t, double> getIntegerAndErrorAtBooleanMode(size_t slotIndex) const;
 
+    uint64_t getIntegerAtBooleanMode(size_t slotIndex) const;
+
+    double getIntegerErrorAtBooleanMode(size_t slotIndex) const;
+
+private:
 private:
     ZEncodingParams params;
     std::vector<BigComplex> slots;

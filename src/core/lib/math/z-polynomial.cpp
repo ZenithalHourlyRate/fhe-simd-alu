@@ -47,4 +47,37 @@ RPolynomial CSlots::toRPolynomial() const {
     return RPolynomial(params, rValues);
 }
 
+std::pair<uint64_t, double> CSlots::getIntegerAndErrorAtBooleanMode(size_t slotIndex) const {
+    if (!params.isZMode()) {
+        OPENFHE_THROW("CSlots::getIntegerAtBooleanMode: not in ZMode");
+    }
+    if (slotIndex >= params.getZSlots()) {
+        OPENFHE_THROW("CSlots::getIntegerAtBooleanMode: slotIndex out of range");
+    }
+    auto zN                = params.getZN();
+    auto zSlots            = params.getZSlots();
+    uint64_t reconstructed = 0;
+    double log2MaxError    = -std::numeric_limits<double>::infinity();
+    for (size_t i = 0; i != zN; ++i) {
+        auto index = slotIndex * (zN / 2) + i;
+        if (i >= zN / 2) {
+            index += (zSlots - 1) * (zN / 2);
+        }
+        auto bit         = slots[index].getReal().convertToDouble();
+        auto integerPart = std::round(bit);
+        auto fracPart    = bit - integerPart;
+        reconstructed += (static_cast<uint64_t>(integerPart) << (i));
+        log2MaxError = std::max(log2MaxError, std::log2(std::abs(fracPart)));
+    }
+    return {reconstructed, log2MaxError};
+}
+
+uint64_t CSlots::getIntegerAtBooleanMode(size_t slotIndex) const {
+    return getIntegerAndErrorAtBooleanMode(slotIndex).first;
+}
+
+double CSlots::getIntegerErrorAtBooleanMode(size_t slotIndex) const {
+    return getIntegerAndErrorAtBooleanMode(slotIndex).second;
+}
+
 }  // namespace lbcrypto

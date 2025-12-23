@@ -95,35 +95,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         std::cout << msg << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
     };
 
-    [[maybe_unused]] auto extractErrorRoly = [&](const RPolynomial rPoly, size_t bits) {
-        std::vector<BigFixedPoint> errors;
-        auto scalarBFP = BigFixedPoint(BigInteger(1) << bits, 0, false).scaleTo(128);
-        for (auto& coeff : rPoly.getCoefficients()) {
-            auto integerPart = (coeff * scalarBFP).round() / scalarBFP;
-            auto fracPart    = coeff - integerPart;
-            errors.push_back(fracPart);
-            //std::cout << msg << "  rPoly error: " << fracPart.toHexString(16) << std::endl;
-        }
-        // Use the ZPolynomial method to get log2Norm
-        // Not thinking it is ZPolynomial here
-        std::cout << msg << "  rPoly error log2Norm: " << ZPolynomial(errors).getLog2Norm() << std::endl;
-    };
-
-    auto printCSlots = [&](const CSlots cSlots) {
-        uint64_t reconstructed = 0;
-        double log2MaxError    = -1000.0;
-        for (size_t i = 0; i != cSlots.getSlots().size(); ++i) {
-            auto realPart = cSlots[i].getReal();
-            auto fracPart = realPart - realPart.round();
-            auto k        = static_cast<int>(std::round(realPart.convertToDouble()));
-            reconstructed += (static_cast<uint64_t>(k) << (i));
-            log2MaxError = std::max(log2MaxError, fracPart.log2Norm());
-        }
-        std::cout << msg << "  CSlots Reconstructed: " << std::hex << reconstructed << std::dec
-                  << " with error: " << log2MaxError << std::endl;
-    };
-
-    enum class DecodeMode { RDecode, CSlotsDecode, CSlotsTwiceDecode, ZDecode };
+    enum class DecodeMode { RDecode, CSlotsDecode, CSlotsTwiceDecode, CSlotsTwiceBooleanMode, ZDecode };
     std::map<std::string, DecodeMode> decodeMap = {
         // RDecode
         {"ModRaise", DecodeMode::RDecode},
@@ -135,8 +107,8 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
         {"Core", DecodeMode::CSlotsTwiceDecode},
         {"Z2C", DecodeMode::CSlotsTwiceDecode},
-        {"Boolean", DecodeMode::CSlotsTwiceDecode},
-        {"BooleanAgain", DecodeMode::CSlotsTwiceDecode},
+        {"Boolean", DecodeMode::CSlotsTwiceBooleanMode},
+        {"BooleanAgain", DecodeMode::CSlotsTwiceBooleanMode},
         // ZDecode
         {"Input", DecodeMode::ZDecode},
         {"CMult", DecodeMode::ZDecode},
@@ -150,17 +122,32 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     // Check the r encoding?
     if (decodeMode == DecodeMode::RDecode) {
-        for (size_t i = 0; i != values.getCoefficients().size(); ++i) {
+        // Threshold print to avoid too much output
+        for (size_t i = 0; i != std::min(values.getCoefficients().size(), 32ul); ++i) {
             std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
         }
+        if (values.getCoefficients().size() > 32) {
+            std::cout << msg << "  ... (total " << values.getCoefficients().size() << " coefficients)" << std::endl;
+        }
     }
-    if (decodeMode == DecodeMode::CSlotsTwiceDecode) {
+    if (decodeMode == DecodeMode::CSlotsTwiceDecode || decodeMode == DecodeMode::CSlotsTwiceBooleanMode) {
         auto cSlotsTwice = valuesTwice.toCSlots();
-        for (size_t i = 0; i != cSlotsTwice.getSlots().size(); ++i) {
+        for (size_t i = 0; i != std::min(cSlotsTwice.getSlots().size(), 32ul); ++i) {
             std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(ceil(log2sf / 4.0))
                       << std::endl;
         }
-        printCSlots(cSlotsTwice);
+        if (cSlotsTwice.getSlots().size() > 32) {
+            std::cout << msg << "  ... (total " << cSlotsTwice.getSlots().size() << " slots)" << std::endl;
+        }
+        if (decodeMode == DecodeMode::CSlotsTwiceBooleanMode) {
+            // Force re-interpretation at boolean mode
+            CSlots cSlotsTwiceBooleanMode(params, cSlotsTwice.getSlots());
+            for (size_t i = 0; i != zSlots_global; ++i) {
+                auto [integerValue, log2Error] = cSlotsTwiceBooleanMode.getIntegerAndErrorAtBooleanMode(i);
+                std::cout << msg << "  Boolean Mode Slot " << i << " Reconstructed: " << std::hex << integerValue
+                          << std::dec << " with error log2: " << log2Error << std::endl;
+            }
+        }
     }
     if (decodeMode == DecodeMode::ZDecode) {
         ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
