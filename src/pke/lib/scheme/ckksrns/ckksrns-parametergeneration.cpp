@@ -413,10 +413,103 @@ void ParameterGenerationCKKSRNS::CompositePrimeModuliGen(std::vector<NativeInteg
     return;
 }
 
+void ParameterGenerationCKKSRNS::SinglePrimeModuliGenFLEXIBLEMANUAL(std::vector<NativeInteger>& moduliQ,
+                                                                    std::vector<NativeInteger>& rootsQ,
+                                                                    ScalingTechnique scalTech, uint32_t numPrimes,
+                                                                    uint32_t firstModSize, uint32_t dcrtBits,
+                                                                    uint32_t cyclOrder, uint32_t extraModSize) const {
+    if (firstModSize != dcrtBits) {
+        OPENFHE_THROW("In FLEXIBLEMANUAL, firstModSize must be equal to dcrtBits.");
+    }
+
+    NativeInteger q0 = FirstPrime<NativeInteger>(dcrtBits, cyclOrder);
+    moduliQ[0]       = q0;
+    rootsQ[0]        = RootOfUnity(cyclOrder, moduliQ[0]);
+
+    if (numPrimes <= 1) {
+        OPENFHE_THROW("Impossible for FLEXIBLEMANUAL with numPrimes <= 1.");
+    }
+
+    // Generate a slighly larger prime for the top level
+    auto q                 = NextPrime<NativeInteger>(q0, cyclOrder);
+    moduliQ[numPrimes - 1] = q;
+    rootsQ[numPrimes - 1]  = RootOfUnity(cyclOrder, moduliQ[numPrimes - 1]);
+
+    NativeInteger maxPrime{q};
+    NativeInteger minPrime{q0};
+    /* Scaling factors in FLEXIBLEAUTO are a bit fragile,
+     * in the sense that once one scaling factor gets far enough from the
+     * original scaling factor, subsequent level scaling factors quickly
+     * diverge to either 0 or infinity. To mitigate this problem to a certain
+     * extend, we have a special prime selection process in place. The goal is
+     * to maintain the scaling factor of all levels as close to the original
+     * scale factor of level 0 as possible.
+     */
+
+    double sf = moduliQ[0].ConvertToDouble();
+    //std::cout << "Initial scaling factor: " << std::setprecision(20) << std::log2(sf) << std::endl;
+    for (size_t i = numPrimes - 2, cnt = 0; i >= 1; --i, ++cnt) {
+        sf = pow(sf, 2) / moduliQ[i + 1].ConvertToDouble();
+        //std::cout << "Current scaling factor: " << std::log2(sf) << " at " << i << std::endl;
+        NativeInteger sfInt = std::llround(sf);
+        NativeInteger sfRem = sfInt.Mod(cyclOrder);
+        bool hasSameMod     = true;
+        if ((cnt % 2) == 0) {
+            NativeInteger qPrev = sfInt - NativeInteger(cyclOrder) - sfRem + NativeInteger(1);
+            while (hasSameMod) {
+                hasSameMod = false;
+                qPrev      = PreviousPrime(qPrev, cyclOrder);
+                for (size_t j = i + 1; j < numPrimes; j++) {
+                    if (qPrev == moduliQ[j]) {
+                        hasSameMod = true;
+                        break;
+                    }
+                    if (qPrev == moduliQ[0]) {
+                        hasSameMod = true;
+                        break;
+                    }
+                }
+            }
+            moduliQ[i] = qPrev;
+        }
+        else {
+            NativeInteger qNext = sfInt + NativeInteger(cyclOrder) - sfRem + NativeInteger(1);
+            while (hasSameMod) {
+                hasSameMod = false;
+                qNext      = NextPrime(qNext, cyclOrder);
+                for (size_t j = i + 1; j < numPrimes; j++) {
+                    if (qNext == moduliQ[j]) {
+                        hasSameMod = true;
+                        break;
+                    }
+                    if (qNext == moduliQ[0]) {
+                        hasSameMod = true;
+                        break;
+                    }
+                }
+            }
+            moduliQ[i] = qNext;
+        }
+        if (moduliQ[i] > maxPrime)
+            maxPrime = moduliQ[i];
+        else if (moduliQ[i] < minPrime)
+            minPrime = moduliQ[i];
+
+        rootsQ[i] = RootOfUnity(cyclOrder, moduliQ[i]);
+    }
+}
+
 void ParameterGenerationCKKSRNS::SinglePrimeModuliGen(std::vector<NativeInteger>& moduliQ,
                                                       std::vector<NativeInteger>& rootsQ, ScalingTechnique scalTech,
                                                       uint32_t numPrimes, uint32_t firstModSize, uint32_t dcrtBits,
                                                       uint32_t cyclOrder, uint32_t extraModSize) const {
+    // Hijack for FLEXIBLEMANUAL
+    if (scalTech == FLEXIBLEMANUAL) {
+        SinglePrimeModuliGenFLEXIBLEMANUAL(moduliQ, rootsQ, scalTech, numPrimes, firstModSize, dcrtBits, cyclOrder,
+                                           extraModSize);
+        return;
+    }
+
     NativeInteger q        = FirstPrime<NativeInteger>(dcrtBits, cyclOrder);
     moduliQ[numPrimes - 1] = q;
     rootsQ[numPrimes - 1]  = RootOfUnity(cyclOrder, moduliQ[numPrimes - 1]);

@@ -34,6 +34,7 @@
 
 #include "lattice/lat-hal.h"
 
+#include "math/hal/bigfixedpoint.h"
 #include "schemebase/rlwe-cryptoparameters.h"
 
 #include <string>
@@ -619,6 +620,17 @@ public:
         }
 
         return m_approxSF;
+    }
+
+    BigFixedPoint GetScalingFactorBFP(uint32_t l = 0) const {
+        if (m_scalTechnique != FLEXIBLEMANUAL) {
+            OPENFHE_THROW("No BFP scaling factor for this scaling technique");
+        }
+        if (l >= m_scalingFactorsReal.size()) {
+            OPENFHE_THROW("No scaling factor for this l");
+        }
+
+        return m_scalingFactorsBFP[l];
     }
 
     double GetScalingFactorRealBig(uint32_t l = 0) const {
@@ -1519,6 +1531,9 @@ protected:
     // A vector holding the doubles that correspond to the exact
     // scaling factor of each level, when FLEXIBLEAUTO is used.
     std::vector<double> m_scalingFactorsReal;
+
+    // Custom: BFP scalingFactors for each level
+    std::vector<BigFixedPoint> m_scalingFactorsBFP;
 
     std::vector<double> m_scalingFactorsRealBig;
 

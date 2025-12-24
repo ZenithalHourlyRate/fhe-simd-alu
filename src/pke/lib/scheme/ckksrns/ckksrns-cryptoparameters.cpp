@@ -84,8 +84,35 @@ void CryptoParametersCKKSRNS::PrecomputeCRTTables(KeySwitchTechnique ksTech, Sca
         }
     }
 
+    // FLEXIBLEMANUAL: Pre-compute scaling factors for each level (use q0 as the first scaling factor)
+    if (m_scalTechnique == FLEXIBLEMANUAL) {
+        m_scalingFactorsReal.resize(sizeQ);
+        m_scalingFactorsBFP.resize(sizeQ);
+
+        // We start from q0
+        m_scalingFactorsReal[0] = moduliQ[0].ConvertToDouble();
+        m_scalingFactorsBFP[0]  = BigFixedPoint::positive(moduliQ[0].ConvertToInt());
+
+        double minScalingFactorReal = m_scalingFactorsReal[0];
+
+        for (size_t k = 1; k < sizeQ; k++) {
+            double prevSF           = m_scalingFactorsReal[k - 1];
+            m_scalingFactorsReal[k] = prevSF * prevSF / moduliQ[sizeQ - k].ConvertToDouble();
+            BigFixedPoint prevBFP   = m_scalingFactorsBFP[k - 1];
+            m_scalingFactorsBFP[k]  = prevBFP * prevBFP / BigFixedPoint::positive(moduliQ[sizeQ - k].ConvertToInt());
+
+            minScalingFactorReal = std::min(minScalingFactorReal, m_scalingFactorsReal[k]);
+
+            double ratio = m_scalingFactorsReal[k] / minScalingFactorReal;
+            if (ratio <= 0.5 || ratio >= 2.0) {
+                OPENFHE_THROW("FLEXIBLEMANUAL scaling failed at level " + std::to_string(k) +
+                              " with scaling factor ratio " + std::to_string(ratio) + ". Choose different dcrtBits.");
+            }
+        }
+    }
+
     // Pre-compute scaling factors for each level (used in FLEXIBLE* scaling techniques)
-    if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT || m_scalTechnique == FLEXIBLEMANUAL ||
+    if (m_scalTechnique == FLEXIBLEAUTO || m_scalTechnique == FLEXIBLEAUTOEXT ||
         m_scalTechnique == COMPOSITESCALINGAUTO || m_scalTechnique == COMPOSITESCALINGMANUAL) {
         m_scalingFactorsReal.resize(sizeQ);
 

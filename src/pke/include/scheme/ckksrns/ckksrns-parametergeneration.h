@@ -54,6 +54,10 @@ protected:
                               ScalingTechnique scalTech, uint32_t numPrimes, uint32_t firstModSize, uint32_t dcrtBits,
                               uint32_t cyclOrder, uint32_t extraModsize) const;
 
+    void SinglePrimeModuliGenFLEXIBLEMANUAL(std::vector<NativeInteger>& moduliQ, std::vector<NativeInteger>& rootsQ,
+                                            ScalingTechnique scalTech, uint32_t numPrimes, uint32_t firstModSize,
+                                            uint32_t dcrtBits, uint32_t cyclOrder, uint32_t extraModsize) const;
+
 public:
     virtual ~ParameterGenerationCKKSRNS() = default;
 

@@ -160,16 +160,15 @@ void SimpleBootstrapExample() {
     parameters.SetSecretKeyDist(secretKeyDist);
 
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 10);
+    parameters.SetRingDim(1 << 15);
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 45;
-    uint32_t firstMod            = 45;
+    uint32_t dcrtBits            = 31;
 
     parameters.SetScalingModSize(dcrtBits);
+    parameters.SetFirstModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
-    parameters.SetFirstModSize(firstMod);
 
     std::vector<uint32_t> levelBudget = {2, 2};
 
@@ -187,10 +186,18 @@ void SimpleBootstrapExample() {
     auto keyPair = cc->KeyGen();
     cc->EvalMultKeyGen(keyPair.secretKey);
 
-    std::cout << *(cc->GetCryptoParameters()) << std::endl;
-
-    std::cout << *(std::static_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters())->GetParamsP())
-              << " primes in the special prime modulus." << std::endl;
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
+    //std::cout << *cryptoParams << std::endl;
+    //std::cout << *(cryptoParams->GetParamsP()) << " primes in the special prime modulus." << std::endl;
+    double logQ = 0;
+    double logP = 0;
+    {
+        auto moduliQ = cc->GetCryptoParameters()->GetElementParams()->GetModulus();
+        auto moduliP = cryptoParams->GetParamsP()->GetModulus();
+        logQ         = moduliQ.GetMSB();
+        logP         = moduliP.GetMSB();
+    }
+    std::cout << "log2(Q) = " << logQ << " log2(P) = " << logP << " log2(QP) = " << logQ + logP << std::endl;
 
     LeveledZ z     = std::make_shared<LeveledZImpl>();
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
@@ -210,21 +217,8 @@ void SimpleBootstrapExample() {
     pk_global = keyPair.publicKey;
     sk_global = keyPair.secretKey;
 
-    auto zero      = EncryptZero(keyPair.publicKey);
-    auto elemParam = zero->GetElements()[0].GetParams();
-    auto sfq0      = BigFixedPoint::positive(elemParam->GetParams()[0]->GetModulus().ConvertToInt());
-
-    {
-        auto sfNow = sfq0;
-        auto sfMax = sfNow;
-        auto sfMin = sfNow;
-        for (size_t i = elemParam->GetParams().size() - 1; i != size_t(-1); --i) {
-            auto qi = BigFixedPoint::positive(elemParam->GetParams()[i]->GetModulus().ConvertToInt());
-            sfNow   = sfNow * sfNow / qi;
-            std::cout << "Level " << (elemParam->GetParams().size() - 1 - i)
-                      << " Scaling Factor log2: " << std::log2(sfNow.convertToDouble()) << std::endl;
-        }
-    }
+    auto elemParam = cc->GetCryptoParameters()->GetElementParams();
+    auto sfq0      = cryptoParams->GetScalingFactorBFP(0);
 
     std::vector<uint64_t> vec(zSlots, 0);
     for (size_t i = 0; i != zSlots; ++i) {
@@ -232,12 +226,8 @@ void SimpleBootstrapExample() {
     }
     Plaintext ptxt1 = ZEncodingImpl::encodeArith(vec, zN, zSlots, elemParam, sfq0);
 
-    //RPolynomial value2 = ZPolynomial::encode(32, -1).toCSlots().toRPolynomial();
-    //Plaintext ptxt2    = ZEncodingImpl::encodeR(value2, elemParam, sfq0);
-
     /// TEST ENCODE
     auto encoded = Encrypt(ptxt1, keyPair.publicKey);
-    //auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
     __heir_debug2(encoded, "Input");
 
@@ -249,25 +239,9 @@ void SimpleBootstrapExample() {
     }
 
     /// TEST CT-PT-MULT
-    //RPolynomial t   = ZPolynomial::getT(32).toCSlots().toRPolynomial();
-    //Plaintext tPtxt = ZEncodingImpl::encodeR(t, elemParam, sfq0);
-
-    //if (0) {
-    //    auto ctMul = z->EvalMult(encoded, tPtxt);
-    //    __heir_debug2(ctMul, "Mult");
-    //    z->ModReduceInPlace(ctMul);
-    //    __heir_debug2(ctMul, "Mult");
-    //}
 
     /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct = encoded;
-    //if (0) {
-    //    auto ctMul = zEvalMultFull(z, encoded, encoded, tPtxt);
-    //    z->ModReduceInPlace(ctMul, 2);
-    //    __heir_debug2(ctMul, "CMult");
-    //    ct = ctMul;
-    //}
-    //__heir_debug2(ct, "Input");
 
     if (0) {
         ct = fheZ->EvalArithToArith(ct);
