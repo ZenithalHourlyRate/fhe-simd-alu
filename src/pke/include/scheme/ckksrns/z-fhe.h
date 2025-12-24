@@ -67,9 +67,10 @@ public:
 
     // Conj(U0^T); used in encoding
     std::vector<ZBootstrapPlaintextCache> m_U0hatTPre;
-
-    // Conj(U0^T); used in encoding; scaled K so do not need to normalize
-    std::vector<ZBootstrapPlaintextCache> m_U0hatTPreScaledK;
+    // Conj(U0^T); used in encoding; scaled N so do not need to normalize
+    std::vector<ZBootstrapPlaintextCache> m_U0hatTPreScaledN;
+    // Conj(U0^T); used in encoding; scaled N * K so do not need to normalize for Chebyshev
+    std::vector<ZBootstrapPlaintextCache> m_U0hatTPreScaledNK;
 
     // coefficients corresponding to U0; used in decoding
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0PreFFT;
@@ -77,8 +78,10 @@ public:
     // coefficients corresponding to conj(U0^T); used in encoding
     std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFT;
 
-    // coefficients corresponding to conj(U0^T); used in encoding; scaled K so do not need to normalize
-    std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFTScaledK;
+    // coefficients corresponding to conj(U0^T); used in encoding; scaled N so do not need to normalize
+    std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFTScaledN;
+    // coefficients corresponding to conj(U0^T); used in encoding; scaled N * K so do not need to normalize
+    std::vector<std::vector<ZBootstrapPlaintextCache>> m_U0hatTPreFFTScaledNK;
 
     //
     // coefficients for ZU and ZV = ZUInverse
@@ -150,15 +153,14 @@ public:
 
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalR2C(ConstCiphertext<DCRTPoly>& ct) const;
-
-    Ciphertext<DCRTPoly> EvalR2CScaleK(ConstCiphertext<DCRTPoly>& ct) const;
+    enum R2CScalingOption { SCALE_N, SCALE_NK, SCALE_N_PRE, SCALE_NK_PRE };
+    Ciphertext<DCRTPoly> EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
 
     Ciphertext<DCRTPoly> EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
 
     Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt) const;
 

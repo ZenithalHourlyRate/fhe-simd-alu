@@ -87,14 +87,16 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     auto I = BigComplex(BigFixedPoint::zero(), BigFixedPoint::one());
 
     // Scale R2C by 1/N so we don't have to normalize after R2C
-    BigFixedPoint scaleC2R      = BigFixedPoint::one();  // No scaling for C2R
-    BigFixedPoint scaleR2C      = BigFixedPoint::one() / BigFixedPoint::positive(N);
-    BigFixedPoint scaleR2CWithK = scaleR2C / BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
+    BigFixedPoint scaleC2R   = BigFixedPoint::one();  // No scaling for C2R
+    BigFixedPoint scaleR2C   = BigFixedPoint::one();  // No scaling for R2C in high precision case
+    BigFixedPoint scaleR2CN  = BigFixedPoint::one() / BigFixedPoint::positive(N);
+    BigFixedPoint scaleR2CNK = scaleR2CN / BigFixedPoint::positive(K_SPARSE_ENCAPSULATED);
 
     // For FFT-like, scale can be distributed among levels
     auto r2clvlb = precom->m_paramsEnc.lvlb;
-    std::vector<BigFixedPoint> scaleR2CFFT;
-    std::vector<BigFixedPoint> scaleR2CWithKFFT;
+    std::vector<BigFixedPoint> scaleR2CFFT(r2clvlb, BigFixedPoint::one());
+    std::vector<BigFixedPoint> scaleR2CFFTN;
+    std::vector<BigFixedPoint> scaleR2CFFTNK;
     uint32_t log2N = std::round(std::log2(N));
     // We require K to be power of 2
     uint32_t log2K = std::round(std::log2(K_SPARSE_ENCAPSULATED));
@@ -104,21 +106,21 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     for (uint32_t i = 0; i < r2clvlb; ++i) {
         if (i != r2clvlb - 1) {
             auto scaleBFP = BigFixedPoint::positive(1l << (baseScale));
-            scaleR2CFFT.push_back(BigFixedPoint::one() / scaleBFP);
+            scaleR2CFFTN.push_back(BigFixedPoint::one() / scaleBFP);
         }
         else {
             auto scaleBFP = BigFixedPoint::positive(1l << (baseScale + remScale));
-            scaleR2CFFT.push_back(BigFixedPoint::one() / scaleBFP);
+            scaleR2CFFTN.push_back(BigFixedPoint::one() / scaleBFP);
         }
     }
     uint32_t baseScaleK = (log2N + log2K) / r2clvlb;
     uint32_t remScaleK  = (log2N + log2K) % r2clvlb;
     for (uint32_t i = 0; i < r2clvlb; ++i) {
         if (i != r2clvlb - 1) {
-            scaleR2CWithKFFT.push_back(BigFixedPoint::one() / BigFixedPoint::positive(1l << (baseScaleK)));
+            scaleR2CFFTNK.push_back(BigFixedPoint::one() / BigFixedPoint::positive(1l << (baseScaleK)));
         }
         else {
-            scaleR2CWithKFFT.push_back(BigFixedPoint::one() / BigFixedPoint::positive(1l << (baseScaleK + remScaleK)));
+            scaleR2CFFTNK.push_back(BigFixedPoint::one() / BigFixedPoint::positive(1l << (baseScaleK + remScaleK)));
         }
     }
 
@@ -136,9 +138,10 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U1hatT[j][i] = U1[i][j].conj();
                 }
             }
-            precom->m_U0Pre            = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
-            precom->m_U0hatTPre        = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
-            precom->m_U0hatTPreScaledK = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CWithK);
+            precom->m_U0Pre             = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
+            precom->m_U0hatTPre         = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
+            precom->m_U0hatTPreScaledN  = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CN);
+            precom->m_U0hatTPreScaledNK = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CNK);
         }
         else {
             BigCMatrix U0(cSlots, BigCVector(cSlots));
@@ -149,15 +152,17 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U0hatT[j][i] = U0[i][j].conj();
                 }
             }
-            precom->m_U0Pre            = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
-            precom->m_U0hatTPre        = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
-            precom->m_U0hatTPreScaledK = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CWithK);
+            precom->m_U0Pre             = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
+            precom->m_U0hatTPre         = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
+            precom->m_U0hatTPreScaledN  = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CN);
+            precom->m_U0hatTPreScaledNK = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CNK);
         }
     }
     else {
-        precom->m_U0PreFFT            = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
-        precom->m_U0hatTPreFFT        = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
-        precom->m_U0hatTPreFFTScaledK = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CWithKFFT);
+        precom->m_U0PreFFT             = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
+        precom->m_U0hatTPreFFT         = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
+        precom->m_U0hatTPreFFTScaledN  = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFTN);
+        precom->m_U0hatTPreFFTScaledNK = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFTNK);
     }
 
     // Now deal with Z Linear Transform

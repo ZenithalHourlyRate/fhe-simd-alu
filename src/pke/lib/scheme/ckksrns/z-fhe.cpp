@@ -154,31 +154,61 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     return c2r;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
     auto cc            = ct->GetCryptoContext();
     auto cSlots        = ct->GetZEncodingParams().getCSlots();
     auto precomp       = GetBootPrecom(cSlots);
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
 
-    // Then R2C here will multiply by rN because of the construction of U0HatT
-    auto r2c =
-        isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) : EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
-    z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
-    z->ModReduceInPlace(r2c);
-    return {r2c};
-}
+    Ciphertext<DCRTPoly> r2c;
+    if (scalingOption == SCALE_N || scalingOption == SCALE_NK) {
+        // Then R2C here will multiply by rN because of the construction of U0HatT
+        r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) :
+                              EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
+        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
+        z->ModReduceInPlace(r2c);
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalR2CScaleK(ConstCiphertext<DCRTPoly>& ct) const {
-    auto cc            = ct->GetCryptoContext();
-    auto cSlots        = ct->GetZEncodingParams().getCSlots();
-    auto precomp       = GetBootPrecom(cSlots);
-    bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
-
-    // Then R2C here will multiply by rN because of the construction of U0HatT
-    auto r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledK, ct) :
-                               EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledK, ct);
-    z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
-    z->ModReduceInPlace(r2c);
+        if (scalingOption == SCALE_N) {
+            // Manually scale down by N
+            auto sfNow              = r2c->GetScalingFactorBFP();
+            BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(cc->GetRingDimension());
+            auto scalarBFP          = (sfNow * scaleDown).round();
+            auto scalar             = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
+            // Use EvalMultScalarInPlace to avoid precision loss
+            // Should not use EvalMultInPlaceInC here as it will cause precision loss
+            std::cout << "Scaling down by N: " << scalar << std::endl;
+            z->EvalMultScalarInPlace(r2c, scalar);
+            r2c->SetScalingFactorBFP(sfNow * sfNow);
+            z->ModReduceInPlace(r2c);
+        }
+        else {
+            // Manually scale down by N * K
+            auto sfNow              = r2c->GetScalingFactorBFP();
+            BigFixedPoint scaleDown = BigFixedPoint::one() / (BigFixedPoint::positive(cc->GetRingDimension()) *
+                                                              BigFixedPoint::positive(K_SPARSE_ENCAPSULATED));
+            auto scalarBFP          = (sfNow * scaleDown).round();
+            auto scalar             = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
+            // Use EvalMultScalarInPlace to avoid precision loss
+            // Should not use EvalMultInPlaceInC here as it will cause precision loss
+            z->EvalMultScalarInPlace(r2c, scalar);
+            r2c->SetScalingFactorBFP(sfNow * sfNow);
+            z->ModReduceInPlace(r2c);
+        }
+    }
+    else if (scalingOption == SCALE_N_PRE) {
+        // Then R2C here will multiply by rN / N because of the construction of U0HatT
+        r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledN, ct) :
+                              EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledN, ct);
+        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
+        z->ModReduceInPlace(r2c);
+    }
+    else {  // scalingOption == SCALE_NK_PRE
+        // Then R2C here will multiply by rN / (N * K) because of the construction of U0HatT
+        r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledNK, ct) :
+                              EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledNK, ct);
+        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
+        z->ModReduceInPlace(r2c);
+    }
     return {r2c};
 }
 
@@ -197,8 +227,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const {
     return EvalC2R(EvalZ2C(ct));
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct) const {
-    return EvalC2Z(EvalR2C(ct));
+Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
+    return EvalC2Z(EvalR2C(ct, scalingOption));
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct) const {
@@ -218,8 +248,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     // R-To-Z
     //------------------------------------------------------------------------------
 
-    // R2C then will multiply by rN then divide by N because of our scaling in pre-compute
-    auto r2z = EvalR2Z(raised);
+    // R2C then will multiply by rN then divide by N. Carried out in high precision
+    auto r2z = EvalR2Z(raised, R2CScalingOption::SCALE_N);
     return r2z;
 }
 
@@ -247,6 +277,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     z->ModReduceInPlace(ctT);
 
     auto z2r = EvalZ2R(ctT);
+    __heir_debug2(z2r, "Z2R");
 
     //------------------------------------------------------------------------------
     // Truncate, ModRaise and PartialSum
@@ -254,13 +285,15 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
 
     auto raised = EvalTruncateModRaisePartialSum(z2r);
     // Now the message is multplied by N/(rN)
+    __heir_debug2(raised, "Raised");
 
     //------------------------------------------------------------------------------
     // R-To-C
     //------------------------------------------------------------------------------
 
-    // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
-    auto r2c = EvalR2CScaleK(raised);
+    // R2C then will multiply by rN then divide by N * K; carried out in high precision
+    auto r2c = EvalR2C(raised, R2CScalingOption::SCALE_NK);
+    __heir_debug2(r2c, "R2C");
 
     //------------------------------------------------------------------------------
     // Approximate Mod Reduction
@@ -405,7 +438,8 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTP
     //------------------------------------------------------------------------------
 
     // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
-    auto r2c = EvalR2CScaleK(raised);
+    // can do so in low precision as we do not need high precision here
+    auto r2c = EvalR2C(raised, SCALE_NK_PRE);
     return r2c;
 }
 

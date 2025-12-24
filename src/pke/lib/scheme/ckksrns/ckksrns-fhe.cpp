@@ -3148,6 +3148,11 @@ EvalKey<DCRTPoly> FHECKKSRNS::KeySwitchGenSparse(const PrivateKey<DCRTPoly>& old
     std::vector<NativeInteger> moduli{paramsQ->GetParams()[0]->GetModulus(), paramsP->GetParams()[0]->GetModulus()};
     std::vector<NativeInteger> roots{paramsQ->GetParams()[0]->GetRootOfUnity(),
                                      paramsP->GetParams()[0]->GetRootOfUnity()};
+    auto log2q = moduli[0].GetMSB();
+    auto log2p = moduli[1].GetMSB();
+    if (log2p < log2q || log2p - log2q < 6) {
+        OPENFHE_THROW("Inadequate size of modulus p for sparse encapsulated key switching.");
+    }
 
     auto paramsqp = std::make_shared<typename DCRTPoly::Params>(2 * paramsQ->GetRingDimension(), moduli, roots);
 

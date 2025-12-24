@@ -63,6 +63,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"ModRaise", DecodeMode::RDecode},
         {"C2R", DecodeMode::RDecode},
         {"Z2R", DecodeMode::RDecode},
+        {"Raised", DecodeMode::RDecode},
         // CSlotsDecode
         {"CSlotsDecode", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
@@ -70,7 +71,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
         {"Core", DecodeMode::CSlotsTwiceDecode},
         {"Z2C", DecodeMode::CSlotsTwiceDecode},
-        {"Z2C2", DecodeMode::CSlotsTwiceDecode},
+        {"R2C", DecodeMode::CSlotsTwiceDecode},
         {"Boolean", DecodeMode::CSlotsTwiceBooleanMode},
         {"BooleanAgain", DecodeMode::CSlotsTwiceBooleanMode},
         // ZDecode
@@ -88,10 +89,21 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     // Check the r encoding?
     if (decodeMode == DecodeMode::RDecode) {
         // Threshold print to avoid too much output
-        for (size_t i = 0; i != std::min(values.getCoefficients().size(), 32ul); ++i) {
-            std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
+        for (size_t i = 0; i != std::min(values.getCoefficients().size(), 8ul); ++i) {
+            auto valueI      = values[i];
+            auto p           = BigFixedPoint::positive(1 << 16);  // some random precision
+            auto integerPart = (valueI * p).round() / p;
+            auto fracPart    = valueI - integerPart;
+            auto log2Error   = std::log2(std::abs(fracPart.convertToDouble()));
+            if (msg == "Raised") {
+                auto N  = cc_global->GetRingDimension();
+                auto rN = zN_global * zSlots_global;
+                log2Error -= std::log2(N / rN);
+            }
+            std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(ceil(log2sf / 4.0))
+                      << " error: " << log2Error << std::endl;
         }
-        if (values.getCoefficients().size() > 32) {
+        if (values.getCoefficients().size() > 4) {
             std::cout << msg << "  ... (total " << values.getCoefficients().size() << " coefficients)" << std::endl;
         }
     }
@@ -120,11 +132,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
                 if (i >= zN_global / 2) {
                     index += (zSlots_global - 1) * zN_global / 2;
                 }
-                auto p        = BigFixedPoint::positive(1 << zN_global);
-                auto lutPart  = (cSlotsTwice[index].getReal() * p).round() / p;
-                auto fracPart = cSlotsTwice[index].getReal() - lutPart;
+                auto p           = BigFixedPoint::positive(1 << zN_global);
+                auto lutPart     = (cSlotsTwice[index].getReal() * p).round() / p;
+                auto fracPart    = cSlotsTwice[index].getReal() - lutPart;
+                double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
                 std::cout << msg << "  cSlotsTwice Slot Example " << exampleSlotIndex << " " << index << " : "
-                          << lutPart.toHexString() << " " << fracPart.toHexString(ceil(log2sf / 4.0)) << std::endl;
+                          << lutPart.toHexString() << " " << fracPart.toHexString(ceil(log2sf / 4.0))
+                          << " error: " << log2Error << std::endl;
             }
         }
     }
@@ -164,11 +178,11 @@ void SimpleBootstrapExample() {
     parameters.SetSecretKeyDist(secretKeyDist);
 
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 12);
+    parameters.SetRingDim(1 << 10);
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 45;
+    uint32_t dcrtBits            = 40;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
@@ -232,6 +246,10 @@ void SimpleBootstrapExample() {
 
     /// TEST ENCODE
     auto encoded = Encrypt(ptxt1, keyPair.publicKey);
+
+    // See multiplication noise
+    encoded = z->EvalMultInC(encoded, BigFixedPoint::positive(1));
+    z->ModReduceInPlace(encoded);
 
     __heir_debug2(encoded, "Input");
 
