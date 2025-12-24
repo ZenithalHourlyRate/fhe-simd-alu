@@ -343,13 +343,16 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct)
             }
             // Multiply by 1 / (2^{nextIter - iter} * p)
             auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
-            if (nextIter * w >= zN / 2) {
+            // If cross the half-way point, need to rotate more
+            if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
                 rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
             }
             scaled = cc->EvalRotate(scaled, rotationIndex);
             z->ModReduceInPlace(scaled);
             z->EvalSubWithAdjustInPlace(core, scaled);
         }
+        // Remove itself from core
+        z->EvalSubWithAdjustInPlace(core, lut);
     }
 
     //------------------------------------------------------------------------------

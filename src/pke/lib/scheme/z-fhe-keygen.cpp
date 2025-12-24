@@ -105,7 +105,8 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
                     // Just treat the lower parts as noises
                     break;
                 }
-                if (nextIter * w >= zN / 2) {
+                // If cross the half-way point, need to rotate more
+                if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
                     rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
                 }
                 s.insert(rotationIndex);

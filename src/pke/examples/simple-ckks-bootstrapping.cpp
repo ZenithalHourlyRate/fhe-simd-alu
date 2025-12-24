@@ -46,14 +46,15 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
-        std::cout << msg << "  zPoly Decoded: " << std::hex << decoded << std::dec << std::endl;
-        auto I = ZPolynomial::extractI(zPoly);
-        std::cout << msg << "  zPoly I: ";
-        for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
-            std::cout << I[i].toHexString(16) << " ";
-        }
-        std::cout << std::endl;
-        std::cout << msg << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
+        std::cout << msg << "  zPoly Decoded: " << std::hex << decoded << std::dec
+                  << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
+        //auto I = ZPolynomial::extractI(zPoly);
+        //std::cout << msg << "  zPoly I: ";
+        //for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
+        //    std::cout << I[i].toHexString(16) << " ";
+        //}
+        //std::cout << std::endl;
+        //std::cout << msg << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
     };
 
     enum class DecodeMode { RDecode, CSlotsDecode, CSlotsTwiceDecode, CSlotsTwiceBooleanMode, ZDecode };
@@ -93,29 +94,55 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
     if (decodeMode == DecodeMode::CSlotsTwiceDecode || decodeMode == DecodeMode::CSlotsTwiceBooleanMode) {
         auto cSlotsTwice = valuesTwice.toCSlots();
-        for (size_t i = 0; i != std::min(cSlotsTwice.getSlots().size(), 32ul); ++i) {
-            std::cout << msg << "  complexValuesTwice [" << i << "]: " << cSlotsTwice[i].toHexString(ceil(log2sf / 4.0))
-                      << std::endl;
-        }
-        if (cSlotsTwice.getSlots().size() > 32) {
-            std::cout << msg << "  ... (total " << cSlotsTwice.getSlots().size() << " slots)" << std::endl;
-        }
+
         if (decodeMode == DecodeMode::CSlotsTwiceBooleanMode) {
             // Force re-interpretation at boolean mode
             CSlots cSlotsTwiceBooleanMode(params, cSlotsTwice.getSlots());
-            for (size_t i = 0; i != zSlots_global; ++i) {
+            auto maxSlotsToPrint = std::min(zSlots_global, size_t(8));
+            for (size_t i = 0; i != maxSlotsToPrint; ++i) {
                 auto [integerValue, log2Error] = cSlotsTwiceBooleanMode.getIntegerAndErrorAtBooleanMode(i);
                 std::cout << msg << "  Boolean Mode Slot " << i << " Reconstructed: " << std::hex << integerValue
                           << std::dec << " with error log2: " << log2Error << std::endl;
             }
+            if (zSlots_global > maxSlotsToPrint) {
+                std::cout << msg << "  ... (total " << zSlots_global << " slots)" << std::endl;
+            }
+        }
+        else {
+            auto exampleSlotIndex = zSlots_global - 1;
+            for (size_t i = 0; i != zN_global; ++i) {
+                auto slotIndex = exampleSlotIndex;
+                auto index     = slotIndex * (zN_global / 2) + i;
+                if (i >= zN_global / 2) {
+                    index += (zSlots_global - 1) * zN_global / 2;
+                }
+                auto p        = BigFixedPoint::positive(1 << zN_global);
+                auto lutPart  = (cSlotsTwice[index].getReal() * p).round() / p;
+                auto fracPart = cSlotsTwice[index].getReal() - lutPart;
+                std::cout << msg << "  cSlotsTwice Slot Example " << exampleSlotIndex << " " << index << " : "
+                          << lutPart.toHexString() << " " << fracPart.toHexString(ceil(log2sf / 4.0)) << std::endl;
+            }
         }
     }
     if (decodeMode == DecodeMode::ZDecode) {
-        ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
-        for (size_t i = 0; i != zValues.getCoefficients().size(); ++i) {
-            std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
+        auto cSlots = values.toCSlots();
+        std::vector<ZPolynomial> zPolys(zSlots_global, ZPolynomial(zN_global));
+        auto maxSlotsToPrint = std::min(zSlots_global, size_t(8));
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(maxSlotsToPrint))
+        for (size_t i = 0; i != maxSlotsToPrint; ++i) {
+            zPolys[i] = cSlots.getZPolynomial(i);
         }
-        printZPoly(zValues);
+        for (size_t i = 0; i != maxSlotsToPrint; ++i) {
+            printZPoly(zPolys[i]);
+        }
+        if (zSlots_global > maxSlotsToPrint) {
+            std::cout << msg << "  ... (total " << zSlots_global << " slots)" << std::endl;
+        }
+
+        //ZPolynomial zValues = values.toCSlots().getZPolynomial(0);
+        //for (size_t i = 0; i != zValues.getCoefficients().size(); ++i) {
+        //    std::cout << msg << "  zValues [" << i << "]: " << zValues[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
+        //}
     }
     return 0;
 }
@@ -133,7 +160,7 @@ void SimpleBootstrapExample() {
     parameters.SetSecretKeyDist(secretKeyDist);
 
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 12);
+    parameters.SetRingDim(1 << 10);
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
@@ -171,7 +198,7 @@ void SimpleBootstrapExample() {
 
     uint32_t zN = 16;
     //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
-    uint32_t zSlots = 64;
+    uint32_t zSlots = 32;
     zN_global       = zN;
     zSlots_global   = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
