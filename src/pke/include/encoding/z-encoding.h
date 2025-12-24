@@ -151,7 +151,7 @@ public:
 
     static ZEncoding encodeZ(std::vector<ZPolynomial> input, uint32_t zN, uint32_t zSlots,
                              const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                             const BigFixedPoint& scalingFactor) {
+                             const BigFixedPoint& scalingFactor, bool scaleUp = true) {
         if (input.size() < zSlots) {
             input.resize(zSlots, ZPolynomial::encode(zN, 0));
         }
@@ -159,10 +159,16 @@ public:
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zSlots))
         for (size_t i = 0; i != zSlots; ++i) {
             auto singleCSlots = input[i].toCSlots();
-            // Note: here we scale by zSlots for compensating mismatch
-            // between the different scaling in R-canonical map and Z-canonical map
             for (size_t j = 0; j != zN / 2; ++j) {
-                mergedSlots[i * (zN / 2) + j] = singleCSlots[j] * BigFixedPoint::positive(zSlots);
+                mergedSlots[i * (zN / 2) + j] = singleCSlots[j];
+                // Note: here we scale by zSlots for compensating mismatch
+                // between the different scaling in R-canonical map and Z-canonical map
+                // scaleUp == false is for T and TInv
+                // as their contents in different slots are identical
+                // which is equivalent to say N/n = 1 and zSlots = 1
+                if (scaleUp) {
+                    mergedSlots[i * (zN / 2) + j] *= BigFixedPoint::positive(zSlots);
+                }
             }
         }
         ZEncodingParams params(ZMode, zN, zSlots);
@@ -179,6 +185,10 @@ public:
         std::vector<ZPolynomial> zPolys;
         for (size_t i = 0; i != zSlots; ++i) {
             zPolys.push_back(ZPolynomial::encode(zN, input[i]));
+            if (i == 0) {
+                // add a small noise
+                zPolys[i][0] += BigFixedPoint::one() / BigFixedPoint::positive(1 << 8);
+            }
         }
         return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
     }
@@ -187,14 +197,14 @@ public:
                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                 const BigFixedPoint& scalingFactor) {
         std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial::getT(zN));
-        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
+        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor, /*scaleUp*/ false);
     }
 
     static ZEncoding encodeTInvInZ(uint32_t zN, uint32_t zSlots,
                                    const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                    const BigFixedPoint& scalingFactor) {
         std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial::getTInv(zN));
-        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
+        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor, /*scaleUp*/ false);
     }
 };
 

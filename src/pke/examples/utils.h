@@ -85,23 +85,6 @@ std::shared_ptr<std::vector<DCRTPoly>> EncryptZeroCore(const PublicKey<DCRTPoly>
     return std::make_shared<std::vector<DCRTPoly>>(std::initializer_list<DCRTPoly>({std::move(b), std::move(a)}));
 }
 
-std::shared_ptr<std::vector<DCRTPoly>> EncryptZeroCore(const PrivateKey<DCRTPoly> privateKey) {
-    const auto cryptoParams =
-        std::dynamic_pointer_cast<CryptoParametersRLWE<DCRTPoly>>(privateKey->GetCryptoParameters());
-    const auto elementParams = cryptoParams->GetElementParams();
-
-    DCRTPoly::DugType dug;
-    DCRTPoly a(dug, elementParams, Format::EVALUATION);
-
-    DCRTPoly e(cryptoParams->GetDiscreteGaussianGenerator(), elementParams, Format::EVALUATION);
-    NativeInteger ns = cryptoParams->GetNoiseScale();
-
-    // {b = ns * e - a * s, a}
-    DCRTPoly b(std::move((e *= ns) -= (a * privateKey->GetPrivateElement())));
-
-    return std::make_shared<std::vector<DCRTPoly>>(std::initializer_list<DCRTPoly>({std::move(b), std::move(a)}));
-}
-
 Ciphertext<DCRTPoly> Encrypt(Plaintext ptxt, const PublicKey<DCRTPoly> publicKey) {
     ZEncoding zEnc    = std::dynamic_pointer_cast<ZEncodingImpl>(ptxt);
     auto zEncDCRTPoly = zEnc->GetElement<DCRTPoly>();
@@ -117,41 +100,14 @@ Ciphertext<DCRTPoly> Encrypt(Plaintext ptxt, const PublicKey<DCRTPoly> publicKey
     return ctxt;
 }
 
-Ciphertext<DCRTPoly> EncryptZero(const PublicKey<DCRTPoly> publicKey) {
-    auto ba   = EncryptZeroCore(publicKey);
-    auto ctxt = std::make_shared<CiphertextImpl<DCRTPoly>>(publicKey);
-    ctxt->SetElements(std::move(*ba));
-    return ctxt;
-}
-
-//=============================================================================
-// KeyGen Related
-//=============================================================================
-
-std::shared_ptr<std::map<uint32_t, EvalKey<DCRTPoly>>> EvalSparseEncapsulatedKeyGen(
-    const PrivateKey<DCRTPoly> privateKey) {
-    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(privateKey->GetCryptoParameters());
-
-    auto cc   = privateKey->GetCryptoContext();
-    auto algo = cc->GetScheme();
-    auto M    = cc->GetCyclotomicOrder();
-
-    // computing all indices for baby-step giant-step procedure
-    auto evalKeys = std::make_shared<std::map<uint32_t, EvalKey<DCRTPoly>>>();
-
-    if (cryptoParams->GetSecretKeyDist() == SPARSE_ENCAPSULATED) {
-        DCRTPoly::TugType tug;
-
-        // sparse key used for the modraising step
-        auto skNew = std::make_shared<PrivateKeyImpl<DCRTPoly>>(cc);
-        skNew->SetPrivateElement(DCRTPoly(tug, cryptoParams->GetElementParams(), Format::EVALUATION, 32));
-
-        // we reserve M-4 and M-2 for the sparse encapsulation switching keys
-        // Even autorphism indices are not possible, so there will not be any conflict
-        (*evalKeys)[M - 4] = lbcrypto::FHECKKSRNS::KeySwitchGenSparse(privateKey, skNew);
-        (*evalKeys)[M - 2] = algo->KeySwitchGen(skNew, privateKey);
-    }
-
-    cc->InsertEvalAutomorphismKey(evalKeys, privateKey->GetKeyTag());
-    return evalKeys;
-}
+#define BENCHMARK(x, times, str)                                                           \
+    {                                                                                      \
+        (x);                                                                               \
+        auto start = std::chrono::high_resolution_clock::now();                            \
+        for (size_t i = 0; i != (times); ++i)                                              \
+            (x);                                                                           \
+        auto end                           = std::chrono::high_resolution_clock::now();    \
+        std::chrono::duration<double> diff = end - start;                                  \
+        std::cout << "Time for " str " : " << diff.count() / (times) << " s" << std::endl; \
+    }                                                                                      \
+    while (0)

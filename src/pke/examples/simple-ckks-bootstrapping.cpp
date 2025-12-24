@@ -62,6 +62,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         // RDecode
         {"ModRaise", DecodeMode::RDecode},
         {"C2R", DecodeMode::RDecode},
+        {"Z2R", DecodeMode::RDecode},
         // CSlotsDecode
         {"CSlotsDecode", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
@@ -69,11 +70,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
         {"Core", DecodeMode::CSlotsTwiceDecode},
         {"Z2C", DecodeMode::CSlotsTwiceDecode},
+        {"Z2C2", DecodeMode::CSlotsTwiceDecode},
         {"Boolean", DecodeMode::CSlotsTwiceBooleanMode},
         {"BooleanAgain", DecodeMode::CSlotsTwiceBooleanMode},
         // ZDecode
         {"Input", DecodeMode::ZDecode},
         {"CMult", DecodeMode::ZDecode},
+        {"NoiseT", DecodeMode::ZDecode},
     };
 
     auto decodeModeIt = decodeMap.find(msg);
@@ -109,7 +112,8 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             }
         }
         else {
-            auto exampleSlotIndex = zSlots_global - 1;
+            //auto exampleSlotIndex = zSlots_global - 1;
+            auto exampleSlotIndex = 0;
             for (size_t i = 0; i != zN_global; ++i) {
                 auto slotIndex = exampleSlotIndex;
                 auto index     = slotIndex * (zN_global / 2) + i;
@@ -160,11 +164,11 @@ void SimpleBootstrapExample() {
     parameters.SetSecretKeyDist(secretKeyDist);
 
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(1 << 15);
+    parameters.SetRingDim(1 << 12);
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 31;
+    uint32_t dcrtBits            = 45;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
@@ -203,11 +207,11 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    uint32_t zN = 16;
-    //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
-    uint32_t zSlots = 32;
-    zN_global       = zN;
-    zSlots_global   = zSlots;
+    uint32_t zN     = 16;
+    uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
+    //uint32_t zSlots = 32;
+    zN_global     = zN;
+    zSlots_global = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
 
     fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16);
@@ -231,66 +235,16 @@ void SimpleBootstrapExample() {
 
     __heir_debug2(encoded, "Input");
 
-    /// TEST ADD
-    if (0) {
-        auto ctAdd = z->EvalAdd(encoded, encoded);
-
-        __heir_debug2(ctAdd, "Add");
-    }
-
-    /// TEST CT-PT-MULT
-
-    /// TEST CT-CT-MULT
     Ciphertext<DCRTPoly> ct = encoded;
 
-    if (0) {
-        ct = fheZ->EvalArithToArith(ct);
-        __heir_debug2(ct, "CMult");
-    }
+    //Ciphertext<DCRTPoly> ct2 = fheZ->EvalArithToBoolean(ct);
+    //__heir_debug2(ct2, "Boolean");
+    //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
 
-    Ciphertext<DCRTPoly> ct2;
-    for (size_t i = 0; i != 1; ++i) {
-        ct2 = fheZ->EvalArithToBoolean(ct);
-    }
-    __heir_debug2(ct2, "Boolean");
-    std::cout << "Finished Warmup\n";
-    auto start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i != 3; ++i) {
-        ct2 = fheZ->EvalArithToBoolean(ct);
-    }
-    auto end      = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "Average time for ArithToBoolean: " << double(duration) / 3.0 << " ms\n";
-
-    Ciphertext<DCRTPoly> ct3;
-    for (size_t i = 0; i != 1; ++i) {
-        ct3 = fheZ->EvalArithToArith(ct);
-    }
+    Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(ct);
     __heir_debug2(ct3, "CMult");
-    start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i != 3; ++i) {
-        ct3 = fheZ->EvalArithToArith(ct);
-    }
-    end      = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "Average time for ArithToArith: " << double(duration) / 3.0 << " ms\n";
+    //BENCHMARK(fheZ->EvalArithToArith(ct), 3, "ArithToArith");
 
-    for (size_t i = 0; i != 1; ++i) {
-        ct = fheZ->EvalBooleanToBoolean(ct2);
-    }
-    __heir_debug2(ct, "BooleanAgain");
-    start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i != 3; ++i) {
-        ct = fheZ->EvalBooleanToBoolean(ct2);
-    }
-    end      = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "Average time for BooleanToBoolean: " << double(duration) / 3.0 << " ms\n";
-
-    /// TEST Rotate
-    if (0) {
-        auto ctRot = cc->EvalRotate(encoded, 1);
-
-        __heir_debug2(ctRot, "Rotate");
-    }
+    //BENCHMARK(fheZ->EvalBooleanToBoolean(ct2), 3, "BooleanToBoolean");
+    //__heir_debug2(ct, "BooleanAgain");
 }

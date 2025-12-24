@@ -12,7 +12,8 @@ namespace lbcrypto {
 
 void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                                   std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1, uint32_t w,
-                                  int32_t arithToBooleanCutoff, uint32_t lutMSBOrder, uint32_t lutIDOrder) {
+                                  int32_t arithToBooleanCutoff, uint32_t lutMSBOrder, uint32_t lutIDOrder,
+                                  uint32_t zSlotsThresholdForScaling) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
     uint32_t N  = cc.GetRingDimension();
@@ -182,7 +183,13 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
 
     // scaled during encoding
     BigFixedPoint scaleZU = BigFixedPoint::positive(zSlots);
-    BigFixedPoint scaleZV = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+    // NOTE: for large zSlots, scaling ZV by zSlots may cause precision issue
+    // We then consume more levels to scale down during encoding
+    BigFixedPoint scaleZV = BigFixedPoint::one();
+    if (zSlots < zSlotsThresholdForScaling) {
+        scaleZV = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+    }
+    precom->m_zSlotsThresholdForScaling = zSlotsThresholdForScaling;
 
     if (isSparse) {
         precom->m_ZUPre          = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots, scaleZU);

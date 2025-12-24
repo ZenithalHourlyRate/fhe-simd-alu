@@ -90,6 +90,11 @@ public:
     // coefficients for ZV with preprocessing for b0
     std::vector<ZBootstrapPlaintextCache> m_ZVSpecialB0Pre;
 
+    // Parameters for scaleZV, i.e., whether we scale down by zSlots during multiplying ZV
+    // If larger than this threshold, we do not scale down during multiplying ZV
+    // And a manual scaling down is needed (i.e. takes two levels for ZV LT)
+    uint32_t m_zSlotsThresholdForScaling;
+
     std::vector<ZBootstrapPlaintextCache> m_ZU0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZU1Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV0Pre;
@@ -115,7 +120,7 @@ public:
     void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                             std::vector<uint32_t> levelBudget = {2, 2}, std::vector<uint32_t> dim1 = {0, 0},
                             uint32_t w = 4, int32_t arithToBooleanCutoff = -12, uint32_t lutMSBOrder = 1,
-                            uint32_t lutIDOrder = 1);
+                            uint32_t lutIDOrder = 1, uint32_t zSlotsThresholdForScaling = 8);
 
     void EvalBootstrapKeyGen(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots);
 

@@ -108,6 +108,15 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
     auto z2c = EvalZLinearTransform(precomp.m_ZVPre, ct);
     z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
     z->ModReduceInPlace(z2c);
+
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    // For large zSlots, we do not scale down by zSlots during multiplying ZV
+    if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
+        // Manually scale down by zSlots
+        BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+        z->EvalMultInPlaceInC(z2c, scaleDown);
+        z->ModReduceInPlace(z2c);
+    }
     return {z2c};
 }
 
@@ -120,6 +129,15 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) c
     auto z2c = EvalZLinearTransform(precomp.m_ZVSpecialB0Pre, ct);
     z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
     z->ModReduceInPlace(z2c);
+
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    // For large zSlots, we do not scale down by zSlots during multiplying ZV
+    if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
+        // Manually scale down by zSlots
+        BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+        z->EvalMultInPlaceInC(z2c, scaleDown);
+        z->ModReduceInPlace(z2c);
+    }
     return {z2c};
 }
 
@@ -226,6 +244,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto zSlots     = ct->GetZEncodingParams().getZSlots();
     Plaintext tPtxt = ZEncodingImpl::encodeTInZ(zN, zSlots, elemParam, sf);
     auto ctT        = z->EvalMult(ct, tPtxt);
+    z->ModReduceInPlace(ctT);
 
     auto z2r = EvalZ2R(ctT);
 
