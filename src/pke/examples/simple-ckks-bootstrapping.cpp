@@ -182,7 +182,7 @@ void SimpleBootstrapExample() {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 40;
+    uint32_t dcrtBits            = 35;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
