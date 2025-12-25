@@ -403,6 +403,28 @@ Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertext(ConstCiphertext<DCRTPoly> ct
 }
 
 //
+// Operations in Z
+//
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    // Each input message is scaled by zSlots
+    auto ct = EvalMult(ct1, ct2);
+    ModReduceInPlace(ct);
+    // Now the message is scaled by zSlots^2
+
+    // Multiply by tPtxt
+    // TODO: cache tPtxt
+    auto zN         = ct->GetZEncodingParams().getZN();
+    auto zSlots     = ct->GetZEncodingParams().getZSlots();
+    auto elemParam  = ct->GetElements()[0].GetParams();
+    auto sf         = ct->GetScalingFactorBFP();
+    Plaintext tPtxt = ZEncodingImpl::encodeTInZ(zN, zSlots, elemParam, sf);
+    auto ctT        = EvalMult(ct, tPtxt);
+    ModReduceInPlace(ctT);
+    return ctT;
+}
+
+//
 // Operations in C
 //
 

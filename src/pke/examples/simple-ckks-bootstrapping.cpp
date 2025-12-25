@@ -46,7 +46,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
-        std::cout << msg << "  zPoly Decoded: " << std::hex << decoded << std::dec
+        std::cout << msg << "  zPoly Decoded: 0x" << std::hex << decoded << std::dec
                   << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
         //auto I = ZPolynomial::extractI(zPoly);
         //std::cout << msg << "  zPoly I: ";
@@ -72,6 +72,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Core", DecodeMode::CSlotsTwiceDecode},
         {"Z2C", DecodeMode::CSlotsTwiceDecode},
         {"R2C", DecodeMode::CSlotsTwiceDecode},
+        {"Sine", DecodeMode::CSlotsTwiceDecode},
         {"Boolean", DecodeMode::CSlotsTwiceBooleanMode},
         {"BooleanAgain", DecodeMode::CSlotsTwiceBooleanMode},
         // ZDecode
@@ -116,7 +117,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
             auto maxSlotsToPrint = std::min(zSlots_global, size_t(8));
             for (size_t i = 0; i != maxSlotsToPrint; ++i) {
                 auto [integerValue, log2Error] = cSlotsTwiceBooleanMode.getIntegerAndErrorAtBooleanMode(i);
-                std::cout << msg << "  Boolean Mode Slot " << i << " Reconstructed: " << std::hex << integerValue
+                std::cout << msg << "  Boolean Mode Slot " << i << " Reconstructed: 0x" << std::hex << integerValue
                           << std::dec << " with error log2: " << log2Error << std::endl;
             }
             if (zSlots_global > maxSlotsToPrint) {
@@ -132,13 +133,20 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
                 if (i >= zN_global / 2) {
                     index += (zSlots_global - 1) * zN_global / 2;
                 }
+                auto value = cSlotsTwice[index].getReal();
+                if (msg == "R2C") {
+                    // K_SPARSE_ENCAPSULATED scaling
+                    value = value * BigFixedPoint::positive(16);
+                }
                 auto p           = BigFixedPoint::positive(1 << zN_global);
-                auto lutPart     = (cSlotsTwice[index].getReal() * p).round() / p;
-                auto fracPart    = cSlotsTwice[index].getReal() - lutPart;
+                auto lutPart     = (value * p).round() / p;
+                auto fracPart    = value - lutPart;
                 double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
                 std::cout << msg << "  cSlotsTwice Slot Example " << exampleSlotIndex << " " << index << " : "
                           << lutPart.toHexString() << " " << fracPart.toHexString(ceil(log2sf / 4.0))
                           << " error: " << log2Error << std::endl;
+                //std::cout << msg << "  cSlotsTwice Slot Example " << exampleSlotIndex << " " << index << " : "
+                //          << cSlotsTwice[index].getReal().toString() << std::endl;
             }
         }
     }
@@ -182,7 +190,7 @@ void SimpleBootstrapExample() {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 35;
+    uint32_t dcrtBits            = 31;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
@@ -190,7 +198,7 @@ void SimpleBootstrapExample() {
 
     std::vector<uint32_t> levelBudget = {2, 2};
 
-    parameters.SetMultiplicativeDepth(20);
+    parameters.SetMultiplicativeDepth(21);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -259,8 +267,29 @@ void SimpleBootstrapExample() {
     //__heir_debug2(ct2, "Boolean");
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
 
-    Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(ct);
+    Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(ct, FHEZImpl::Z2CScalingOption::SCALE_ZV);
     __heir_debug2(ct3, "CMult");
+    //Ciphertext<DCRTPoly> ct4 = fheZ->EvalArithToArith(ct3, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+    //__heir_debug2(ct4, "CMult");
+
+    auto ct4 = z->EvalMultFullInZ(ct3, ct3);
+    __heir_debug2(ct4, "CMultTwice");
+
+    Ciphertext<DCRTPoly> ct5 = fheZ->EvalArithToArith(ct4, FHEZImpl::Z2CScalingOption::SCALE_ZV_TWICE);
+    __heir_debug2(ct5, "CMult");
+
+    Ciphertext<DCRTPoly> ct6 = fheZ->EvalArithToArith(ct5, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+    __heir_debug2(ct6, "CMult");
+
+    Ciphertext<DCRTPoly> ct7 = fheZ->EvalArithToArith(ct6, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+    __heir_debug2(ct7, "CMult");
+
+    auto ct8 = z->EvalMultFullInZ(ct7, ct7);
+    __heir_debug2(ct8, "CMultTwice");
+
+    Ciphertext<DCRTPoly> ct9 = fheZ->EvalArithToArith(ct8, FHEZImpl::Z2CScalingOption::SCALE_ZV_TWICE);
+    __heir_debug2(ct9, "CMult");
+
     //BENCHMARK(fheZ->EvalArithToArith(ct), 3, "ArithToArith");
 
     //BENCHMARK(fheZ->EvalBooleanToBoolean(ct2), 3, "BooleanToBoolean");

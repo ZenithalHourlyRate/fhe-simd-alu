@@ -99,7 +99,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalTruncateModRaisePartialSum(ConstCiphertext<DC
     return ctNew;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
@@ -114,13 +114,21 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const {
     if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
         // Manually scale down by zSlots
         BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+        if (scalingOption == SCALE_ZV_TWICE) {
+            // Scale down by zSlots twice
+            // To compensate for the zSlots scaling during encoding
+            scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
+        }
         z->EvalMultInPlaceInC(z2c, scaleDown);
         z->ModReduceInPlace(z2c);
+    }
+    else {
+        OPENFHE_THROW("Not implemented yet");
     }
     return {z2c};
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
@@ -135,8 +143,16 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) c
     if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
         // Manually scale down by zSlots
         BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+        if (scalingOption == SCALE_ZV_TWICE) {
+            // Scale down by zSlots twice
+            // To compensate for the zSlots scaling during encoding
+            scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
+        }
         z->EvalMultInPlaceInC(z2c, scaleDown);
         z->ModReduceInPlace(z2c);
+    }
+    else {
+        OPENFHE_THROW("Not implemented yet");
     }
     return {z2c};
 }
@@ -176,7 +192,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScaling
             auto scalar             = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
             // Use EvalMultScalarInPlace to avoid precision loss
             // Should not use EvalMultInPlaceInC here as it will cause precision loss
-            std::cout << "Scaling down by N: " << scalar << std::endl;
+            // TODO: should be OK to use EvalMultInPlaceInC?
             z->EvalMultScalarInPlace(r2c, scalar);
             r2c->SetScalingFactorBFP(sfNow * sfNow);
             z->ModReduceInPlace(r2c);
@@ -223,20 +239,21 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const {
     return c2z;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const {
-    return EvalC2R(EvalZ2C(ct));
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
+    return EvalC2R(EvalZ2C(ct, scalingOption));
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
     return EvalC2Z(EvalR2C(ct, scalingOption));
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct,
+                                                    Z2CScalingOption scalingOption) const {
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
 
-    auto z2r = EvalZ2R(ct);
+    auto z2r = EvalZ2R(ct, scalingOption);
 
     //------------------------------------------------------------------------------
     // Truncate, ModRaise and PartialSum
@@ -262,7 +279,8 @@ void FHEZImpl::ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ct, uint32_t num
     }
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ct,
+                                                     Z2CScalingOption scalingOption) const {
     auto cc        = ct->GetCryptoContext();
     auto cSlots    = ct->GetZEncodingParams().getCSlots();
     auto precomp   = GetBootPrecom(cSlots);
@@ -276,8 +294,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto ctT        = z->EvalMult(ct, tPtxt);
     z->ModReduceInPlace(ctT);
 
-    auto z2r = EvalZ2R(ctT);
-    __heir_debug2(z2r, "Z2R");
+    auto z2r = EvalZ2R(ctT, scalingOption);
+    //__heir_debug2(z2r, "Z2R");
 
     //------------------------------------------------------------------------------
     // Truncate, ModRaise and PartialSum
@@ -285,7 +303,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
 
     auto raised = EvalTruncateModRaisePartialSum(z2r);
     // Now the message is multplied by N/(rN)
-    __heir_debug2(raised, "Raised");
+    //__heir_debug2(raised, "Raised");
 
     //------------------------------------------------------------------------------
     // R-To-C
@@ -293,7 +311,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
 
     // R2C then will multiply by rN then divide by N * K; carried out in high precision
     auto r2c = EvalR2C(raised, R2CScalingOption::SCALE_NK);
-    __heir_debug2(r2c, "R2C");
+    //__heir_debug2(r2c, "R2C");
 
     //------------------------------------------------------------------------------
     // Approximate Mod Reduction
@@ -306,6 +324,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     // Double-angle iterations
     uint32_t numIter = FHEZImpl::R_SPARSE;
     ApplyDoubleAngleIterations(g0, numIter);
+
+    //__heir_debug2(g0, "Sine");
 
     //------------------------------------------------------------------------------
     // C-To-Z
@@ -327,19 +347,19 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     return r2z;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct) const {
-    auto high  = EvalArithToArithHigh(ct);
-    auto noise = EvalArithToArithNoise(ct);
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
+    auto high  = EvalArithToArithHigh(ct, scalingOption);
+    auto noise = EvalArithToArithNoise(ct, scalingOption);
     return z->EvalSubWithAdjust(high, noise);
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
     auto cc      = ct->GetCryptoContext();
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
 
     // Our core ct
-    auto core = EvalZ2CSpecialB0(ct);
+    auto core = EvalZ2CSpecialB0(ct, scalingOption);
     // TODO: We need to keep core ct at bottom; rescale if necessary
 
     auto zN     = ct->GetZEncodingParams().getZN();

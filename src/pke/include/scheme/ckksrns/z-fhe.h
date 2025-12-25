@@ -149,7 +149,8 @@ public:
 
     Ciphertext<DCRTPoly> EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalZ2C(ConstCiphertext<DCRTPoly>& ct) const;
+    enum Z2CScalingOption { SCALE_ZV, SCALE_ZV_TWICE };
+    Ciphertext<DCRTPoly> EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
 
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
@@ -158,17 +159,17 @@ public:
 
     Ciphertext<DCRTPoly> EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
 
     Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArith(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> EvalArithToArith(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
     Ciphertext<DCRTPoly> EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
 
@@ -190,7 +191,7 @@ private:
     Ciphertext<DCRTPoly> internalBooleanToBooleanCustomLUT(ConstCiphertext<DCRTPoly>& ctxt,
                                                            const std::vector<BigComplex>& lutCoeffs) const;
 
-    Ciphertext<DCRTPoly> EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
 
     //------------------------------------------------------------------------------
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
