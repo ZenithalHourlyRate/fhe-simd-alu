@@ -193,18 +193,16 @@ public:
         return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
     }
 
-    static ZEncoding encodeTInZ(uint32_t zN, uint32_t zSlots,
-                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+    static ZEncoding encodeTInZ(uint32_t zN, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                 const BigFixedPoint& scalingFactor) {
-        std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial::getT(zN));
-        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor, /*scaleUp*/ false);
+        std::vector<ZPolynomial> zPolys(1, ZPolynomial::getT(zN));
+        return encodeZ(zPolys, zN, 1, elementParams, scalingFactor, /*scaleUp*/ false);
     }
 
-    static ZEncoding encodeTInvInZ(uint32_t zN, uint32_t zSlots,
-                                   const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+    static ZEncoding encodeTInvInZ(uint32_t zN, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                    const BigFixedPoint& scalingFactor) {
-        std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial::getTInv(zN));
-        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor, /*scaleUp*/ false);
+        std::vector<ZPolynomial> zPolys(1, ZPolynomial::getTInv(zN));
+        return encodeZ(zPolys, zN, 1, elementParams, scalingFactor, /*scaleUp*/ false);
     }
 };
 

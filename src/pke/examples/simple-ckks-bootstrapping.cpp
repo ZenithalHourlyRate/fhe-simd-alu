@@ -273,6 +273,7 @@ void SimpleBootstrapExample() {
     //__heir_debug2(ct4, "CMult");
 
     auto ct4 = z->EvalMultFullInZ(ct3, ct3);
+    z->ModReduceInPlace(ct4);
     __heir_debug2(ct4, "CMultTwice");
 
     Ciphertext<DCRTPoly> ct5 = fheZ->EvalArithToArith(ct4, FHEZImpl::Z2CScalingOption::SCALE_ZV_TWICE);
@@ -285,6 +286,7 @@ void SimpleBootstrapExample() {
     __heir_debug2(ct7, "CMult");
 
     auto ct8 = z->EvalMultFullInZ(ct7, ct7);
+    z->ModReduceInPlace(ct8);
     __heir_debug2(ct8, "CMultTwice");
 
     Ciphertext<DCRTPoly> ct9 = fheZ->EvalArithToArith(ct8, FHEZImpl::Z2CScalingOption::SCALE_ZV_TWICE);

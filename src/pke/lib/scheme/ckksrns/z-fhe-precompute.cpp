@@ -25,6 +25,8 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     auto cSlots2 = cSlots * 2;
     // For regular encoding
     DiscreteFourierTransformBigComplex::Initialize(cSlots * 4, cSlots);
+    // For encoding of t and tInv, and scalar ptxt in Z
+    DiscreteFourierTransformBigComplex::Initialize(zN * 2, zN / 2);
     // For encoding of bootstrapping related plaintext for sparse bootstrapping
     DiscreteFourierTransformBigComplex::Initialize(cSlots2 * 4, cSlots2);
     auto& ZU = ZLinearTransform::GetZU(zN);

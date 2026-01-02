@@ -287,11 +287,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
 
-    // TODO: cache tPtxt
-    auto zN         = ct->GetZEncodingParams().getZN();
-    auto zSlots     = ct->GetZEncodingParams().getZSlots();
-    Plaintext tPtxt = ZEncodingImpl::encodeTInZ(zN, zSlots, elemParam, sf);
-    auto ctT        = z->EvalMult(ct, tPtxt);
+    auto ctT = z->EvalMultTInZ(ct);
     z->ModReduceInPlace(ctT);
 
     auto z2r = EvalZ2R(ctT, scalingOption);
@@ -337,11 +333,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     // Multiply by t^{-1} in Z
     //------------------------------------------------------------------------------
 
-    auto r2zElemParam = r2z->GetElements()[0].GetParams();
-    // TODO: cache tInvPtxt
-    Plaintext tInvPtxt = ZEncodingImpl::encodeTInvInZ(zN, zSlots, r2zElemParam, r2z->GetScalingFactorBFP());
-
-    r2z = z->EvalMult(r2z, tInvPtxt);
+    r2z = z->EvalMultTInvInZ(r2z);
     z->ModReduceInPlace(r2z);
 
     return r2z;

@@ -406,22 +406,65 @@ Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertext(ConstCiphertext<DCRTPoly> ct
 // Operations in Z
 //
 
+Ciphertext<DCRTPoly> LeveledZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+    // Encode ptxt in Z encoding
+    auto zN        = ct->GetZEncodingParams().getZN();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encode(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
+    return EvalAdd(ct, plaintext);
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+    // Encode ptxt in Z encoding
+    auto zN        = ct->GetZEncodingParams().getZN();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+    // encodeBinary here is crucial: making it become MultShort
+    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
+    // This is actually MultShort
+    return EvalMult(ct, plaintext);
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    // Each input message is scaled by zSlots (maybe?)
+    auto ct = EvalMultWithAdjust(ct1, ct2);
+    // Now the message is scaled by zSlots^2 (maybe?)
+    return ct;
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalMultTInZ(ConstCiphertext<DCRTPoly> ct) {
+    // Multiply by tPtxt
+    auto zN         = ct->GetZEncodingParams().getZN();
+    auto elemParam  = ct->GetElements()[0].GetParams();
+    auto sf         = ct->GetScalingFactorBFP();
+    Plaintext tPtxt = GetTPlaintext(zN, sf, elemParam);
+
+    return EvalMult(ct, tPtxt);
+}
+
+Ciphertext<DCRTPoly> LeveledZImpl::EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct) {
+    // Multiply by tPtxt
+    auto zN            = ct->GetZEncodingParams().getZN();
+    auto elemParam     = ct->GetElements()[0].GetParams();
+    auto sf            = ct->GetScalingFactorBFP();
+    Plaintext tInvPtxt = GetTInvPlaintext(zN, sf, elemParam);
+
+    return EvalMult(ct, tInvPtxt);
+}
+
 Ciphertext<DCRTPoly> LeveledZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
     // Each input message is scaled by zSlots
-    auto ct = EvalMult(ct1, ct2);
+    auto ct = EvalMultWithAdjust(ct1, ct2);
     ModReduceInPlace(ct);
     // Now the message is scaled by zSlots^2
 
     // Multiply by tPtxt
-    // TODO: cache tPtxt
     auto zN         = ct->GetZEncodingParams().getZN();
-    auto zSlots     = ct->GetZEncodingParams().getZSlots();
     auto elemParam  = ct->GetElements()[0].GetParams();
     auto sf         = ct->GetScalingFactorBFP();
-    Plaintext tPtxt = ZEncodingImpl::encodeTInZ(zN, zSlots, elemParam, sf);
-    auto ctT        = EvalMult(ct, tPtxt);
-    ModReduceInPlace(ctT);
-    return ctT;
+    Plaintext tPtxt = GetTPlaintext(zN, sf, elemParam);
+    return EvalMult(ct, tPtxt);
 }
 
 //
@@ -497,6 +540,32 @@ Plaintext LeveledZImpl::GetBCInCPlaintext(const BigComplex& value, const BigFixe
     return ptxt;
 }
 
+Plaintext LeveledZImpl::GetTPlaintext(uint32_t zN, const BigFixedPoint& scalingFactor,
+                                      const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
+    auto q   = elementParams->GetModulus();
+    auto key = std::make_tuple(zN, scalingFactor, q);
+    if (m_tPlaintextCache.find(key) != m_tPlaintextCache.end()) {
+        return m_tPlaintextCache[key];
+    }
+
+    Plaintext tPtxt        = ZEncodingImpl::encodeTInZ(zN, elementParams, scalingFactor);
+    m_tPlaintextCache[key] = tPtxt;
+    return tPtxt;
+}
+
+Plaintext LeveledZImpl::GetTInvPlaintext(uint32_t zN, const BigFixedPoint& scalingFactor,
+                                         const std::shared_ptr<typename DCRTPoly::Params>& elementParams) {
+    auto q   = elementParams->GetModulus();
+    auto key = std::make_tuple(zN, scalingFactor, q);
+    if (m_tInvPlaintextCache.find(key) != m_tInvPlaintextCache.end()) {
+        return m_tInvPlaintextCache[key];
+    }
+
+    Plaintext tPtxt           = ZEncodingImpl::encodeTInvInZ(zN, elementParams, scalingFactor);
+    m_tInvPlaintextCache[key] = tPtxt;
+    return tPtxt;
+}
+
 //
 // Helpers
 //
@@ -512,6 +581,18 @@ bool LeveledZImpl::BCInCPlaintextKeyCompare::operator()(const BCInCPlaintextKey&
         return std::get<0>(a).getImag() < std::get<0>(b).getImag();
     }
     return std::get<0>(a).getReal() < std::get<0>(b).getReal();
+}
+
+bool LeveledZImpl::tPlaintextKeyCompare::operator()(const tPlaintextKey& a, const tPlaintextKey& b) const {
+    if (std::get<0>(a) == std::get<0>(b)) {
+        if (std::get<1>(a).almostEqual(std::get<1>(b))) {
+            return std::get<2>(a) < std::get<2>(b);
+        }
+        else {
+            return std::get<1>(a) < std::get<1>(b);
+        }
+    }
+    return std::get<0>(a) < std::get<0>(b);
 }
 
 }  // namespace lbcrypto

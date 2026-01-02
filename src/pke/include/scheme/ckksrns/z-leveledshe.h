@@ -81,12 +81,14 @@ public:
     Ciphertext<DCRTPoly> EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
 
     // Helpers. Here ptxt will be ZEncoded
-    // If scalingFactor is not given, we use ct
-    // TODO: support larger integer..
-    Ciphertext<DCRTPoly> EvalAddInZ(ConstCiphertext<DCRTPoly> ct, uint32_t ptxt);
-    // If scalingFactor is not given, we use ct
-    Ciphertext<DCRTPoly> EvalMultInZ(ConstCiphertext<DCRTPoly> ct, uint32_t ptxt,
-                                     BigFixedPoint scalingFactor = BigFixedPoint::zero());
+    // This wont change the zSlot scale
+    Ciphertext<DCRTPoly> EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
+    // This wont change the zSlot scale
+    Ciphertext<DCRTPoly> EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
+
+    // Conversion between [m]_t / t and [m]_t
+    Ciphertext<DCRTPoly> EvalMultTInZ(ConstCiphertext<DCRTPoly> ct);
+    Ciphertext<DCRTPoly> EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct);
 
     //
     // Operations in C
@@ -114,6 +116,20 @@ private:
 
     Plaintext GetBCInCPlaintext(const BigComplex& value, const BigFixedPoint& scalingFactor,
                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
+
+    // zN, scaling factor, modulus
+    using tPlaintextKey = std::tuple<BigInteger, BigFixedPoint, BigInteger>;
+    struct tPlaintextKeyCompare {
+        bool operator()(const tPlaintextKey& a, const tPlaintextKey& b) const;
+    };
+
+    std::map<tPlaintextKey, Plaintext, tPlaintextKeyCompare> m_tPlaintextCache;
+    std::map<tPlaintextKey, Plaintext, tPlaintextKeyCompare> m_tInvPlaintextCache;
+
+    Plaintext GetTPlaintext(uint32_t zN, const BigFixedPoint& scalingFactor,
+                            const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
+    Plaintext GetTInvPlaintext(uint32_t zN, const BigFixedPoint& scalingFactor,
+                               const std::shared_ptr<typename DCRTPoly::Params>& elementParams);
 };
 
 using LeveledZ = std::shared_ptr<LeveledZImpl>;
