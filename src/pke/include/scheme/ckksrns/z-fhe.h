@@ -211,9 +211,9 @@ public:
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
     enum R2CScalingOption { SCALE_N, SCALE_NK, SCALE_N_PRE, SCALE_NK_PRE };
-    Ciphertext<DCRTPoly> EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
+    CiphertextGroup EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalC2Z(CiphertextGroup ct) const;
 
     Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
 

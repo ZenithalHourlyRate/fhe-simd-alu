@@ -142,90 +142,141 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOptio
     }
 }
 
+// The m0 + i * m1 preprocess is done elsewhere
 Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     auto cc            = ct->GetCryptoContext();
     auto cSlots        = ct->GetZEncodingParams().getCSlots();
     auto precomp       = GetBootPrecom(cSlots);
+    bool isSparse      = precomp.m_isSparse;
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
 
-    auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
-    // Trace
-    z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
-    z->ModReduceInPlace(c2r);
-    return c2r;
+    if (isSparse) {
+        auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
+        // Trace
+        z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
+        z->ModReduceInPlace(c2r);
+        return c2r;
+    }
+    else {
+        auto c2r =
+            (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
+        return c2r;
+    }
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
+CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
     auto cc            = ct->GetCryptoContext();
     auto cSlots        = ct->GetZEncodingParams().getCSlots();
     auto precomp       = GetBootPrecom(cSlots);
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
+    auto isSparse      = precomp.m_isSparse;
+
+    auto scaleDown = [&](Ciphertext<DCRTPoly> target, BigFixedPoint scale) {
+        // Manually scale down by N
+        auto sfNow     = target->GetScalingFactorBFP();
+        auto scalarBFP = (sfNow * scale).round();
+        auto scalar    = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
+        // Use EvalMultScalarInPlace to avoid precision loss
+        // Should not use EvalMultInPlaceInC here as it will cause precision loss
+        // TODO: should be OK to use EvalMultInPlaceInC?
+        z->EvalMultScalarInPlace(target, scalar);
+        target->SetScalingFactorBFP(sfNow * sfNow);
+        z->ModReduceInPlace(target);
+    };
+
+    BigFixedPoint scaleN  = BigFixedPoint::one() / BigFixedPoint::positive(cc->GetRingDimension());
+    BigFixedPoint scaleNK = BigFixedPoint::one() / (BigFixedPoint::positive(cc->GetRingDimension()) *
+                                                    BigFixedPoint::positive(K_SPARSE_ENCAPSULATED));
 
     Ciphertext<DCRTPoly> r2c;
-    if (scalingOption == SCALE_N || scalingOption == SCALE_NK) {
-        // Then R2C here will multiply by rN because of the construction of U0HatT
-        r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPre, ct) :
-                              EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
-        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
-        z->ModReduceInPlace(r2c);
 
-        if (scalingOption == SCALE_N) {
-            // Manually scale down by N
-            auto sfNow              = r2c->GetScalingFactorBFP();
-            BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(cc->GetRingDimension());
-            auto scalarBFP          = (sfNow * scaleDown).round();
-            auto scalar             = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
-            // Use EvalMultScalarInPlace to avoid precision loss
-            // Should not use EvalMultInPlaceInC here as it will cause precision loss
-            // TODO: should be OK to use EvalMultInPlaceInC?
-            z->EvalMultScalarInPlace(r2c, scalar);
-            r2c->SetScalingFactorBFP(sfNow * sfNow);
-            z->ModReduceInPlace(r2c);
-        }
-        else {
-            // Manually scale down by N * K
-            auto sfNow              = r2c->GetScalingFactorBFP();
-            BigFixedPoint scaleDown = BigFixedPoint::one() / (BigFixedPoint::positive(cc->GetRingDimension()) *
-                                                              BigFixedPoint::positive(K_SPARSE_ENCAPSULATED));
-            auto scalarBFP          = (sfNow * scaleDown).round();
-            auto scalar             = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
-            // Use EvalMultScalarInPlace to avoid precision loss
-            // Should not use EvalMultInPlaceInC here as it will cause precision loss
-            z->EvalMultScalarInPlace(r2c, scalar);
-            r2c->SetScalingFactorBFP(sfNow * sfNow);
-            z->ModReduceInPlace(r2c);
-        }
+    // only one linear transform is needed as the other one can be derived
+    if (scalingOption == SCALE_N || scalingOption == SCALE_NK) {
+        r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPre, ct) :
+                                EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
     }
     else if (scalingOption == SCALE_N_PRE) {
-        // Then R2C here will multiply by rN / N because of the construction of U0HatT
-        r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledN, ct) :
-                              EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledN, ct);
-        z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
-        z->ModReduceInPlace(r2c);
+        r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPreScaledN, ct) :
+                                EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledN, ct);
     }
     else {  // scalingOption == SCALE_NK_PRE
-        // Then R2C here will multiply by rN / (N * K) because of the construction of U0HatT
-        r2c = isLTBootstrap ? EvalLinearTransform(precomp.m_U0hatTPreScaledNK, ct) :
-                              EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledNK, ct);
+        r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPreScaledNK, ct) :
+                                EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledNK, ct);
+    }
+
+    if (isSparse) {
         z->EvalAddInPlace(r2c, z->EvalConjugateInC(r2c));
         z->ModReduceInPlace(r2c);
+
+        if (scalingOption == SCALE_N || scalingOption == SCALE_NK) {
+            if (scalingOption == SCALE_N) {
+                scaleDown(r2c, scaleN);
+            }
+            else {
+                scaleDown(r2c, scaleNK);
+            }
+        }
+        return r2c;
     }
-    return {r2c};
+    else {
+        auto r2cConj = z->EvalConjugateInC(r2c);
+        auto r2cI    = z->EvalSub(r2c, r2cConj);
+        z->EvalAddInPlace(r2c, r2cConj);
+        cc->GetScheme()->MultByMonomialInPlace(r2cI, 3 * cSlots);
+        z->ModReduceInPlace(r2c);
+        z->ModReduceInPlace(r2cI);
+
+        if (scalingOption == SCALE_N || scalingOption == SCALE_NK) {
+            if (scalingOption == SCALE_N) {
+                scaleDown(r2c, scaleN);
+                scaleDown(r2cI, scaleN);
+            }
+            else {
+                scaleDown(r2c, scaleNK);
+                scaleDown(r2cI, scaleNK);
+            }
+        }
+        return std::vector{r2c, r2cI};
+    }
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const {
-    auto cc      = ct->GetCryptoContext();
-    auto cSlots  = ct->GetZEncodingParams().getCSlots();
-    auto precomp = GetBootPrecom(cSlots);
+Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(CiphertextGroup ct) const {
+    auto cc       = ct[0]->GetCryptoContext();
+    auto cSlots   = ct[0]->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    bool isSparse = precomp.m_isSparse;
 
-    auto c2z = EvalZLinearTransform(precomp.m_ZUPre, ct);
-    z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
-    z->ModReduceInPlace(c2z);
-    return c2z;
+    if (isSparse) {
+        auto c2z = EvalZLinearTransform(precomp.m_ZUPre, ct[0]);
+        z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
+        z->ModReduceInPlace(c2z);
+        return c2z;
+    }
+    else {
+        auto c2z0 = EvalZLinearTransform(precomp.m_ZU0Pre, ct[0]);
+        auto c2z1 = EvalZLinearTransform(precomp.m_ZU1Pre, ct[1]);
+        z->EvalAddInPlace(c2z0, c2z1);
+        return c2z0;
+    }
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
-    return EvalC2R(EvalZ2C(ct, scalingOption)[0]);
+    auto cc       = ct->GetCryptoContext();
+    auto cSlots   = ct->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto isSparse = precomp.m_isSparse;
+
+    if (isSparse) {
+        return EvalC2R(EvalZ2C(ct, scalingOption)[0]);
+    }
+    else {
+        auto z2cGroup = EvalZ2C(ct, scalingOption);
+        auto z2c0     = z2cGroup[0];
+        auto z2c1     = z2cGroup[1];
+        cc->GetScheme()->MultByMonomialInPlace(z2c1, cSlots);
+        cc->EvalAddInPlaceNoCheck(z2c0, z2c1);
+        return EvalC2R(z2c0);
+    }
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
@@ -300,11 +351,14 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
 
     // Evaluate Chebyshev series for the sine wave
     auto& coeff_g0 = coeff_g0_big_complex_32;
-    auto g0        = advZ->EvalChebyshevSeriesPS(r2c, coeff_g0);
+    auto g0        = r2c.map([&](ConstCiphertext<DCRTPoly>& input) -> Ciphertext<DCRTPoly> {
+        auto g0 = advZ->EvalChebyshevSeriesPS(input, coeff_g0);
 
-    // Double-angle iterations
-    uint32_t numIter = FHEZImpl::R_SPARSE;
-    ApplyDoubleAngleIterations(g0, numIter);
+        // Double-angle iterations
+        uint32_t numIter = FHEZImpl::R_SPARSE;
+        ApplyDoubleAngleIterations(g0, numIter);
+        return g0;
+    });
 
     //__heir_debug2(g0, "Sine");
 
@@ -539,7 +593,8 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTP
 
     // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
     // can do so in low precision as we do not need high precision here
-    auto r2c = EvalR2C(raised, SCALE_NK_PRE);
+    // Since we call C2R without imaginary part, we only need the real part here
+    auto r2c = EvalR2C(raised, SCALE_NK_PRE)[0];
     return r2c;
 }
 
