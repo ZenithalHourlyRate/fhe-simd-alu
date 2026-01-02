@@ -792,6 +792,48 @@ Plaintext FHEZImpl::getATBMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN
     return oneHotPtxt;
 }
 
+Plaintext FHEZImpl::getATBRecombMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                                const BigFixedPoint& scalingFactor, BigFixedPoint scaleDown,
+                                                int32_t rotateIndex) {
+    auto key = std::make_tuple(iter, w, zN, zSlots, elementParams->GetModulus(), scalingFactor, scaleDown, rotateIndex);
+    auto it  = m_atbRecombMaskPtxtCache.find(key);
+    if (it != m_atbRecombMaskPtxtCache.end()) {
+        return it->second;
+    }
+
+    auto cSlots = zN * zSlots / 2;
+    // Encode low-hot vector
+    std::vector<BigComplex> oneHotVec(cSlots, BigFixedPoint::zero());
+    for (uint32_t j = 0; j != zSlots; ++j) {
+        auto index = j * (zN / 2);
+        if (iter * w >= zN / 2) {
+            index += (iter * w) - zN / 2;
+        }
+        else {
+            index += (iter * w);
+        }
+        for (uint32_t b = 0; b != w; ++b) {
+            oneHotVec[index + b] = BigFixedPoint::one() * scaleDown;
+        }
+    }
+
+    // Rotate
+    std::vector<BigComplex> rotatedOneHotVec(cSlots, BigFixedPoint::zero());
+    for (uint32_t i = 0; i != cSlots; ++i) {
+        auto rotatedIndex              = static_cast<uint32_t>(static_cast<int32_t>(i + cSlots) + rotateIndex) % cSlots;
+        rotatedOneHotVec[rotatedIndex] = oneHotVec[i];
+    }
+
+    ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots);  // full packing
+    RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, rotatedOneHotVec).toRPolynomial();
+
+    Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elementParams, scalingFactor);
+
+    m_atbRecombMaskPtxtCache[key] = oneHotPtxt;
+    return oneHotPtxt;
+}
+
 Plaintext FHEZImpl::getATBMask(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                const BigFixedPoint& scalingFactor) {

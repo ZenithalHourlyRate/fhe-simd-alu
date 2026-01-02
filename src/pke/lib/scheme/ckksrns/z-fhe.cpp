@@ -539,6 +539,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, 
         //------------------------------------------------------------------------------
 
         //parts.push_back(lut);
+        getATBRecombMaskFullPacking(iter, w, zN, zSlots, elemParam, sf);
+        // BIG TODO!!!!!!!!!
 
         // remove part from core
         for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
