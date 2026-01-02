@@ -416,7 +416,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct,
     return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption) {
     auto cc       = ctxts[0]->GetCryptoContext();
     auto cSlots   = ctxts[0]->GetZEncodingParams().getCSlots();
     auto precomp  = GetBootPrecom(cSlots);
@@ -431,50 +431,60 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, 
     if (isSparse) {
         OPENFHE_THROW("Batched EvalArithToBooleanBatched only supports full packing");
     }
-    if (ctxts.getParts().size() != numIter) {
-        OPENFHE_THROW("Not enough ciphertexts for batched EvalArithToBooleanBatched");
+    if (ctxts.getParts().size() != numIter / 2) {
+        OPENFHE_THROW("Batch size mismatch for batched EvalArithToBooleanBatched");
     }
 
-    auto ctxtsZ2C =
+    auto core =
         ctxts.mapWide([&](ConstCiphertext<DCRTPoly>& ct) { return EvalZ2C(ct, scalingOption, /*specialB0=*/true); });
 
+    __heir_debug2(core[0], "Core0");
+    __heir_debug2(core[2], "Core1");
+
     // Our core ct
-    auto core = ctxtsZ2C[0];
+    //auto core = ctxtsZ2C[0];
     // TODO: We need to keep core ct at bottom; rescale if necessary
-    std::vector<Ciphertext<DCRTPoly>> parts;
+    //std::vector<Ciphertext<DCRTPoly>> parts;
 
     // Iteratively process each low bits
     for (uint32_t iter = 0; iter != numIter; ++iter) {
-        // Encode low-hot vector
-        std::vector<BigComplex> oneHotVec(2 * cSlots, BigFixedPoint::zero());
-        for (uint32_t j = 0; j != zSlots; ++j) {
-            auto index = j * (zN / 2) + (iter * w);
-            if (iter * w >= zN / 2) {
-                index += (zSlots - 1) * (zN / 2);
-            }
-            for (uint32_t b = 0; b != w; ++b) {
-                oneHotVec[index + b] = BigFixedPoint::one();
-            }
-        }
+        bool secondHalf = (iter * w >= zN / 2);
 
-        ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots * 2);  // sparse packing
-        RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
+        std::vector<Ciphertext<DCRTPoly>> targetCtxts;
+        for (auto i = 0; i != ctxts.getParts().size(); ++i) {
+            targetCtxts.push_back(core[2 * i + secondHalf]);
+        }
+        CiphertextGroup targetGroup(targetCtxts);
 
         // core may change over time
-        auto elemParam       = core->GetElements()[0].GetParams();
-        auto sf              = core->GetScalingFactorBFP();
-        Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elemParam, sf);
+        auto elemParam = targetGroup[0]->GetElements()[0].GetParams();
+        auto sf        = targetGroup[0]->GetScalingFactorBFP();
+        auto maskPtxt  = getATBMask(iter, w, zN, zSlots, elemParam, sf);
 
-        auto coreMasked = z->EvalMult(core, oneHotPtxt);
-        z->ModReduceInPlace(coreMasked);
+        auto masked = targetGroup.map([&](ConstCiphertext<DCRTPoly>& ct) {
+            auto newCt = z->EvalMult(ct, maskPtxt);
+            z->ModReduceInPlace(newCt);
+            __heir_debug2(newCt, "Mask0");
+            return newCt;
+        });
 
-        auto lut = internalBooleanToBooleanCustomLUT(coreMasked, precomp.m_lutIDCoeffs);
+        auto targetCombined = masked[0];
+        for (size_t i = 1; i != targetGroup.size(); ++i) {
+            auto rotated = cc->EvalRotate(masked[i], -static_cast<int32_t>(i * w));
+            __heir_debug2(rotated, "Rot0");
+            z->EvalAddInPlace(targetCombined, cc->EvalRotate(masked[i], -static_cast<int32_t>(i * w)));
+        }
+        __heir_debug2(targetCombined, "Comb0");
+
+        auto lut = internalBooleanToBooleanCustomLUT(targetCombined, precomp.m_lutIDCoeffs);
+
+        __heir_debug2(lut, "LUT0");
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
         //------------------------------------------------------------------------------
 
-        parts.push_back(lut);
+        //parts.push_back(lut);
 
         // remove part from core
         for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
@@ -488,11 +498,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, 
             }
             // Multiply by 1 / (2^{nextIter - iter} * p)
             auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
-            // If cross the half-way point, need to rotate more
-            if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
-                rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
-            }
-            scaled = cc->EvalRotate(scaled, rotationIndex);
+            scaled      = cc->EvalRotate(scaled, rotationIndex);
             z->ModReduceInPlace(scaled);
             z->EvalSubWithAdjustInPlace(core, scaled);
         }
@@ -504,12 +510,13 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, 
     // Combine all parts
     //------------------------------------------------------------------------------
 
-    for (size_t i = 1; i != parts.size(); ++i) {
-        // They may have different scaling factors...
-        z->EvalAddInPlace(parts[0], parts[i]);
-    }
+    //for (size_t i = 1; i != parts.size(); ++i) {
+    //    // They may have different scaling factors...
+    //    z->EvalAddInPlace(parts[0], parts[i]);
+    //}
 
-    return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
+    //return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
+    return ctxts[0];
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTs(ConstCiphertext<DCRTPoly>& ct) const {

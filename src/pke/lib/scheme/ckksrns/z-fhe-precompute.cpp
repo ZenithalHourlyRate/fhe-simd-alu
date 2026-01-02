@@ -762,9 +762,55 @@ Plaintext FHEZImpl::getATBMaskSparsePacking(uint32_t iter, uint32_t w, uint32_t 
     ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots * 2);  // sparse packing
     RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
 
-    // core may change over time
     Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elementParams, scalingFactor);
     return oneHotPtxt;
+}
+
+Plaintext FHEZImpl::getATBMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                          const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                          const BigFixedPoint& scalingFactor) {
+    auto cSlots = zN * zSlots / 2;
+    // Encode low-hot vector
+    std::vector<BigComplex> oneHotVec(cSlots, BigFixedPoint::zero());
+    for (uint32_t j = 0; j != zSlots; ++j) {
+        auto index = j * (zN / 2);
+        if (iter * w >= zN / 2) {
+            index += (iter * w) - zN / 2;
+        }
+        else {
+            index += (iter * w);
+        }
+        for (uint32_t b = 0; b != w; ++b) {
+            oneHotVec[index + b] = BigFixedPoint::one();
+        }
+    }
+
+    ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots);  // full packing
+    RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
+
+    Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elementParams, scalingFactor);
+    return oneHotPtxt;
+}
+
+Plaintext FHEZImpl::getATBMask(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                               const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                               const BigFixedPoint& scalingFactor) {
+    auto ringDim         = elementParams->GetRingDimension();
+    bool isSparse        = (zN * zSlots != ringDim);
+    MaskPlaintextKey key = std::make_tuple(iter, w, zN, zSlots, elementParams->GetModulus(), scalingFactor);
+    auto it              = m_atbMaskPtxtCache.find(key);
+    if (it != m_atbMaskPtxtCache.end()) {
+        return it->second;
+    }
+    Plaintext ptxt;
+    if (isSparse) {
+        ptxt = getATBMaskSparsePacking(iter, w, zN, zSlots, elementParams, scalingFactor);
+    }
+    else {
+        ptxt = getATBMaskFullPacking(iter, w, zN, zSlots, elementParams, scalingFactor);
+    }
+    m_atbMaskPtxtCache[key] = ptxt;
+    return ptxt;
 }
 
 }  // namespace lbcrypto

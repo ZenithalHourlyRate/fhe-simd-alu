@@ -46,6 +46,10 @@ public:
         return parts[idx];
     }
 
+    size_t size() const {
+        return parts.size();
+    }
+
     operator Ciphertext<DCRTPoly>() const {
         if (parts.size() != 1) {
             OPENFHE_THROW("Cannot convert CiphertextGroup with multiple parts to single Ciphertext");
@@ -223,7 +227,7 @@ public:
 
     Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption);
 
     Ciphertext<DCRTPoly> EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
 
@@ -295,6 +299,18 @@ private:
     Plaintext getATBMaskSparsePacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
                                       const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                       const BigFixedPoint& scalingFactor);
+
+    Plaintext getATBMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                    const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                    const BigFixedPoint& scalingFactor);
+
+    Plaintext getATBMask(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                         const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                         const BigFixedPoint& scalingFactor);
+
+private:
+    using MaskPlaintextKey = std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, BigInteger, BigFixedPoint>;
+    std::map<MaskPlaintextKey, Plaintext> m_atbMaskPtxtCache;
 
 private:
     // corresponds to probability of less than 2^{-128}

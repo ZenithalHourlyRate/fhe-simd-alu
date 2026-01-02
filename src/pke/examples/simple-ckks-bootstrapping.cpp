@@ -66,6 +66,12 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Raised", DecodeMode::RDecode},
         // CSlotsDecode
         {"CSlotsDecode", DecodeMode::CSlotsDecode},
+        {"Core0", DecodeMode::CSlotsDecode},
+        {"Core1", DecodeMode::CSlotsDecode},
+        {"LUT0", DecodeMode::CSlotsDecode},
+        {"Comb0", DecodeMode::CSlotsDecode},
+        {"Mask0", DecodeMode::CSlotsDecode},
+        {"Rot0", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
@@ -106,6 +112,22 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         }
         if (values.getCoefficients().size() > 4) {
             std::cout << msg << "  ... (total " << values.getCoefficients().size() << " coefficients)" << std::endl;
+        }
+    }
+    if (decodeMode == DecodeMode::CSlotsDecode) {
+        auto cSlots          = values.toCSlots();
+        auto maxSlotsToPrint = std::min(zSlots_global, size_t(8));
+        for (size_t i = 0; i != maxSlotsToPrint; ++i) {
+            auto value       = cSlots[i].getReal();
+            auto p           = BigFixedPoint::positive(1 << zN_global);
+            auto lutPart     = (value * p).round() / p;
+            auto fracPart    = value - lutPart;
+            double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
+            std::cout << msg << "  cSlots Slot " << i << " Reconstructed: " << lutPart.toHexString() << " "
+                      << fracPart.toHexString(ceil(log2sf / 4.0)) << " error: " << log2Error << std::endl;
+        }
+        if (zSlots_global > maxSlotsToPrint) {
+            std::cout << msg << "  ... (total " << zSlots_global << " slots)" << std::endl;
         }
     }
     if (decodeMode == DecodeMode::CSlotsTwiceDecode || decodeMode == DecodeMode::CSlotsTwiceBooleanMode) {
@@ -230,7 +252,8 @@ void SimpleBootstrapExample() {
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
     uint32_t zN     = 16;
-    uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
+    uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
+    //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
     //uint32_t zSlots = 32;
     zN_global     = zN;
     zSlots_global = zSlots;
@@ -252,16 +275,28 @@ void SimpleBootstrapExample() {
     }
     Plaintext ptxt1 = ZEncodingImpl::encodeArith(vec, zN, zSlots, elemParam, sfq0);
 
+    std::vector<uint64_t> vec2(zSlots, 0);
+    for (size_t i = 0; i != zSlots; ++i) {
+        vec2[i] = -i - 1;
+    }
+    Plaintext ptxt2 = ZEncodingImpl::encodeArith(vec2, zN, zSlots, elemParam, sfq0);
+
     /// TEST ENCODE
-    auto encoded = Encrypt(ptxt1, keyPair.publicKey);
+    auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
+    auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
     // See multiplication noise
-    encoded = z->EvalMultInC(encoded, BigFixedPoint::positive(1));
-    z->ModReduceInPlace(encoded);
+    //encoded = z->EvalMultInC(encoded, BigFixedPoint::positive(1));
+    //z->ModReduceInPlace(encoded);
 
     __heir_debug2(encoded, "Input");
+    __heir_debug2(encoded2, "Input");
 
     Ciphertext<DCRTPoly> ct = encoded;
+
+    fheZ->EvalArithToBooleanBatched(std::vector({encoded, encoded2}), FHEZImpl::Z2CScalingOption::SCALE_ZV);
+
+    return;
 
     //Ciphertext<DCRTPoly> ct2 = fheZ->EvalArithToBoolean(ct);
     //__heir_debug2(ct2, "Boolean");
