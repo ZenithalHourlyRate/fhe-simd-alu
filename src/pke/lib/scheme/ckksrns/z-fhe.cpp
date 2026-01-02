@@ -1,7 +1,6 @@
 #include "scheme/ckksrns/z-fhe.h"
 #include "scheme/ckksrns/ckksrns-fhe.h"
 #include "encoding/z-encoding.h"
-#include "math/hermite.h"
 
 double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) __attribute__((weak));
 
@@ -99,62 +98,48 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalTruncateModRaisePartialSum(ConstCiphertext<DC
     return ctNew;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
-    auto cc      = ct->GetCryptoContext();
-    auto cSlots  = ct->GetZEncodingParams().getCSlots();
-    auto precomp = GetBootPrecom(cSlots);
+CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption, bool specialB0) const {
+    auto cc       = ct->GetCryptoContext();
+    auto cSlots   = ct->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto isSparse = precomp.m_isSparse;
+
+    const CiphertextGroup::MapFunc postProcess = [&, this](ConstCiphertext<DCRTPoly>& z2c) -> Ciphertext<DCRTPoly> {
+        // Take the Real
+        auto ct = z->EvalAdd(z2c, z->EvalConjugateInC(z2c));
+        z->ModReduceInPlace(ct);
+
+        // For large zSlots, we do not scale down by zSlots during multiplying ZV
+        auto zSlots = ct->GetZEncodingParams().getZSlots();
+        if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
+            // Manually scale down by zSlots
+            BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
+            if (scalingOption == SCALE_ZV_TWICE) {
+                // Scale down by zSlots twice
+                // To compensate for the zSlots scaling during encoding
+                scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
+            }
+            z->EvalMultInPlaceInC(ct, scaleDown);
+            z->ModReduceInPlace(ct);
+        }
+        else {
+            OPENFHE_THROW("Not implemented yet");
+        }
+        return ct;
+    };
 
     // We force a sparse packing
-    auto z2c = EvalZLinearTransform(precomp.m_ZVPre, ct);
-    z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
-    z->ModReduceInPlace(z2c);
-
-    auto zSlots = ct->GetZEncodingParams().getZSlots();
-    // For large zSlots, we do not scale down by zSlots during multiplying ZV
-    if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
-        // Manually scale down by zSlots
-        BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
-        if (scalingOption == SCALE_ZV_TWICE) {
-            // Scale down by zSlots twice
-            // To compensate for the zSlots scaling during encoding
-            scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
-        }
-        z->EvalMultInPlaceInC(z2c, scaleDown);
-        z->ModReduceInPlace(z2c);
+    if (isSparse) {
+        auto z2c = EvalZLinearTransform(specialB0 ? precomp.m_ZVSpecialB0Pre : precomp.m_ZVPre, ct);
+        return postProcess(z2c);
     }
     else {
-        OPENFHE_THROW("Not implemented yet");
-    }
-    return {z2c};
-}
+        auto z2c0 = EvalZLinearTransform(specialB0 ? precomp.m_ZV0SpecialB0Pre : precomp.m_ZV0Pre, ct);
+        auto z2c1 = EvalZLinearTransform(precomp.m_ZV1Pre, ct);
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
-    auto cc      = ct->GetCryptoContext();
-    auto cSlots  = ct->GetZEncodingParams().getCSlots();
-    auto precomp = GetBootPrecom(cSlots);
-
-    // We force a sparse packing
-    auto z2c = EvalZLinearTransform(precomp.m_ZVSpecialB0Pre, ct);
-    z->EvalAddInPlace(z2c, z->EvalConjugateInC(z2c));
-    z->ModReduceInPlace(z2c);
-
-    auto zSlots = ct->GetZEncodingParams().getZSlots();
-    // For large zSlots, we do not scale down by zSlots during multiplying ZV
-    if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
-        // Manually scale down by zSlots
-        BigFixedPoint scaleDown = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
-        if (scalingOption == SCALE_ZV_TWICE) {
-            // Scale down by zSlots twice
-            // To compensate for the zSlots scaling during encoding
-            scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
-        }
-        z->EvalMultInPlaceInC(z2c, scaleDown);
-        z->ModReduceInPlace(z2c);
+        CiphertextGroup z2cGroup({z2c0, z2c1});
+        return z2cGroup.map(postProcess);
     }
-    else {
-        OPENFHE_THROW("Not implemented yet");
-    }
-    return {z2c};
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
@@ -240,7 +225,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(ConstCiphertext<DCRTPoly>& ct) const {
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
-    return EvalC2R(EvalZ2C(ct, scalingOption));
+    return EvalC2R(EvalZ2C(ct, scalingOption)[0]);
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
@@ -351,7 +336,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct,
     auto precomp = GetBootPrecom(cSlots);
 
     // Our core ct
-    auto core = EvalZ2CSpecialB0(ct, scalingOption);
+    auto core = EvalZ2C(ct, scalingOption, /*specialB0=*/true)[0];
     // TODO: We need to keep core ct at bottom; rescale if necessary
 
     auto zN     = ct->GetZEncodingParams().getZN();
@@ -360,6 +345,102 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct,
     // We ask zN to be multiple of w now...
     uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
 
+    std::vector<Ciphertext<DCRTPoly>> parts;
+
+    // Iteratively process each low bits
+    for (uint32_t iter = 0; iter != numIter; ++iter) {
+        // Encode low-hot vector
+        std::vector<BigComplex> oneHotVec(2 * cSlots, BigFixedPoint::zero());
+        for (uint32_t j = 0; j != zSlots; ++j) {
+            auto index = j * (zN / 2) + (iter * w);
+            if (iter * w >= zN / 2) {
+                index += (zSlots - 1) * (zN / 2);
+            }
+            for (uint32_t b = 0; b != w; ++b) {
+                oneHotVec[index + b] = BigFixedPoint::one();
+            }
+        }
+
+        ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots * 2);  // sparse packing
+        RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
+
+        // core may change over time
+        auto elemParam       = core->GetElements()[0].GetParams();
+        auto sf              = core->GetScalingFactorBFP();
+        Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elemParam, sf);
+
+        auto coreMasked = z->EvalMult(core, oneHotPtxt);
+        z->ModReduceInPlace(coreMasked);
+
+        auto lut = internalBooleanToBooleanCustomLUT(coreMasked, precomp.m_lutIDCoeffs);
+
+        //------------------------------------------------------------------------------
+        // Store the parts and remove it from core
+        //------------------------------------------------------------------------------
+
+        parts.push_back(lut);
+
+        // remove part from core
+        for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
+            int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
+            // Note the rotation index is negative here
+            int32_t rotationIndex = diff * w;
+            if (rotationIndex <= precomp.m_cutoff) {
+                // We do not remove them any more
+                // Just treat the lower parts as noises
+                break;
+            }
+            // Multiply by 1 / (2^{nextIter - iter} * p)
+            auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
+            // If cross the half-way point, need to rotate more
+            if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
+                rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
+            }
+            scaled = cc->EvalRotate(scaled, rotationIndex);
+            z->ModReduceInPlace(scaled);
+            z->EvalSubWithAdjustInPlace(core, scaled);
+        }
+        // Remove itself from core
+        z->EvalSubWithAdjustInPlace(core, lut);
+    }
+
+    //------------------------------------------------------------------------------
+    // Combine all parts
+    //------------------------------------------------------------------------------
+
+    for (size_t i = 1; i != parts.size(); ++i) {
+        // They may have different scaling factors...
+        z->EvalAddInPlace(parts[0], parts[i]);
+    }
+
+    return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption) const {
+    auto cc       = ctxts[0]->GetCryptoContext();
+    auto cSlots   = ctxts[0]->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto isSparse = precomp.m_isSparse;
+
+    auto zN     = ctxts[0]->GetZEncodingParams().getZN();
+    auto zSlots = ctxts[0]->GetZEncodingParams().getZSlots();
+    uint32_t w  = precomp.m_w;
+    // We ask zN to be multiple of w now...
+    uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+
+    if (isSparse) {
+        OPENFHE_THROW("Batched EvalArithToBooleanBatched only supports full packing");
+    }
+    if (ctxts.getParts().size() != numIter) {
+        OPENFHE_THROW("Not enough ciphertexts for batched EvalArithToBooleanBatched");
+    }
+
+    auto ctxtsZ2C =
+        ctxts.mapWide([&](ConstCiphertext<DCRTPoly>& ct) { return EvalZ2C(ct, scalingOption, /*specialB0=*/true); });
+
+    // Our core ct
+    auto core = ctxtsZ2C[0];
+    // TODO: We need to keep core ct at bottom; rescale if necessary
     std::vector<Ciphertext<DCRTPoly>> parts;
 
     // Iteratively process each low bits

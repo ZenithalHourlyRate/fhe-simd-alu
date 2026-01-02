@@ -66,6 +66,9 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     uint32_t mmask = m - 1;  // assumes m is power of 2
     bool isSparse  = (M != m);
 
+    // store isSparse for convenience
+    precom->m_isSparse = isSparse;
+
     // computes indices for all primitive roots of unity
     std::vector<uint32_t> rotGroup(cSlots);
     uint32_t fivePows = 1;
@@ -204,13 +207,11 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         precom->m_ZVSpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, ZV1, zSlots, scaleZV);
     }
     else {
-        // TODO: deprecate them
-        precom->m_ZU0Pre = EvalZLinearTransformPrecompute(cc, ZU0, zSlots, scaleZU);
-        precom->m_ZU1Pre = EvalZLinearTransformPrecompute(cc, ZU1, zSlots, scaleZU);
-        precom->m_ZV0Pre = EvalZLinearTransformPrecompute(cc, ZV0, zSlots, scaleZV);
-        precom->m_ZV1Pre = EvalZLinearTransformPrecompute(cc, ZV1, zSlots, scaleZV);
-        OPENFHE_THROW("Dense not supported now.");
-        // TODO: add precomputation for ZV0SpecialB0
+        precom->m_ZU0Pre          = EvalZLinearTransformPrecompute(cc, ZU0, zSlots, scaleZU);
+        precom->m_ZU1Pre          = EvalZLinearTransformPrecompute(cc, ZU1, zSlots, scaleZU);
+        precom->m_ZV0Pre          = EvalZLinearTransformPrecompute(cc, ZV0, zSlots, scaleZV);
+        precom->m_ZV1Pre          = EvalZLinearTransformPrecompute(cc, ZV1, zSlots, scaleZV);
+        precom->m_ZV0SpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, zSlots, scaleZV);
     }
 
     // LUTs for ArithToBoolean
@@ -740,6 +741,30 @@ Plaintext ZBootstrapPlaintextCacheImpl::GetPlaintext(const BigFixedPoint& scalin
     // FIXME: is this thread safe???
     m_cache[key] = ptxt;
     return ptxt;
+}
+
+Plaintext FHEZImpl::getATBMaskSparsePacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                            const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                            const BigFixedPoint& scalingFactor) {
+    auto cSlots = zN * zSlots / 2;
+    // Encode low-hot vector
+    std::vector<BigComplex> oneHotVec(2 * cSlots, BigFixedPoint::zero());
+    for (uint32_t j = 0; j != zSlots; ++j) {
+        auto index = j * (zN / 2) + (iter * w);
+        if (iter * w >= zN / 2) {
+            index += (zSlots - 1) * (zN / 2);
+        }
+        for (uint32_t b = 0; b != w; ++b) {
+            oneHotVec[index + b] = BigFixedPoint::one();
+        }
+    }
+
+    ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots * 2);  // sparse packing
+    RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
+
+    // core may change over time
+    Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elementParams, scalingFactor);
+    return oneHotPtxt;
 }
 
 }  // namespace lbcrypto

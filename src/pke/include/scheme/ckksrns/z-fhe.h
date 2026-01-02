@@ -32,6 +32,52 @@ private:
 
 using ZBootstrapPlaintextCache = std::shared_ptr<ZBootstrapPlaintextCacheImpl>;
 
+class CiphertextGroup {
+public:
+    CiphertextGroup() = default;
+    CiphertextGroup(Ciphertext<DCRTPoly> ct) : parts({ct}) {}
+    CiphertextGroup(std::vector<Ciphertext<DCRTPoly>> cts) : parts(cts) {}
+
+    std::vector<Ciphertext<DCRTPoly>> getParts() const {
+        return parts;
+    }
+
+    Ciphertext<DCRTPoly>& operator[](size_t idx) {
+        return parts[idx];
+    }
+
+    operator Ciphertext<DCRTPoly>() const {
+        if (parts.size() != 1) {
+            OPENFHE_THROW("Cannot convert CiphertextGroup with multiple parts to single Ciphertext");
+        }
+        return parts[0];
+    }
+
+    using MapFunc = std::function<Ciphertext<DCRTPoly>(ConstCiphertext<DCRTPoly>&)>;
+    CiphertextGroup map(MapFunc func) const {
+        std::vector<Ciphertext<DCRTPoly>> result;
+        for (const auto& part : parts) {
+            result.push_back(func(part));
+        }
+        return CiphertextGroup(result);
+    }
+
+    using MapWideFunc = std::function<CiphertextGroup(ConstCiphertext<DCRTPoly>&)>;
+    CiphertextGroup mapWide(MapWideFunc func) const {
+        std::vector<Ciphertext<DCRTPoly>> result;
+        for (const auto& part : parts) {
+            auto newParts = func(part);
+            for (auto& newPart : newParts.getParts()) {
+                result.push_back(newPart);
+            }
+        }
+        return CiphertextGroup(result);
+    }
+
+private:
+    std::vector<Ciphertext<DCRTPoly>> parts;
+};
+
 class ZBootstrapPrecom {
 public:
     ZBootstrapPrecom() = default;
@@ -61,6 +107,9 @@ public:
     // number of complex slots for which the bootstrapping is performed
     // In Z we have two kinds of slots: complex slots and Z slots
     uint32_t m_cSlots;
+
+    // indicates whether the linear transforms are for sparse packing
+    bool m_isSparse;
 
     // Linear map U0; used in decoding
     std::vector<ZBootstrapPlaintextCache> m_U0Pre;
@@ -98,10 +147,12 @@ public:
     // And a manual scaling down is needed (i.e. takes two levels for ZV LT)
     uint32_t m_zSlotsThresholdForScaling;
 
+    // Pre-computation for fully packed case
     std::vector<ZBootstrapPlaintextCache> m_ZU0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZU1Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV1Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZV0SpecialB0Pre;
 
     // Parameters for ArithToBoolean
     // Num bits per iteration
@@ -150,7 +201,8 @@ public:
     Ciphertext<DCRTPoly> EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
 
     enum Z2CScalingOption { SCALE_ZV, SCALE_ZV_TWICE };
-    Ciphertext<DCRTPoly> EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
+    CiphertextGroup EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption,
+                            bool specialB0 = false) const;
 
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
@@ -171,6 +223,8 @@ public:
 
     Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
+    Ciphertext<DCRTPoly> EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption) const;
+
     Ciphertext<DCRTPoly> EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
 
 private:
@@ -190,8 +244,6 @@ private:
 
     Ciphertext<DCRTPoly> internalBooleanToBooleanCustomLUT(ConstCiphertext<DCRTPoly>& ctxt,
                                                            const std::vector<BigComplex>& lutCoeffs) const;
-
-    Ciphertext<DCRTPoly> EvalZ2CSpecialB0(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
 
     //------------------------------------------------------------------------------
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
@@ -235,6 +287,14 @@ private:
     std::vector<uint32_t> FindLinearTransformRotationIndices(uint32_t slots, uint32_t M);
     std::vector<uint32_t> FindCoeffsToSlotsRotationIndices(uint32_t slots, uint32_t M);
     std::vector<uint32_t> FindSlotsToCoeffsRotationIndices(uint32_t slots, uint32_t M);
+
+    //------------------------------------------------------------------------------
+    // Mask Plaintext for Arithmetic to Boolean Bootstrapping
+    //------------------------------------------------------------------------------
+
+    Plaintext getATBMaskSparsePacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                      const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                      const BigFixedPoint& scalingFactor);
 
 private:
     // corresponds to probability of less than 2^{-128}
