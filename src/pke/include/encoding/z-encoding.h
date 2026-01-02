@@ -185,12 +185,14 @@ public:
         std::vector<ZPolynomial> zPolys;
         for (size_t i = 0; i != zSlots; ++i) {
             zPolys.push_back(ZPolynomial::encode(zN, input[i]));
-            if (i == 0) {
-                // add a small noise
-                zPolys[i][0] += BigFixedPoint::one() / BigFixedPoint::positive(1 << 8);
-            }
         }
         return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
+    }
+
+    static ZEncoding encodeArith(uint64_t input, uint32_t zN,
+                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                 const BigFixedPoint& scalingFactor) {
+        return encodeArith({input}, zN, 1, elementParams, scalingFactor);
     }
 
     static ZEncoding encodeTInZ(uint32_t zN, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,

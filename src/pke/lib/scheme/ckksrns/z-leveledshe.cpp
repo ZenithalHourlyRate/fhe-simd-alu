@@ -411,7 +411,7 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigI
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
-    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encode(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
+    auto plaintext = ZEncodingImpl::encodeArith(ptxt.ConvertToInt(), zN, elemParam, sf);
     return EvalAdd(ct, plaintext);
 }
 

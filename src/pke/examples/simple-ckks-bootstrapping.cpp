@@ -196,9 +196,9 @@ void SimpleBootstrapExample() {
     parameters.SetFirstModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
 
-    std::vector<uint32_t> levelBudget = {2, 2};
+    std::vector<uint32_t> levelBudget = {3, 3};
 
-    parameters.SetMultiplicativeDepth(21);
+    parameters.SetMultiplicativeDepth(23);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
