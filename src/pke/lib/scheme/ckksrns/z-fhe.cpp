@@ -160,6 +160,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     else {
         auto c2r =
             (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
+        z->ModReduceInPlace(c2r);
         return c2r;
     }
 }
@@ -256,6 +257,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(CiphertextGroup ct) const {
         auto c2z0 = EvalZLinearTransform(precomp.m_ZU0Pre, ct[0]);
         auto c2z1 = EvalZLinearTransform(precomp.m_ZU1Pre, ct[1]);
         z->EvalAddInPlace(c2z0, c2z1);
+        z->ModReduceInPlace(c2z0);
         return c2z0;
     }
 }

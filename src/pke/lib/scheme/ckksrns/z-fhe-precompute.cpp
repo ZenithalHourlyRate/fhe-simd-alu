@@ -293,7 +293,7 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
                 repeatedDiag[r * zNDiv2 + k] = diag[k];
             }
         }
-        for (auto& d : diag)
+        for (auto& d : repeatedDiag)
             d *= scale;
         result[ji] = std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));
     }
@@ -311,7 +311,7 @@ std::vector<ZBootstrapPlaintextCache> FHEZImpl::EvalZLinearTransformPrecompute(c
                 repeatedDiag[r * zNDiv2 + k] = diag[k];
             }
         }
-        for (auto& d : diag)
+        for (auto& d : repeatedDiag)
             d *= scale;
         result[zNDiv2 - 1 - ji] =
             std::make_shared<ZBootstrapPlaintextCacheImpl>(Rotate(repeatedDiag, -step * (ji / step)));

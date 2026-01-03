@@ -298,6 +298,11 @@ void SimpleBootstrapExample() {
 
     Ciphertext<DCRTPoly> ct = encoded;
 
+    Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+    __heir_debug2(ct3, "CMult");
+
+    return;
+
     std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
     auto batchSize                             = zN / 4 / 2;  // zN / w / 2 (/2 for full packing)
     while (batchCts.size() < batchSize) {
@@ -312,9 +317,6 @@ void SimpleBootstrapExample() {
     //Ciphertext<DCRTPoly> ct2 = fheZ->EvalArithToBoolean(ct);
     //__heir_debug2(ct2, "Boolean");
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
-
-    Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(ct, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-    __heir_debug2(ct3, "CMult");
 
     //BENCHMARK(fheZ->EvalArithToArith(ct), 3, "ArithToArith");
 
