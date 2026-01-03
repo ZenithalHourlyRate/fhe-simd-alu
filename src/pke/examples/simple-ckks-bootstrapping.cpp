@@ -216,7 +216,7 @@ void SimpleBootstrapExample() {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 31;
+    uint32_t dcrtBits            = 40;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
@@ -298,7 +298,14 @@ void SimpleBootstrapExample() {
 
     Ciphertext<DCRTPoly> ct = encoded;
 
-    fheZ->EvalArithToBooleanBatched(std::vector({encoded, encoded2}), FHEZImpl::Z2CScalingOption::SCALE_ZV);
+    std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
+    auto batchSize                             = zN / 4 / 2;  // zN / w / 2 (/2 for full packing)
+    while (batchCts.size() < batchSize) {
+        batchCts.push_back(encoded);
+    }
+
+    BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+              "ArithToBooleanBatched");
 
     return;
 
@@ -308,28 +315,6 @@ void SimpleBootstrapExample() {
 
     Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(ct, FHEZImpl::Z2CScalingOption::SCALE_ZV);
     __heir_debug2(ct3, "CMult");
-    //Ciphertext<DCRTPoly> ct4 = fheZ->EvalArithToArith(ct3, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-    //__heir_debug2(ct4, "CMult");
-
-    auto ct4 = z->EvalMultFullInZ(ct3, ct3);
-    z->ModReduceInPlace(ct4);
-    __heir_debug2(ct4, "CMultTwice");
-
-    Ciphertext<DCRTPoly> ct5 = fheZ->EvalArithToArith(ct4, FHEZImpl::Z2CScalingOption::SCALE_ZV_TWICE);
-    __heir_debug2(ct5, "CMult");
-
-    Ciphertext<DCRTPoly> ct6 = fheZ->EvalArithToArith(ct5, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-    __heir_debug2(ct6, "CMult");
-
-    Ciphertext<DCRTPoly> ct7 = fheZ->EvalArithToArith(ct6, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-    __heir_debug2(ct7, "CMult");
-
-    auto ct8 = z->EvalMultFullInZ(ct7, ct7);
-    z->ModReduceInPlace(ct8);
-    __heir_debug2(ct8, "CMultTwice");
-
-    Ciphertext<DCRTPoly> ct9 = fheZ->EvalArithToArith(ct8, FHEZImpl::Z2CScalingOption::SCALE_ZV_TWICE);
-    __heir_debug2(ct9, "CMult");
 
     //BENCHMARK(fheZ->EvalArithToArith(ct), 3, "ArithToArith");
 
