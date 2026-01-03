@@ -113,6 +113,37 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
             }
         }
     }
+    // For all rotations for ArithToBoolean batched
+    {
+        auto w         = p.m_w;
+        auto numIter   = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+        auto batchSize = numIter / 2;
+
+        for (int32_t i = 0; i != batchSize; ++i) {
+            s.insert(i * w);
+            s.insert(-i * w);
+        }
+
+        for (uint32_t iter = 0; iter != numIter; ++iter) {
+            for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
+                int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
+                // Note the rotation index is negative here
+                int32_t rotationIndex = diff * w;
+                if (rotationIndex <= p.m_cutoff) {
+                    // We do not remove them any more
+                    // Just treat the lower parts as noises
+                    break;
+                }
+                if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
+                    rotationIndex += zN / 2;
+                }
+                for (size_t j = 0; j != batchSize; ++j) {
+                    auto targetRotateIndex = rotationIndex + static_cast<int32_t>(j * w);
+                    s.insert(targetRotateIndex);
+                }
+            }
+        }
+    }
 
     s.erase(0);
     s.erase(M / 4);

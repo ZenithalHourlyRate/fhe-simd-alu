@@ -255,7 +255,7 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    uint32_t zN     = 16;
+    uint32_t zN     = 32;
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
     //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
     //uint32_t zSlots = 32;
