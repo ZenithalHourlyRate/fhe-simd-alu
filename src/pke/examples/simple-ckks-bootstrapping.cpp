@@ -72,6 +72,10 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Comb0", DecodeMode::CSlotsDecode},
         {"Mask0", DecodeMode::CSlotsDecode},
         {"Rot0", DecodeMode::CSlotsDecode},
+        {"Res0", DecodeMode::CSlotsDecode},
+        {"Res1", DecodeMode::CSlotsDecode},
+        {"Res2", DecodeMode::CSlotsDecode},
+        {"Res3", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
@@ -116,7 +120,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     }
     if (decodeMode == DecodeMode::CSlotsDecode) {
         auto cSlots          = values.toCSlots();
-        auto maxSlotsToPrint = std::min(zSlots_global, size_t(8));
+        auto maxSlotsToPrint = std::min(zSlots_global, size_t(16));
         for (size_t i = 0; i != maxSlotsToPrint; ++i) {
             auto value       = cSlots[i].getReal();
             auto p           = BigFixedPoint::positive(1 << zN_global);
@@ -271,13 +275,13 @@ void SimpleBootstrapExample() {
 
     std::vector<uint64_t> vec(zSlots, 0);
     for (size_t i = 0; i != zSlots; ++i) {
-        vec[i] = i + 1;
+        vec[i] = i + 3;
     }
     Plaintext ptxt1 = ZEncodingImpl::encodeArith(vec, zN, zSlots, elemParam, sfq0);
 
     std::vector<uint64_t> vec2(zSlots, 0);
     for (size_t i = 0; i != zSlots; ++i) {
-        vec2[i] = -i - 1;
+        vec2[i] = -i - 3;
     }
     Plaintext ptxt2 = ZEncodingImpl::encodeArith(vec2, zN, zSlots, elemParam, sfq0);
 
