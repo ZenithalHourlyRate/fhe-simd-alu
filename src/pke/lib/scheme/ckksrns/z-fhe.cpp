@@ -533,13 +533,20 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct, 
             }
             // Multiply by 1 / (2^{nextIter - iter} * p)
             auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
-            // If cross the half-way point, need to rotate more
-            if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
-                rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
+
+            bool targetSecondHalf = (nextIter * w >= zN / 2);
+
+            // If cross the half-way point, switch to second ciphertext
+            auto targetCore = core;
+            if (targetSecondHalf && !secondHalf) {
+                rotationIndex += zN / 2;
+                targetCore = core1;
             }
-            scaled = cc->EvalRotate(scaled, rotationIndex);
+            if (rotationIndex != 0) {
+                scaled = cc->EvalRotate(scaled, rotationIndex);
+            }
             z->ModReduceInPlace(scaled);
-            z->EvalSubWithAdjustInPlace(core, scaled);
+            z->EvalSubWithAdjustInPlace(targetCore, scaled);
         }
         // Remove itself from core
         z->EvalSubWithAdjustInPlace(core, lut);
@@ -549,12 +556,17 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct, 
     // Combine all parts
     //------------------------------------------------------------------------------
 
-    for (size_t i = 1; i != parts.size(); ++i) {
+    auto part0 = parts[0];
+    auto part1 = parts[parts.size() / 2];
+    for (size_t i = 1; i != parts.size() / 2; ++i) {
         // They may have different scaling factors...
-        z->EvalAddInPlace(parts[0], parts[i]);
+        z->EvalAddInPlace(part0, parts[i]);
+        z->EvalAddInPlace(part1, parts[parts.size() / 2 + i]);
     }
+    CiphertextGroup partGroup({part0, part1});
 
-    return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
+    return partGroup.map(
+        [&](ConstCiphertext<DCRTPoly> ct) { return internalBooleanToBooleanCustomLUT(ct, precomp.m_lutMSBCoeffs); });
 }
 
 CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption) {

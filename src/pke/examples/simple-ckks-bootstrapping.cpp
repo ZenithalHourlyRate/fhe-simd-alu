@@ -69,13 +69,8 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Core0", DecodeMode::CSlotsDecode},
         {"Core1", DecodeMode::CSlotsDecode},
         {"LUT0", DecodeMode::CSlotsDecode},
-        {"Comb0", DecodeMode::CSlotsDecode},
-        {"Mask0", DecodeMode::CSlotsDecode},
-        {"Rot0", DecodeMode::CSlotsDecode},
-        {"Res0", DecodeMode::CSlotsDecode},
-        {"Res1", DecodeMode::CSlotsDecode},
-        {"Res2", DecodeMode::CSlotsDecode},
-        {"Res3", DecodeMode::CSlotsDecode},
+        {"A2B0", DecodeMode::CSlotsDecode},
+        {"A2B1", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
@@ -122,13 +117,15 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         auto cSlots          = values.toCSlots();
         auto maxSlotsToPrint = std::min(zSlots_global, size_t(16));
         for (size_t i = 0; i != maxSlotsToPrint; ++i) {
-            auto value       = cSlots[i].getReal();
-            auto p           = BigFixedPoint::positive(1 << zN_global);
-            auto lutPart     = (value * p).round() / p;
-            auto fracPart    = value - lutPart;
-            double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
-            std::cout << msg << "  cSlots Slot " << i << " Reconstructed: " << lutPart.toHexString() << " "
-                      << fracPart.toHexString(ceil(log2sf / 4.0)) << " error: " << log2Error << std::endl;
+            //auto value       = cSlots[i].getReal();
+            //auto p           = BigFixedPoint::positive(1 << zN_global);
+            //auto lutPart     = (value * p).round() / p;
+            //auto fracPart    = value - lutPart;
+            //double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
+            //std::cout << msg << "  cSlots Slot " << i << " Reconstructed: " << lutPart.toHexString() << " "
+            //          << fracPart.toHexString(ceil(log2sf / 4.0)) << " error: " << log2Error << std::endl;
+            std::cout << msg << "  cSlots Slot " << i << " " << cSlots[i].getReal().toHexString(ceil(log2sf / 4.0))
+                      << std::endl;
         }
         if (zSlots_global > maxSlotsToPrint) {
             std::cout << msg << "  ... (total " << zSlots_global << " slots)" << std::endl;
@@ -300,7 +297,7 @@ void SimpleBootstrapExample() {
 #define DEBUG
 
     // Mult
-    if (1) {
+    if (0) {
         BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 1, "MultFull");
 #ifdef DEBUG
         auto ct2 = z->EvalMultFullInZ(encoded2, encoded);
@@ -309,7 +306,7 @@ void SimpleBootstrapExample() {
     }
 
     // ArithToArith
-    if (1) {
+    if (0) {
         BENCHMARK(fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArith");
 #ifdef DEBUG
         auto ct2 = fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
@@ -327,6 +324,13 @@ void SimpleBootstrapExample() {
 
         BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
                   "ArithToBooleanBatched");
+    }
+
+    //ArithToBooleanFull
+    if (1) {
+        auto ct2 = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+        __heir_debug2(ct2[0], "A2B0");
+        __heir_debug2(ct2[1], "A2B1");
     }
 
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
