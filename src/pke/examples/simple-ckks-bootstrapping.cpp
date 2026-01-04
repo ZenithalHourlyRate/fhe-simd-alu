@@ -341,7 +341,7 @@ void SimpleBootstrapExample() {
 
     // BooleanToBoolean
     if (1) {
-        BENCHMARK((fheZ->EvalBooleanToBoolean(ctGroupBool[0])), 1, "BooleanToBoolean");
+        BENCHMARK((fheZ->EvalBooleanToBooleanSparse(ctGroupBool[0])), 1, "BooleanToBoolean");
     }
 
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");

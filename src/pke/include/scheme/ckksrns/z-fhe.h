@@ -233,7 +233,9 @@ public:
 
     CiphertextGroup EvalArithToBoolean(CiphertextGroup ctxts, Z2CScalingOption scalingOption);
 
-    Ciphertext<DCRTPoly> EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> EvalBooleanToBooleanSparse(ConstCiphertext<DCRTPoly>& ctxt) const;
+
+    CiphertextGroup EvalBooleanToBooleanFull(CiphertextGroup ctxt) const;
 
 private:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
@@ -248,10 +250,15 @@ private:
     Ciphertext<DCRTPoly> internalArithToBooleanIteration(ConstCiphertext<DCRTPoly>& ctxt,
                                                          const std::vector<BigComplex>& lutCoeffs) const;
 
-    Ciphertext<DCRTPoly> internalBooleanToBooleanLTs(ConstCiphertext<DCRTPoly>& ctxt) const;
+    Ciphertext<DCRTPoly> internalBooleanToBooleanLTsSparse(ConstCiphertext<DCRTPoly>& ctxt) const;
 
-    Ciphertext<DCRTPoly> internalBooleanToBooleanCustomLUT(ConstCiphertext<DCRTPoly>& ctxt,
-                                                           const std::vector<BigComplex>& lutCoeffs) const;
+    CiphertextGroup internalBooleanToBooleanLTsFull(CiphertextGroup ctxt) const;
+
+    Ciphertext<DCRTPoly> internalBooleanToBooleanCustomLUTSparse(ConstCiphertext<DCRTPoly>& ctxt,
+                                                                 const std::vector<BigComplex>& lutCoeffs) const;
+
+    CiphertextGroup internalBooleanToBooleanCustomLUTFull(CiphertextGroup ctxt,
+                                                          const std::vector<BigComplex>& lutCoeffs) const;
 
     //------------------------------------------------------------------------------
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs
