@@ -296,9 +296,15 @@ void SimpleBootstrapExample() {
 
 #define DEBUG
 
+    // MultShort
+    if (0) {
+        // TODO: really use a short encoded...
+        BENCHMARK(z->EvalMultShortInZ(encoded2, encoded), 3, "MultShort");
+    }
+
     // Mult
     if (0) {
-        BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 1, "MultFull");
+        BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 3, "MultFull");
 #ifdef DEBUG
         auto ct2 = z->EvalMultFullInZ(encoded2, encoded);
         __heir_debug2(ct2, "CMult");
@@ -327,10 +333,15 @@ void SimpleBootstrapExample() {
     }
 
     //ArithToBooleanFull
+    CiphertextGroup ctGroupBool;
     if (1) {
-        auto ct2 = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-        __heir_debug2(ct2[0], "A2B0");
-        __heir_debug2(ct2[1], "A2B1");
+        BENCHMARK(ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+                  "ArithToBoolean");
+    }
+
+    // BooleanToBoolean
+    if (1) {
+        BENCHMARK((fheZ->EvalBooleanToBoolean(ctGroupBool[0])), 1, "BooleanToBoolean");
     }
 
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
