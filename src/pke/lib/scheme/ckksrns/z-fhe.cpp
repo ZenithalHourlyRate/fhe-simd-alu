@@ -635,7 +635,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CSc
             internalBooleanToBooleanCustomLUTFull(std::vector{targetCombined0, targetCombined1}, precomp.m_lutIDCoeffs);
         auto lut0 = lut[0];
         auto lut1 = lut[1];
-        std::cout << "LUTs generated for iteration " << iter << std::endl;
 
         //__heir_debug2(lut, "LUT0");
 
@@ -722,7 +721,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CSc
             }
         }
     }
-    std::cout << "Finished LUTs: " << luts.size() << std::endl;
 
     //------------------------------------------------------------------------------
     // Combine all LUTs
@@ -796,7 +794,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CSc
         MSBsSec.push_back(MSBSecjFirst);
         MSBsSec.push_back(MSBSecjSecond);
     }
-    std::cout << "Extracted MSBs: " << MSBs.size() << std::endl;
 
     MSBs.insert(MSBs.end(), MSBsSec.begin(), MSBsSec.end());
 

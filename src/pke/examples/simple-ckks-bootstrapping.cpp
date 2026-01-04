@@ -321,33 +321,42 @@ void SimpleBootstrapExample() {
 #endif
     }
 
-    // ArithToBooleanBatched
+    // ArithToArithNoise
     if (1) {
+        BENCHMARK(fheZ->EvalArithToArithNoise(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArithNoise");
+    }
+
+    // ArithToBooleanBatched
+    if (0) {
         std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
         auto batchSize                             = zN / 4;  // zN / w
         while (batchCts.size() < batchSize) {
             batchCts.push_back(encoded2);
         }
+#ifdef DEBUG
         auto ctGroupBool = fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV);
         __heir_debug2(ctGroupBool[2], "A2B0");
         __heir_debug2(ctGroupBool[3], "A2B1");
-        //BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
-        //          "ArithToBooleanBatched");
+#endif
+        BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+                  "ArithToBooleanBatched");
     }
 
     //ArithToBooleanFull
     CiphertextGroup ctGroupBool;
-    if (0) {
+    if (1) {
+#ifdef DEBUG
         ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
         __heir_debug2(ctGroupBool[0], "A2B0");
         __heir_debug2(ctGroupBool[1], "A2B1");
+#endif
         BENCHMARK(ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
                   "ArithToBoolean");
     }
 
     // BooleanToBoolean
-    if (0) {
-        BENCHMARK((fheZ->EvalBooleanToBooleanSparse(ctGroupBool[0])), 1, "BooleanToBoolean");
+    if (1) {
+        BENCHMARK((fheZ->EvalBooleanToBooleanFull(ctGroupBool)), 1, "BooleanToBoolean");
     }
 
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
