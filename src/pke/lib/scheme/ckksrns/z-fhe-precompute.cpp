@@ -821,8 +821,8 @@ Plaintext FHEZImpl::getATBRecombMaskFullPacking(uint32_t iter, uint32_t w, uint3
     // Rotate
     std::vector<BigComplex> rotatedOneHotVec(cSlots, BigFixedPoint::zero());
     for (uint32_t i = 0; i != cSlots; ++i) {
-        auto rotatedIndex              = static_cast<uint32_t>(static_cast<int32_t>(i + cSlots) + rotateIndex) % cSlots;
-        rotatedOneHotVec[rotatedIndex] = oneHotVec[i];
+        auto rotatedIndex   = static_cast<uint32_t>(static_cast<int32_t>(i + cSlots) + rotateIndex) % cSlots;
+        rotatedOneHotVec[i] = oneHotVec[rotatedIndex];
     }
 
     ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots);  // full packing

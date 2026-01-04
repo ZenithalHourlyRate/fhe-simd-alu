@@ -69,8 +69,16 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Core0", DecodeMode::CSlotsDecode},
         {"Core1", DecodeMode::CSlotsDecode},
         {"LUT0", DecodeMode::CSlotsDecode},
+        {"LUT1", DecodeMode::CSlotsDecode},
+        {"MSB0", DecodeMode::CSlotsDecode},
+        {"MSB1", DecodeMode::CSlotsDecode},
+        {"MSB2", DecodeMode::CSlotsDecode},
+        {"MSB3", DecodeMode::CSlotsDecode},
         {"A2B0", DecodeMode::CSlotsDecode},
         {"A2B1", DecodeMode::CSlotsDecode},
+        {"Comb0", DecodeMode::CSlotsDecode},
+        {"Comb1", DecodeMode::CSlotsDecode},
+        {"Scaled", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
@@ -196,13 +204,13 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     return 0;
 }
 
-void SimpleBootstrapExample();
+void SimpleBootstrapExample(int zN);
 
 int main(int argc, char* argv[]) {
-    SimpleBootstrapExample();
+    SimpleBootstrapExample(std::stoi(argv[1]));
 }
 
-void SimpleBootstrapExample() {
+void SimpleBootstrapExample(int zN) {
     CCParams<CryptoContextCKKSRNS> parameters;
 
     SecretKeyDist secretKeyDist = lbcrypto::SPARSE_ENCAPSULATED;
@@ -252,7 +260,7 @@ void SimpleBootstrapExample() {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    uint32_t zN     = 32;
+    //uint32_t zN     = 16;
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
     //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
     //uint32_t zSlots = 32;
@@ -322,29 +330,31 @@ void SimpleBootstrapExample() {
     }
 
     // ArithToArithNoise
-    if (1) {
+    if (0) {
         BENCHMARK(fheZ->EvalArithToArithNoise(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArithNoise");
     }
 
     // ArithToBooleanBatched
-    if (0) {
+    if (1) {
         std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
         auto batchSize                             = zN / 4;  // zN / w
         while (batchCts.size() < batchSize) {
-            batchCts.push_back(encoded2);
+            batchCts.push_back(encoded);
         }
 #ifdef DEBUG
         auto ctGroupBool = fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV);
         __heir_debug2(ctGroupBool[2], "A2B0");
         __heir_debug2(ctGroupBool[3], "A2B1");
+        __heir_debug2(ctGroupBool[14], "A2B0");
+        __heir_debug2(ctGroupBool[15], "A2B1");
 #endif
-        BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
-                  "ArithToBooleanBatched");
+        //BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+        //          "ArithToBooleanBatched");
     }
 
     //ArithToBooleanFull
     CiphertextGroup ctGroupBool;
-    if (1) {
+    if (0) {
 #ifdef DEBUG
         ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
         __heir_debug2(ctGroupBool[0], "A2B0");
@@ -355,7 +365,7 @@ void SimpleBootstrapExample() {
     }
 
     // BooleanToBoolean
-    if (1) {
+    if (0) {
         BENCHMARK((fheZ->EvalBooleanToBooleanFull(ctGroupBool)), 1, "BooleanToBoolean");
     }
 

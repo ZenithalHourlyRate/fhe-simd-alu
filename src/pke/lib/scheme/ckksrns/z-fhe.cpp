@@ -636,8 +636,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CSc
         auto lut0 = lut[0];
         auto lut1 = lut[1];
 
-        //__heir_debug2(lut, "LUT0");
-
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
         //------------------------------------------------------------------------------
@@ -676,7 +674,8 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CSc
                     z->ModReduceInPlace(scaled);
 
                     bool targetSecondHalf = (nextIter * w >= zN / 2);
-                    auto coreCt           = core[2 * j + targetSecondHalf];
+
+                    auto coreCt = core[2 * j + targetSecondHalf];
                     z->EvalSubWithAdjustInPlace(coreCt, scaled);
                 }
                 {
