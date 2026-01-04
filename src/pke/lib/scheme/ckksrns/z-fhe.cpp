@@ -386,10 +386,14 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct, Z
     return z->EvalSubWithAdjust(high, noise);
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const {
-    auto cc      = ct->GetCryptoContext();
-    auto cSlots  = ct->GetZEncodingParams().getCSlots();
-    auto precomp = GetBootPrecom(cSlots);
+Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) {
+    auto cc       = ct->GetCryptoContext();
+    auto cSlots   = ct->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    bool isSparse = precomp.m_isSparse;
+    if (!isSparse) {
+        OPENFHE_THROW("ArithToBooleanSparse called on non-sparse ciphertext");
+    }
 
     // Our core ct
     auto core = EvalZ2C(ct, scalingOption, /*specialB0=*/true)[0];
@@ -426,6 +430,87 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ct,
         Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elemParam, sf);
 
         auto coreMasked = z->EvalMult(core, oneHotPtxt);
+        z->ModReduceInPlace(coreMasked);
+
+        auto lut = internalBooleanToBooleanCustomLUT(coreMasked, precomp.m_lutIDCoeffs);
+
+        //------------------------------------------------------------------------------
+        // Store the parts and remove it from core
+        //------------------------------------------------------------------------------
+
+        parts.push_back(lut);
+
+        // remove part from core
+        for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
+            int32_t diff = static_cast<int32_t>(iter) - static_cast<int32_t>(nextIter);
+            // Note the rotation index is negative here
+            int32_t rotationIndex = diff * w;
+            if (rotationIndex <= precomp.m_cutoff) {
+                // We do not remove them any more
+                // Just treat the lower parts as noises
+                break;
+            }
+            // Multiply by 1 / (2^{nextIter - iter} * p)
+            auto scaled = z->EvalMultInC(lut, BigFixedPoint::pow2(diff * w));
+            // If cross the half-way point, need to rotate more
+            if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
+                rotationIndex -= static_cast<int32_t>((zSlots - 1) * zN / 2);
+            }
+            scaled = cc->EvalRotate(scaled, rotationIndex);
+            z->ModReduceInPlace(scaled);
+            z->EvalSubWithAdjustInPlace(core, scaled);
+        }
+        // Remove itself from core
+        z->EvalSubWithAdjustInPlace(core, lut);
+    }
+
+    //------------------------------------------------------------------------------
+    // Combine all parts
+    //------------------------------------------------------------------------------
+
+    for (size_t i = 1; i != parts.size(); ++i) {
+        // They may have different scaling factors...
+        z->EvalAddInPlace(parts[0], parts[i]);
+    }
+
+    return internalBooleanToBooleanCustomLUT(parts[0], precomp.m_lutMSBCoeffs);
+}
+
+CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) {
+    auto cc       = ct->GetCryptoContext();
+    auto cSlots   = ct->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    bool isSparse = precomp.m_isSparse;
+    if (isSparse) {
+        OPENFHE_THROW("ArithToBooleanFull called on sparse ciphertext");
+    }
+
+    // Our core ct
+    auto cores = EvalZ2C(ct, scalingOption, /*specialB0=*/true);
+    auto core0 = cores[0];
+    auto core1 = cores[1];
+    // TODO: We need to keep core ct at bottom; rescale if necessary
+
+    auto zN     = ct->GetZEncodingParams().getZN();
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    uint32_t w  = precomp.m_w;
+    // We ask zN to be multiple of w now...
+    uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+
+    std::vector<Ciphertext<DCRTPoly>> parts;
+
+    // Iteratively process each low bits
+    for (uint32_t iter = 0; iter != numIter; ++iter) {
+        auto core       = core0;
+        bool secondHalf = (iter * w >= zN / 2);
+        if (secondHalf) {
+            core = core1;
+        }
+
+        auto elemParam  = core->GetElements()[0].GetParams();
+        auto sf         = core->GetScalingFactorBFP();
+        auto maskPtxt   = getATBMaskFullPacking(iter, w, zN, zSlots, elemParam, sf);
+        auto coreMasked = z->EvalMult(core, maskPtxt);
         z->ModReduceInPlace(coreMasked);
 
         auto lut = internalBooleanToBooleanCustomLUT(coreMasked, precomp.m_lutIDCoeffs);

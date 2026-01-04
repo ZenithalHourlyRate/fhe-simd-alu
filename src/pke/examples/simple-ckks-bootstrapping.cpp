@@ -289,33 +289,46 @@ void SimpleBootstrapExample() {
     auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
     auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
+    __heir_debug2(encoded, "Input");
+
     // See multiplication noise
     //encoded = z->EvalMultInC(encoded, BigFixedPoint::positive(1));
     //z->ModReduceInPlace(encoded);
 
-    __heir_debug2(encoded, "Input");
-    __heir_debug2(encoded2, "Input");
-
     Ciphertext<DCRTPoly> ct = encoded;
 
-    Ciphertext<DCRTPoly> ct3 = fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-    __heir_debug2(ct3, "CMult");
+#define DEBUG
 
-    return;
-
-    std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
-    auto batchSize                             = zN / 4 / 2;  // zN / w / 2 (/2 for full packing)
-    while (batchCts.size() < batchSize) {
-        batchCts.push_back(encoded);
+    // Mult
+    if (1) {
+        BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 1, "MultFull");
+#ifdef DEBUG
+        auto ct2 = z->EvalMultFullInZ(encoded2, encoded);
+        __heir_debug2(ct2, "CMult");
+#endif
     }
 
-    BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
-              "ArithToBooleanBatched");
+    // ArithToArith
+    if (1) {
+        BENCHMARK(fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArith");
+#ifdef DEBUG
+        auto ct2 = fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+        __heir_debug2(ct2, "CMult");
+#endif
+    }
 
-    return;
+    // ArithToBooleanBatched
+    if (0) {
+        std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
+        auto batchSize                             = zN / 4 / 2;  // zN / w / 2 (/2 for full packing)
+        while (batchCts.size() < batchSize) {
+            batchCts.push_back(encoded);
+        }
 
-    //Ciphertext<DCRTPoly> ct2 = fheZ->EvalArithToBoolean(ct);
-    //__heir_debug2(ct2, "Boolean");
+        BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+                  "ArithToBooleanBatched");
+    }
+
     //BENCHMARK(fheZ->EvalArithToBoolean(ct), 3, "ArithToBoolean");
 
     //BENCHMARK(fheZ->EvalArithToArith(ct), 3, "ArithToArith");

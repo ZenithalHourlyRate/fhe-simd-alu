@@ -225,9 +225,13 @@ public:
 
     Ciphertext<DCRTPoly> EvalArithToArith(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToBoolean(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption);
+
+    CiphertextGroup EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption);
 
     CiphertextGroup EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption);
+
+    CiphertextGroup EvalArithToBoolean(CiphertextGroup ctxts, Z2CScalingOption scalingOption);
 
     Ciphertext<DCRTPoly> EvalBooleanToBoolean(ConstCiphertext<DCRTPoly>& ctxt) const;
 
