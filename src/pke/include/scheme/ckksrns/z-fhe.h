@@ -315,6 +315,10 @@ private:
                                     const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                     const BigFixedPoint& scalingFactor);
 
+    Plaintext getATBMSBMaskFullPacking(uint32_t zN, uint32_t zSlots,
+                                       const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                       const BigFixedPoint& scalingFactor);
+
     Plaintext getATBRecombMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
                                           const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                           const BigFixedPoint& scalingFactor, BigFixedPoint scaleDown,
