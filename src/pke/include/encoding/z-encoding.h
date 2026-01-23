@@ -206,6 +206,54 @@ public:
         std::vector<ZPolynomial> zPolys(1, ZPolynomial::getTInv(zN));
         return encodeZ(zPolys, zN, 1, elementParams, scalingFactor, /*scaleUp*/ false);
     }
+
+    static std::vector<ZEncoding> encodeBooleanFull(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
+                                                    const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                                    const BigFixedPoint& scalingFactor) {
+        if (input.size() < zSlots) {
+            input.resize(zSlots, 0);
+        }
+        auto N = elementParams->GetRingDimension();
+        if (zSlots * zN != N) {
+            OPENFHE_THROW("zSlots mismatch with ring dimension in encodeBooleanFull");
+        }
+        std::vector<BigComplex> lowHalf, highHalf;
+        for (size_t i = 0; i != input.size(); ++i) {
+            auto zPoly = ZPolynomial::encodeBinary(zN, input[i]);
+            for (size_t i = 0; i != zN / 2; ++i) {
+                lowHalf.push_back(zPoly[i]);
+                highHalf.push_back(zPoly[i + zN / 2]);
+            }
+        }
+        ZEncodingParams params(CMode, N, N / 2);
+        auto lowHalfEncoded  = encodeC(CSlots(params, lowHalf), elementParams, scalingFactor);
+        auto highHalfEncoded = encodeC(CSlots(params, highHalf), elementParams, scalingFactor);
+        return {lowHalfEncoded, highHalfEncoded};
+    }
+
+    static ZEncoding encodeBooleanSparse(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
+                                         const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                         const BigFixedPoint& scalingFactor) {
+        if (input.size() < zSlots) {
+            input.resize(zSlots, 0);
+        }
+        auto N = elementParams->GetRingDimension();
+        if (zSlots * zN > N / 2) {
+            OPENFHE_THROW("zSlots mismatch with ring dimension in encodeBooleanFull");
+        }
+        std::vector<BigComplex> lowHalf, highHalf;
+        for (size_t i = 0; i != input.size(); ++i) {
+            auto zPoly = ZPolynomial::encodeBinary(zN, input[i]);
+            for (size_t i = 0; i != zN / 2; ++i) {
+                lowHalf.push_back(zPoly[i]);
+                highHalf.push_back(zPoly[i + zN / 2]);
+            }
+        }
+        // append high half to low half
+        lowHalf.insert(lowHalf.end(), highHalf.begin(), highHalf.end());
+        ZEncodingParams params(CMode, N, zSlots * zN);
+        return encodeC(CSlots(params, lowHalf), elementParams, scalingFactor);
+    }
 };
 
 }  // namespace lbcrypto

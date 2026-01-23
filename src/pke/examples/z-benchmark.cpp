@@ -245,10 +245,8 @@ void SimpleBootstrapExample(int zN) {
     cc->EvalMultKeyGen(keyPair.secretKey);
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
-    //std::cout << *cryptoParams << std::endl;
-    //std::cout << *(cryptoParams->GetParamsP()) << " primes in the special prime modulus." << std::endl;
-    double logQ = 0;
-    double logP = 0;
+    double logQ             = 0;
+    double logP             = 0;
     {
         auto moduliQ = cc->GetCryptoParameters()->GetElementParams()->GetModulus();
         auto moduliP = cryptoParams->GetParamsP()->GetModulus();
@@ -261,12 +259,9 @@ void SimpleBootstrapExample(int zN) {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
 
-    //uint32_t zN     = 16;
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
-    //uint32_t zSlots = cc->GetRingDimension() / zN / 2;  // Maximal sparse packing
-    //uint32_t zSlots = 32;
-    zN_global     = zN;
-    zSlots_global = zSlots;
+    zN_global       = zN;
+    zSlots_global   = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
 
     fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16);
@@ -293,69 +288,46 @@ void SimpleBootstrapExample(int zN) {
     Plaintext ptxt2 = ZEncodingImpl::encodeArith(vec2, zN, zSlots, elemParam, sfq0);
 
     /// TEST ENCODE
-    auto encoded  = Encrypt(ptxt1, keyPair.publicKey);
-    auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
+    auto ct  = Encrypt(ptxt1, keyPair.publicKey);
+    auto ct2 = Encrypt(ptxt2, keyPair.publicKey);
 
-    __heir_debug2(encoded, "Input");
-
-    // See multiplication noise
-    //encoded = z->EvalMultInC(encoded, BigFixedPoint::positive(1));
-    //z->ModReduceInPlace(encoded);
-
-    Ciphertext<DCRTPoly> ct = encoded;
-
-#define DEBUG
-
-    if (1) {
-        auto res = z->EvalSub(encoded2, encoded);
-        __heir_debug2(res, "Sub");
-    }
-
-    // MultShort
+    // Add
     if (0) {
-        // TODO: really use a short encoded...
-        BENCHMARK(z->EvalMultShortInZ(encoded2, encoded), 3, "MultShort");
+        BENCHMARK(z->EvalAdd(ct, ct2), 3, "Add");
     }
 
     // Mult
     if (0) {
-        BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 3, "MultFull");
-#ifdef DEBUG
-        auto ct2 = z->EvalMultFullInZ(encoded2, encoded);
-        __heir_debug2(ct2, "CMult");
-#endif
+        BENCHMARK(z->EvalMultFullInZ(ct, ct2), 3, "MultFull");
     }
 
     // ArithToArith
     if (0) {
-        BENCHMARK(fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArith");
-#ifdef DEBUG
-        auto ct2 = fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-        __heir_debug2(ct2, "CMult");
-#endif
+        BENCHMARK(fheZ->EvalArithToArith(ct, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArith");
     }
 
     // ArithToArithNoise
     if (0) {
-        BENCHMARK(fheZ->EvalArithToArithNoise(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArithNoise");
+        BENCHMARK(fheZ->EvalArithToArithHigh(ct, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArithHigh");
+    }
+
+    // ArithToArithNoise
+    if (0) {
+        BENCHMARK(fheZ->EvalArithToArithNoise(ct, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArithNoise");
     }
 
     // ArithToBooleanBatched
-    if (0) {
-        std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
+    if (1) {
+        std::vector<Ciphertext<DCRTPoly>> batchCts = {ct, ct2};
         auto batchSize                             = zN / 4;  // zN / w
         while (batchCts.size() < batchSize) {
-            batchCts.push_back(encoded);
+            batchCts.push_back(ct);
         }
 #ifdef DEBUG
         auto ctGroupBool = fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV);
-        __heir_debug2(ctGroupBool[2], "A2B0");
-        __heir_debug2(ctGroupBool[3], "A2B1");
-        __heir_debug2(ctGroupBool[14], "A2B0");
-        __heir_debug2(ctGroupBool[15], "A2B1");
 #endif
-        //BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
-        //          "ArithToBooleanBatched");
+        BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+                  "ArithToBooleanBatched");
     }
 
     //ArithToBooleanFull
@@ -366,7 +338,7 @@ void SimpleBootstrapExample(int zN) {
         __heir_debug2(ctGroupBool[0], "A2B0");
         __heir_debug2(ctGroupBool[1], "A2B1");
 #endif
-        BENCHMARK(ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+        BENCHMARK(ctGroupBool = fheZ->EvalArithToBooleanFull(ct2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
                   "ArithToBoolean");
     }
 
