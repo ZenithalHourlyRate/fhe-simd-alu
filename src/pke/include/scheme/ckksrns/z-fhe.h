@@ -185,6 +185,8 @@ public:
 
     CiphertextGroup EvalBooleanToBooleanFull(CiphertextGroup ctxt) const;
 
+    Ciphertext<DCRTPoly> EvalBooleanToArith(CiphertextGroup ctxt) const;
+
 private:
     ZBootstrapPrecom& GetBootPrecom(uint32_t slots) const {
         auto pair = m_bootPrecomMap.find(slots);
@@ -207,6 +209,10 @@ private:
 
     CiphertextGroup internalBooleanToBooleanCustomLUTFull(CiphertextGroup ctxt,
                                                           const std::vector<BigComplex>& lutCoeffs) const;
+
+    CiphertextGroup internalBooleanToBooleanCustomTwoLUTFull(CiphertextGroup ctxt,
+                                                             const std::vector<BigComplex>& lutCoeffs,
+                                                             const std::vector<BigComplex>& lutCoeffs2) const;
 
     //------------------------------------------------------------------------------
     // Precomputations for ZCoeffsToSlots and SlotsToZCoeffs

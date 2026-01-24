@@ -596,6 +596,7 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
     CiphertextGroup coreSecondHalf(coreSecondHalfVec);
 
     std::vector<Ciphertext<DCRTPoly>> luts;
+    std::vector<Ciphertext<DCRTPoly>> msbs;
 
     // Iteratively process each low bits
     for (uint32_t iter = 0; iter != numIter; ++iter) {
@@ -627,10 +628,12 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
             z->EvalAddInPlace(targetCombined1, rotated1);
         }
 
-        auto lut =
-            internalBooleanToBooleanCustomLUTFull(std::vector{targetCombined0, targetCombined1}, precomp.m_lutIDCoeffs);
+        auto lut  = internalBooleanToBooleanCustomTwoLUTFull(std::vector{targetCombined0, targetCombined1},
+                                                             precomp.m_lutIDCoeffs, precomp.m_lutMSBCoeffs);
         auto lut0 = lut[0];
         auto lut1 = lut[1];
+        auto msb0 = lut[2];
+        auto msb1 = lut[3];
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
@@ -638,6 +641,8 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
 
         luts.push_back(lut0);
         luts.push_back(lut1);
+        msbs.push_back(msb0);
+        msbs.push_back(msb1);
 
         elemParam = lut0->GetElements()[0].GetParams();
         sf        = lut0->GetScalingFactorBFP();
@@ -718,36 +723,36 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
     }
 
     //------------------------------------------------------------------------------
-    // Combine all LUTs
+    // Combine all MSBs
     //------------------------------------------------------------------------------
 
     // For each input ciphertext, extract MSBs from luts
-    std::vector<Ciphertext<DCRTPoly>> MSBs;
-    std::vector<Ciphertext<DCRTPoly>> MSBsSec;
+    std::vector<Ciphertext<DCRTPoly>> finalMSBs;
+    std::vector<Ciphertext<DCRTPoly>> finalMSBsSec;
     for (size_t j = 0; j != ctxts.size() / 2; ++j) {
         Ciphertext<DCRTPoly> MSBjFirst, MSBjSecond, MSBSecjFirst, MSBSecjSecond;
         for (size_t iter = 0; iter != numIter / 2; ++iter) {
-            auto mask = getATBRecombMaskFullPacking(iter, w, zN, zSlots, luts[0]->GetElements()[0].GetParams(),
-                                                    luts[0]->GetScalingFactorBFP(), BigFixedPoint::one(),
+            auto mask = getATBRecombMaskFullPacking(iter, w, zN, zSlots, msbs[0]->GetElements()[0].GetParams(),
+                                                    msbs[0]->GetScalingFactorBFP(), BigFixedPoint::one(),
                                                     -static_cast<int32_t>(j * w));
             {
-                auto maskedLut = z->EvalMult(luts[2 * iter], mask);
-                z->ModReduceInPlace(maskedLut);
+                auto maskedMSB = z->EvalMult(msbs[2 * iter], mask);
+                z->ModReduceInPlace(maskedMSB);
                 if (iter == 0) {
-                    MSBjFirst = maskedLut;
+                    MSBjFirst = maskedMSB;
                 }
                 else {
-                    z->EvalAddInPlace(MSBjFirst, maskedLut);
+                    z->EvalAddInPlace(MSBjFirst, maskedMSB);
                 }
             }
             {
-                auto maskedLut = z->EvalMult(luts[2 * iter + 1], mask);
-                z->ModReduceInPlace(maskedLut);
+                auto maskedMSB = z->EvalMult(msbs[2 * iter + 1], mask);
+                z->ModReduceInPlace(maskedMSB);
                 if (iter == 0) {
-                    MSBSecjFirst = maskedLut;
+                    MSBSecjFirst = maskedMSB;
                 }
                 else {
-                    z->EvalAddInPlace(MSBSecjFirst, maskedLut);
+                    z->EvalAddInPlace(MSBSecjFirst, maskedMSB);
                 }
             }
         }
@@ -756,27 +761,27 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
             MSBSecjFirst = cc->EvalRotate(MSBSecjFirst, static_cast<int32_t>(j * w));
         }
         for (size_t iter = numIter / 2; iter != numIter; ++iter) {
-            auto mask = getATBRecombMaskFullPacking(iter, w, zN, zSlots, luts[0]->GetElements()[0].GetParams(),
-                                                    luts[0]->GetScalingFactorBFP(), BigFixedPoint::one(),
+            auto mask = getATBRecombMaskFullPacking(iter, w, zN, zSlots, msbs[0]->GetElements()[0].GetParams(),
+                                                    msbs[0]->GetScalingFactorBFP(), BigFixedPoint::one(),
                                                     -static_cast<int32_t>(j * w));
             {
-                auto maskedLut = z->EvalMult(luts[2 * iter], mask);
-                z->ModReduceInPlace(maskedLut);
+                auto maskedMSB = z->EvalMult(msbs[2 * iter], mask);
+                z->ModReduceInPlace(maskedMSB);
                 if (iter == numIter / 2) {
-                    MSBjSecond = maskedLut;
+                    MSBjSecond = maskedMSB;
                 }
                 else {
-                    z->EvalAddInPlace(MSBjSecond, maskedLut);
+                    z->EvalAddInPlace(MSBjSecond, maskedMSB);
                 }
             }
             {
-                auto maskedLut = z->EvalMult(luts[2 * iter + 1], mask);
-                z->ModReduceInPlace(maskedLut);
+                auto maskedMSB = z->EvalMult(msbs[2 * iter + 1], mask);
+                z->ModReduceInPlace(maskedMSB);
                 if (iter == numIter / 2) {
-                    MSBSecjSecond = maskedLut;
+                    MSBSecjSecond = maskedMSB;
                 }
                 else {
-                    z->EvalAddInPlace(MSBSecjSecond, maskedLut);
+                    z->EvalAddInPlace(MSBSecjSecond, maskedMSB);
                 }
             }
         }
@@ -784,21 +789,13 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
             MSBjSecond    = cc->EvalRotate(MSBjSecond, static_cast<int32_t>(j * w));
             MSBSecjSecond = cc->EvalRotate(MSBSecjSecond, static_cast<int32_t>(j * w));
         }
-        MSBs.push_back(MSBjFirst);
-        MSBs.push_back(MSBjSecond);
-        MSBsSec.push_back(MSBSecjFirst);
-        MSBsSec.push_back(MSBSecjSecond);
+        finalMSBs.push_back(MSBjFirst);
+        finalMSBs.push_back(MSBjSecond);
+        finalMSBsSec.push_back(MSBSecjFirst);
+        finalMSBsSec.push_back(MSBSecjSecond);
     }
 
-    MSBs.insert(MSBs.end(), MSBsSec.begin(), MSBsSec.end());
-
-    std::vector<Ciphertext<DCRTPoly>> finalMSBs;
-    for (size_t i = 0; i != MSBs.size() / 2; ++i) {
-        auto boolGroup =
-            internalBooleanToBooleanCustomLUTFull(std::vector{MSBs[2 * i], MSBs[2 * i + 1]}, precomp.m_lutMSBCoeffs);
-        finalMSBs.push_back(boolGroup[0]);
-        finalMSBs.push_back(boolGroup[1]);
-    }
+    finalMSBs.insert(finalMSBs.end(), finalMSBsSec.begin(), finalMSBsSec.end());
     return finalMSBs;
 }
 
@@ -832,6 +829,7 @@ CiphertextGroup FHEZImpl::internalBooleanToBooleanLTsFull(CiphertextGroup ct) co
     auto cSlots  = ct[0]->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
 
+    // Put another ct in imaginary part
     auto ctComb = ct[0]->Clone();
     auto ct1I   = cc->GetScheme()->MultByMonomial(ct[1], cSlots);
     z->EvalAddInPlace(ctComb, ct1I);
@@ -911,6 +909,59 @@ CiphertextGroup FHEZImpl::internalBooleanToBooleanCustomLUTFull(CiphertextGroup 
     });
 }
 
+CiphertextGroup FHEZImpl::internalBooleanToBooleanCustomTwoLUTFull(CiphertextGroup ctGroup,
+                                                                   const std::vector<BigComplex>& lutCoeffs,
+                                                                   const std::vector<BigComplex>& lutCoeffs2) const {
+    if (lutCoeffs.size() != lutCoeffs2.size()) {
+        OPENFHE_THROW("MVB LUT size mismatch");
+    }
+
+    auto r2c = internalBooleanToBooleanLTsFull(ctGroup);
+
+    std::vector<std::shared_ptr<seriesPowers<DCRTPoly>>> powersVec;
+
+    auto expCt = r2c.map([&](ConstCiphertext<DCRTPoly> ct) {
+        //------------------------------------------------------------------------------
+        // Exp
+        //------------------------------------------------------------------------------
+
+        auto& coeff_exp = coeff_exp_16_big_complex_46;
+        auto res        = advZ->EvalChebyshevSeriesPS(ct, coeff_exp);
+
+        // Double angle-iterations to get exp(2*Pi*i*x)
+        res = z->EvalSquare(res);
+        z->ModReduceInPlace(res);
+        res = z->EvalSquare(res);
+        z->ModReduceInPlace(res);
+
+        auto powers = advZ->EvalPowers(res, lutCoeffs);
+        powersVec.push_back(powers);
+        // Unused
+        return res;
+    });
+
+    //------------------------------------------------------------------------------
+    // Running LUT
+    //------------------------------------------------------------------------------
+
+    std::vector<Ciphertext<DCRTPoly>> resVec;
+
+    for (size_t i = 0; i != 2; ++i) {
+        auto lut = advZ->EvalPolyWithPrecomp(powersVec[i], lutCoeffs);
+        // Take the real part
+        z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
+        resVec.push_back(lut);
+    }
+
+    for (size_t i = 0; i != 2; ++i) {
+        auto lut = advZ->EvalPolyWithPrecomp(powersVec[i], lutCoeffs2);
+        // Take the real part
+        z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
+        resVec.push_back(lut);
+    }
+    return resVec;
+}
+
 Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToBooleanSparse(ConstCiphertext<DCRTPoly>& ct) const {
     auto ctNew = ct->Clone();
     // Double scaling factor to divide by 2
@@ -979,6 +1030,13 @@ CiphertextGroup FHEZImpl::EvalBooleanToBooleanFull(CiphertextGroup ct) const {
 
         return res;
     });
+}
+
+Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToArith(CiphertextGroup ct) const {
+    auto res = EvalC2Z(ct);
+    res      = z->EvalMultTInvInZ(res);
+    z->ModReduceInPlace(res);
+    return res;
 }
 
 }  // namespace lbcrypto

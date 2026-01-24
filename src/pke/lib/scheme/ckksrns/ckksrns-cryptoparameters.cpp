@@ -109,6 +109,20 @@ void CryptoParametersCKKSRNS::PrecomputeCRTTables(KeySwitchTechnique ksTech, Sca
                               " with scaling factor ratio " + std::to_string(ratio) + ". Choose different dcrtBits.");
             }
         }
+
+        // Also populate paramsQl for custom use.
+        m_paramsQl.resize(sizeQ);
+
+        std::vector<NativeInteger> moduliQl;
+        moduliQl.reserve(sizeQ);
+        std::vector<NativeInteger> rootsQl;
+        rootsQl.reserve(sizeQ);
+
+        for (usint l = 0; l < sizeQ; ++l) {
+            moduliQl.push_back(moduliQ[l]);
+            rootsQl.push_back(rootsQ[l]);
+            m_paramsQl[l] = std::make_shared<ILDCRTParams<BigInteger>>(2 * GetRingDimension(), moduliQl, rootsQl);
+        }
     }
 
     // Pre-compute scaling factors for each level (used in FLEXIBLE* scaling techniques)
