@@ -402,7 +402,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly
     // We ask zN to be multiple of w now...
     uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
 
-    std::vector<Ciphertext<DCRTPoly>> parts;
+    std::vector<Ciphertext<DCRTPoly>> msbs;
 
     // Iteratively process each low bits
     for (uint32_t iter = 0; iter != numIter; ++iter) {
@@ -429,13 +429,16 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly
         auto coreMasked = z->EvalMult(core, oneHotPtxt);
         z->ModReduceInPlace(coreMasked);
 
-        auto lut = internalBooleanToBooleanCustomLUTSparse(coreMasked, precomp.m_lutIDCoeffs);
+        auto lutGroup =
+            internalBooleanToBooleanCustomTwoLUTSparse(coreMasked, precomp.m_lutIDCoeffs, precomp.m_lutMSBCoeffs);
+        auto lut = lutGroup[0];
+        auto msb = lutGroup[1];
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
         //------------------------------------------------------------------------------
 
-        parts.push_back(lut);
+        msbs.push_back(msb);
 
         // remove part from core
         for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
@@ -465,12 +468,11 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly
     // Combine all parts
     //------------------------------------------------------------------------------
 
-    for (size_t i = 1; i != parts.size(); ++i) {
+    for (size_t i = 1; i != msbs.size(); ++i) {
         // They may have different scaling factors...
-        z->EvalAddInPlace(parts[0], parts[i]);
+        z->EvalAddInPlace(msbs[0], msbs[i]);
     }
-
-    return internalBooleanToBooleanCustomLUTSparse(parts[0], precomp.m_lutMSBCoeffs);
+    return msbs[0];
 }
 
 CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct) {
@@ -494,7 +496,7 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct) 
     // We ask zN to be multiple of w now...
     uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
 
-    std::vector<Ciphertext<DCRTPoly>> parts;
+    std::vector<Ciphertext<DCRTPoly>> msbs;
 
     // Iteratively process each low bits
     for (uint32_t iter = 0; iter != numIter; ++iter) {
@@ -510,13 +512,16 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct) 
         auto coreMasked = z->EvalMult(core, maskPtxt);
         z->ModReduceInPlace(coreMasked);
 
-        auto lut = internalBooleanToBooleanCustomLUTSparse(coreMasked, precomp.m_lutIDCoeffs);
+        auto lutGroup =
+            internalBooleanToBooleanCustomTwoLUTSparse(coreMasked, precomp.m_lutIDCoeffs, precomp.m_lutMSBCoeffs);
+        auto lut = lutGroup[0];
+        auto msb = lutGroup[1];
 
         //------------------------------------------------------------------------------
         // Store the parts and remove it from core
         //------------------------------------------------------------------------------
 
-        parts.push_back(lut);
+        msbs.push_back(msb);
 
         // remove part from core
         for (uint32_t nextIter = iter + 1; nextIter != numIter; ++nextIter) {
@@ -553,16 +558,15 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct) 
     // Combine all parts
     //------------------------------------------------------------------------------
 
-    auto part0 = parts[0];
-    auto part1 = parts[parts.size() / 2];
-    for (size_t i = 1; i != parts.size() / 2; ++i) {
+    auto msb0 = msbs[0];
+    auto msb1 = msbs[msbs.size() / 2];
+    for (size_t i = 1; i != msbs.size() / 2; ++i) {
         // They may have different scaling factors...
-        z->EvalAddInPlace(part0, parts[i]);
-        z->EvalAddInPlace(part1, parts[parts.size() / 2 + i]);
+        z->EvalAddInPlace(msb0, msbs[i]);
+        z->EvalAddInPlace(msb1, msbs[msbs.size() / 2 + i]);
     }
-    CiphertextGroup partGroup({part0, part1});
-
-    return internalBooleanToBooleanCustomLUTFull(partGroup, precomp.m_lutMSBCoeffs);
+    CiphertextGroup msbGroup({msb0, msb1});
+    return msbGroup;
 }
 
 CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
@@ -595,7 +599,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
     CiphertextGroup coreFirstHalf(coreFirstHalfVec);
     CiphertextGroup coreSecondHalf(coreSecondHalfVec);
 
-    std::vector<Ciphertext<DCRTPoly>> luts;
     std::vector<Ciphertext<DCRTPoly>> msbs;
 
     // Iteratively process each low bits
@@ -639,8 +642,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
         // Store the parts and remove it from core
         //------------------------------------------------------------------------------
 
-        luts.push_back(lut0);
-        luts.push_back(lut1);
         msbs.push_back(msb0);
         msbs.push_back(msb1);
 
@@ -726,7 +727,6 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
     // Combine all MSBs
     //------------------------------------------------------------------------------
 
-    // For each input ciphertext, extract MSBs from luts
     std::vector<Ciphertext<DCRTPoly>> finalMSBs;
     std::vector<Ciphertext<DCRTPoly>> finalMSBsSec;
     for (size_t j = 0; j != ctxts.size() / 2; ++j) {
@@ -851,8 +851,13 @@ CiphertextGroup FHEZImpl::internalBooleanToBooleanLTsFull(CiphertextGroup ct) co
     return r2cGroup;
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanCustomLUTSparse(ConstCiphertext<DCRTPoly>& ct,
-                                                                       const std::vector<BigComplex>& lutCoeffs) const {
+CiphertextGroup FHEZImpl::internalBooleanToBooleanCustomTwoLUTSparse(ConstCiphertext<DCRTPoly>& ct,
+                                                                     const std::vector<BigComplex>& lutCoeffs,
+                                                                     const std::vector<BigComplex>& lutCoeffs2) const {
+    if (lutCoeffs.size() != lutCoeffs2.size()) {
+        OPENFHE_THROW("MVB LUT size mismatch");
+    }
+
     auto r2c = internalBooleanToBooleanLTsSparse(ct);
 
     //------------------------------------------------------------------------------
@@ -876,37 +881,11 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanCustomLUTSparse(ConstCiph
     auto lut    = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
     // Take the real part
     z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
-    return lut;
-}
 
-CiphertextGroup FHEZImpl::internalBooleanToBooleanCustomLUTFull(CiphertextGroup ctGroup,
-                                                                const std::vector<BigComplex>& lutCoeffs) const {
-    auto r2c = internalBooleanToBooleanLTsFull(ctGroup);
-
-    return r2c.map([&](ConstCiphertext<DCRTPoly> ct) {
-        //------------------------------------------------------------------------------
-        // Exp
-        //------------------------------------------------------------------------------
-
-        auto& coeff_exp = coeff_exp_16_big_complex_46;
-        auto res        = advZ->EvalChebyshevSeriesPS(ct, coeff_exp);
-
-        // Double angle-iterations to get exp(2*Pi*i*x)
-        res = z->EvalSquare(res);
-        z->ModReduceInPlace(res);
-        res = z->EvalSquare(res);
-        z->ModReduceInPlace(res);
-
-        //------------------------------------------------------------------------------
-        // Running LUT
-        //------------------------------------------------------------------------------
-
-        auto powers = advZ->EvalPowers(res, lutCoeffs);
-        auto lut    = advZ->EvalPolyWithPrecomp(powers, lutCoeffs);
-        // Take the real part
-        z->EvalAddInPlace(lut, z->EvalConjugateInC(lut));
-        return lut;
-    });
+    auto lut2 = advZ->EvalPolyWithPrecomp(powers, lutCoeffs2);
+    // Take the real part
+    z->EvalAddInPlace(lut2, z->EvalConjugateInC(lut2));
+    return std::vector{lut, lut2};
 }
 
 CiphertextGroup FHEZImpl::internalBooleanToBooleanCustomTwoLUTFull(CiphertextGroup ctGroup,

@@ -266,9 +266,6 @@ void LeveledZImpl::EvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger sca
     auto n          = elemParams->GetRingDimension();
     if constexpr (HEXL_MUL_ENABLE) {
         for (auto& a : ct->GetElements()) {
-            if (a.GetFormat() != Format::EVALUATION) {
-                OPENFHE_THROW("MultScalar called in coeff format");
-            }
             auto& mVectors = a.GetAllElements();
             auto t         = a.GetNumOfElements();
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(8))

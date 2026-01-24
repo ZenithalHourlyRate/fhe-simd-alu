@@ -404,7 +404,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     //ArithToBooleanFull
-    if (0) {
+    if (1) {
 #ifdef DEBUG
         auto ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2);
         __heir_debug2(ctGroupBool[0], "A2B0");

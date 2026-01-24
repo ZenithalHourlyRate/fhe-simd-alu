@@ -204,11 +204,9 @@ private:
 
     CiphertextGroup internalBooleanToBooleanLTsFull(CiphertextGroup ctxt) const;
 
-    Ciphertext<DCRTPoly> internalBooleanToBooleanCustomLUTSparse(ConstCiphertext<DCRTPoly>& ctxt,
-                                                                 const std::vector<BigComplex>& lutCoeffs) const;
-
-    CiphertextGroup internalBooleanToBooleanCustomLUTFull(CiphertextGroup ctxt,
-                                                          const std::vector<BigComplex>& lutCoeffs) const;
+    CiphertextGroup internalBooleanToBooleanCustomTwoLUTSparse(ConstCiphertext<DCRTPoly>& ctxt,
+                                                               const std::vector<BigComplex>& lutCoeffs,
+                                                               const std::vector<BigComplex>& lutCoeffs2) const;
 
     CiphertextGroup internalBooleanToBooleanCustomTwoLUTFull(CiphertextGroup ctxt,
                                                              const std::vector<BigComplex>& lutCoeffs,
