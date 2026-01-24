@@ -22,7 +22,8 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, Big
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
     // encodeBinary here is crucial: making it become MultShort
-    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
+    auto plaintext =
+        ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, 0, elemParam, sf);
     // This is actually MultShort
     return EvalMult(ct, plaintext);
 }

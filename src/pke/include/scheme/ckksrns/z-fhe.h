@@ -154,9 +154,7 @@ public:
 
     Ciphertext<DCRTPoly> EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
 
-    enum Z2CScalingOption { SCALE_ZV, SCALE_ZV_TWICE };
-    CiphertextGroup EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption,
-                            bool specialB0 = false) const;
+    CiphertextGroup EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0 = false) const;
 
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
@@ -165,23 +163,23 @@ public:
 
     Ciphertext<DCRTPoly> EvalC2Z(CiphertextGroup ct) const;
 
-    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
 
     Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& ctxt) const;
 
-    Ciphertext<DCRTPoly> EvalArithToArith(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalArithToArith(ConstCiphertext<DCRTPoly>& ctxt) const;
 
-    Ciphertext<DCRTPoly> EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption);
+    Ciphertext<DCRTPoly> EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly>& ctxt);
 
-    CiphertextGroup EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ctxt, Z2CScalingOption scalingOption);
+    CiphertextGroup EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ctxt);
 
-    CiphertextGroup EvalArithToBooleanBatched(CiphertextGroup ctxts, Z2CScalingOption scalingOption);
+    CiphertextGroup EvalArithToBooleanBatched(CiphertextGroup ctxts);
 
-    CiphertextGroup EvalArithToBoolean(CiphertextGroup ctxts, Z2CScalingOption scalingOption);
+    CiphertextGroup EvalArithToBoolean(CiphertextGroup ctxts);
 
     Ciphertext<DCRTPoly> EvalBooleanToBooleanSparse(ConstCiphertext<DCRTPoly>& ctxt) const;
 

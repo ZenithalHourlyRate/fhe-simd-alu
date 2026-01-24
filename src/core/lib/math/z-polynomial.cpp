@@ -17,8 +17,11 @@ ZPolynomial CSlots::getZPolynomial(size_t slotIndex) const {
     auto zN = params.getZN();
     std::vector<BigComplex> cSlotsForIndex(zN / 2, BigFixedPoint::zero());
     for (size_t i = 0; i != zN / 2; ++i) {
-        // scale down it by zSlots as we did scale up during Z2C
-        cSlotsForIndex[i] = slots[(slotIndex * (zN / 2)) + i] / BigFixedPoint::positive(params.getZSlots());
+        cSlotsForIndex[i] = slots[(slotIndex * (zN / 2)) + i];
+        for (size_t j = 0; j != params.getZDeg(); ++j) {
+            // scale down it by zSlots as we did scale up during ZEncodingImpl::encodeZ
+            cSlotsForIndex[i] /= BigFixedPoint::positive(params.getZSlots());
+        }
     }
     return ZPolynomial(ZLinearTransform::MultZUInverse(zN, cSlotsForIndex));
 }
@@ -47,6 +50,7 @@ RPolynomial CSlots::toRPolynomial() const {
     return RPolynomial(params, rValues);
 }
 
+// TODO: deprecate into BMode...
 std::pair<uint64_t, double> CSlots::getIntegerAndErrorAtBooleanMode(size_t slotIndex) const {
     if (!params.isZMode()) {
         OPENFHE_THROW("CSlots::getIntegerAtBooleanMode: not in ZMode");

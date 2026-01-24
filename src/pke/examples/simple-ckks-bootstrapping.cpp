@@ -341,16 +341,16 @@ void SimpleBootstrapExample(int zN) {
 
     // ArithToArith
     if (0) {
-        BENCHMARK(fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArith");
+        BENCHMARK(fheZ->EvalArithToArith(encoded2), 1, "ArithToArith");
 #ifdef DEBUG
-        auto ct2 = fheZ->EvalArithToArith(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+        auto ct2 = fheZ->EvalArithToArith(encoded2);
         __heir_debug2(ct2, "CMult");
 #endif
     }
 
     // ArithToArithNoise
     if (0) {
-        BENCHMARK(fheZ->EvalArithToArithNoise(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1, "ArithToArithNoise");
+        BENCHMARK(fheZ->EvalArithToArithNoise(encoded2), 1, "ArithToArithNoise");
     }
 
     // ArithToBooleanBatched
@@ -361,13 +361,13 @@ void SimpleBootstrapExample(int zN) {
             batchCts.push_back(encoded);
         }
 #ifdef DEBUG
-        auto ctGroupBool = fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+        auto ctGroupBool = fheZ->EvalArithToBooleanBatched(batchCts);
         __heir_debug2(ctGroupBool[2], "A2B0");
         __heir_debug2(ctGroupBool[3], "A2B1");
         __heir_debug2(ctGroupBool[14], "A2B0");
         __heir_debug2(ctGroupBool[15], "A2B1");
 #endif
-        //BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
+        //BENCHMARK(fheZ->EvalArithToBooleanBatched(batchCts), 1,
         //          "ArithToBooleanBatched");
     }
 
@@ -375,12 +375,11 @@ void SimpleBootstrapExample(int zN) {
     CiphertextGroup ctGroupBool;
     if (0) {
 #ifdef DEBUG
-        ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV);
+        ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2);
         __heir_debug2(ctGroupBool[0], "A2B0");
         __heir_debug2(ctGroupBool[1], "A2B1");
 #endif
-        BENCHMARK(ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2, FHEZImpl::Z2CScalingOption::SCALE_ZV), 1,
-                  "ArithToBoolean");
+        BENCHMARK(ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2), 1, "ArithToBoolean");
     }
 
     // BooleanToBoolean

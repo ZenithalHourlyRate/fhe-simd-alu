@@ -149,9 +149,9 @@ public:
         return encodeR(cSlots.toRPolynomial(), elementParams, scalingFactor);
     }
 
-    static ZEncoding encodeZ(std::vector<ZPolynomial> input, uint32_t zN, uint32_t zSlots,
+    static ZEncoding encodeZ(std::vector<ZPolynomial> input, uint32_t zN, uint32_t zSlots, uint32_t zDeg,
                              const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                             const BigFixedPoint& scalingFactor, bool scaleUp = true) {
+                             const BigFixedPoint& scalingFactor) {
         if (input.size() < zSlots) {
             input.resize(zSlots, ZPolynomial::encode(zN, 0));
         }
@@ -161,24 +161,24 @@ public:
             auto singleCSlots = input[i].toCSlots();
             for (size_t j = 0; j != zN / 2; ++j) {
                 mergedSlots[i * (zN / 2) + j] = singleCSlots[j];
-                // Note: here we scale by zSlots for compensating mismatch
-                // between the different scaling in R-canonical map and Z-canonical map
-                // scaleUp == false is for T and TInv
-                // as their contents in different slots are identical
-                // which is equivalent to say N/n = 1 and zSlots = 1
-                if (scaleUp) {
-                    mergedSlots[i * (zN / 2) + j] *= BigFixedPoint::positive(zSlots);
+                // scale up by zDeg
+                if (zDeg) {
+                    uint64_t scaleUpAmount = 1;
+                    for (size_t i = 0; i != zDeg; ++i) {
+                        scaleUpAmount *= zSlots;
+                    }
+                    mergedSlots[i * (zN / 2) + j] *= BigFixedPoint::positive(scaleUpAmount);
                 }
             }
         }
-        ZEncodingParams params(ZMode, zN, zSlots);
+        ZEncodingParams params(ZMode, zN, zSlots, zDeg);
         CSlots mergedCSlots(params, mergedSlots);
         return encodeC(mergedCSlots, elementParams, scalingFactor);
     }
 
     static ZEncoding encodeArith(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                 const BigFixedPoint& scalingFactor) {
+                                 const BigFixedPoint& scalingFactor, uint32_t zDeg = 1) {
         if (input.size() < zSlots) {
             input.resize(zSlots, 0);
         }
@@ -186,25 +186,25 @@ public:
         for (size_t i = 0; i != zSlots; ++i) {
             zPolys.push_back(ZPolynomial::encode(zN, input[i]));
         }
-        return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
+        return encodeZ(zPolys, zN, zSlots, zDeg, elementParams, scalingFactor);
     }
 
     static ZEncoding encodeArith(uint64_t input, uint32_t zN,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                  const BigFixedPoint& scalingFactor) {
-        return encodeArith({input}, zN, 1, elementParams, scalingFactor);
+        return encodeArith({input}, zN, 1, elementParams, scalingFactor, /*zDeg=*/0);
     }
 
     static ZEncoding encodeTInZ(uint32_t zN, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                 const BigFixedPoint& scalingFactor) {
         std::vector<ZPolynomial> zPolys(1, ZPolynomial::getT(zN));
-        return encodeZ(zPolys, zN, 1, elementParams, scalingFactor, /*scaleUp*/ false);
+        return encodeZ(zPolys, zN, 1, /*zDeg*/ 0, elementParams, scalingFactor);
     }
 
     static ZEncoding encodeTInvInZ(uint32_t zN, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                    const BigFixedPoint& scalingFactor) {
         std::vector<ZPolynomial> zPolys(1, ZPolynomial::getTInv(zN));
-        return encodeZ(zPolys, zN, 1, elementParams, scalingFactor, /*scaleUp*/ false);
+        return encodeZ(zPolys, zN, 1, /*zDeg*/ 0, elementParams, scalingFactor);
     }
 
     static std::vector<ZEncoding> encodeBooleanFull(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
@@ -225,7 +225,7 @@ public:
                 highHalf.push_back(zPoly[i + zN / 2]);
             }
         }
-        ZEncodingParams params(CMode, N, N / 2);
+        ZEncodingParams params(BModeFull, zN, zSlots);
         auto lowHalfEncoded  = encodeC(CSlots(params, lowHalf), elementParams, scalingFactor);
         auto highHalfEncoded = encodeC(CSlots(params, highHalf), elementParams, scalingFactor);
         return {lowHalfEncoded, highHalfEncoded};
@@ -251,7 +251,7 @@ public:
         }
         // append high half to low half
         lowHalf.insert(lowHalf.end(), highHalf.begin(), highHalf.end());
-        ZEncodingParams params(CMode, N, zSlots * zN);
+        ZEncodingParams params(BModeSparse, zN, zSlots);
         return encodeC(CSlots(params, lowHalf), elementParams, scalingFactor);
     }
 };
