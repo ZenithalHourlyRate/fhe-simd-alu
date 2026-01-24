@@ -81,7 +81,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Comb0", DecodeMode::CSlotsDecode},
         {"Comb1", DecodeMode::CSlotsDecode},
         {"Scaled", DecodeMode::CSlotsDecode},
-        {"BoolEncode", DecodeMode::CSlotsDecode},
+        {"BoolOR", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},

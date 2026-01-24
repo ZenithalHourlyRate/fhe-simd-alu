@@ -264,16 +264,36 @@ void LeveledZImpl::EvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphe
 void LeveledZImpl::EvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar) {
     auto elemParams = ct->GetElements()[0].GetParams();
     auto n          = elemParams->GetRingDimension();
-    for (auto& a : ct->GetElements()) {
-        auto& mVectors = a.GetAllElements();
-        auto t         = a.GetNumOfElements();
+    if constexpr (HEXL_MUL_ENABLE) {
+        for (auto& a : ct->GetElements()) {
+            if (a.GetFormat() != Format::EVALUATION) {
+                OPENFHE_THROW("MultScalar called in coeff format");
+            }
+            auto& mVectors = a.GetAllElements();
+            auto t         = a.GetNumOfElements();
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(8))
-        for (size_t i = 0; i < t; ++i) {
-            auto qi         = mVectors[i].GetModulus();
-            auto mui        = mVectors[i].GetRootOfUnity();
-            auto scalarInqi = scalar.Mod(qi);
-            for (size_t j = 0; j < n; ++j) {
-                mVectors[i][j] = scalarInqi.ModMulFast(mVectors[i][j], qi, mui);
+            for (size_t i = 0; i < t; ++i) {
+                auto qi             = mVectors[i].GetModulus();
+                uint64_t qiUInt     = qi.template ConvertToInt<uint64_t>();
+                uint64_t* op1       = reinterpret_cast<uint64_t*>(&mVectors[i][0]);
+                uint64_t scalarInqi = scalar.Mod(qi).template ConvertToInt<uint64_t>();
+                std::vector<uint64_t> op2Vec(n, scalarInqi);
+                intel::hexl::EltwiseMultMod(op1, op1, op2Vec.data(), n, qiUInt, 1);
+            }
+        }
+    }
+    else {
+        for (auto& a : ct->GetElements()) {
+            auto& mVectors = a.GetAllElements();
+            auto t         = a.GetNumOfElements();
+#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(8))
+            for (size_t i = 0; i < t; ++i) {
+                auto qi         = mVectors[i].GetModulus();
+                auto mui        = mVectors[i].GetRootOfUnity();
+                auto scalarInqi = scalar.Mod(qi);
+                for (size_t j = 0; j < n; ++j) {
+                    mVectors[i][j] = scalarInqi.ModMulFast(mVectors[i][j], qi, mui);
+                }
             }
         }
     }
