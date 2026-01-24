@@ -32,56 +32,6 @@ private:
 
 using ZBootstrapPlaintextCache = std::shared_ptr<ZBootstrapPlaintextCacheImpl>;
 
-class CiphertextGroup {
-public:
-    CiphertextGroup() = default;
-    CiphertextGroup(Ciphertext<DCRTPoly> ct) : parts({ct}) {}
-    CiphertextGroup(std::vector<Ciphertext<DCRTPoly>> cts) : parts(cts) {}
-
-    std::vector<Ciphertext<DCRTPoly>> getParts() const {
-        return parts;
-    }
-
-    Ciphertext<DCRTPoly>& operator[](size_t idx) {
-        return parts[idx];
-    }
-
-    size_t size() const {
-        return parts.size();
-    }
-
-    operator Ciphertext<DCRTPoly>() const {
-        if (parts.size() != 1) {
-            OPENFHE_THROW("Cannot convert CiphertextGroup with multiple parts to single Ciphertext");
-        }
-        return parts[0];
-    }
-
-    using MapFunc = std::function<Ciphertext<DCRTPoly>(ConstCiphertext<DCRTPoly>&)>;
-    CiphertextGroup map(MapFunc func) const {
-        std::vector<Ciphertext<DCRTPoly>> result;
-        for (const auto& part : parts) {
-            result.push_back(func(part));
-        }
-        return CiphertextGroup(result);
-    }
-
-    using MapWideFunc = std::function<CiphertextGroup(ConstCiphertext<DCRTPoly>&)>;
-    CiphertextGroup mapWide(MapWideFunc func) const {
-        std::vector<Ciphertext<DCRTPoly>> result;
-        for (const auto& part : parts) {
-            auto newParts = func(part);
-            for (auto& newPart : newParts.getParts()) {
-                result.push_back(newPart);
-            }
-        }
-        return CiphertextGroup(result);
-    }
-
-private:
-    std::vector<Ciphertext<DCRTPoly>> parts;
-};
-
 class ZBootstrapPrecom {
 public:
     ZBootstrapPrecom() = default;

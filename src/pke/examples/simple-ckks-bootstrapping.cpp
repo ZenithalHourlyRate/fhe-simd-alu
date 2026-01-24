@@ -79,6 +79,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         {"Comb0", DecodeMode::CSlotsDecode},
         {"Comb1", DecodeMode::CSlotsDecode},
         {"Scaled", DecodeMode::CSlotsDecode},
+        {"BoolEncode", DecodeMode::CSlotsDecode},
         // CSlotsTwiceDecode
         {"LUT", DecodeMode::CSlotsTwiceDecode},
         {"Normalize", DecodeMode::CSlotsTwiceDecode},
@@ -297,6 +298,18 @@ void SimpleBootstrapExample(int zN) {
     auto encoded2 = Encrypt(ptxt2, keyPair.publicKey);
 
     __heir_debug2(encoded, "Input");
+
+    /// TEST Boolean Encode
+    auto ct3          = ZEncodingImpl::encodeBooleanFull(vec, zN, zSlots, elemParam, sfq0);
+    Plaintext ptxt3_1 = ct3[0];
+    Plaintext ptxt3_2 = ct3[1];
+    auto encoded3_1   = Encrypt(ptxt3_1, keyPair.publicKey);
+    auto encoded3_2   = Encrypt(ptxt3_2, keyPair.publicKey);
+    CiphertextGroup encoded3({encoded3_1, encoded3_2});
+
+    __heir_debug2(encoded3_1, "BoolEncode");
+    auto notCt = z->EvalBooleanNOT(encoded3);
+    __heir_debug2(notCt[0], "BoolEncode");
 
     // See multiplication noise
     //encoded = z->EvalMultInC(encoded, BigFixedPoint::positive(1));

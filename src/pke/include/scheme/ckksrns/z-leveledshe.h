@@ -9,18 +9,55 @@ namespace lbcrypto {
 class LeveledZImpl;
 using LeveledZ = std::shared_ptr<LeveledZImpl>;
 
-// Here is short cut multiplication, ct1 * ct2 where one is in binary encoding
-Ciphertext<DCRTPoly> zEvalMultShort(LeveledZ z, ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-// Here is full multiplication, ct1 * ct2 * t
-Ciphertext<DCRTPoly> zEvalMultFull(LeveledZ z, ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2,
-                                   Plaintext t);
+class CiphertextGroup {
+public:
+    CiphertextGroup() = default;
+    CiphertextGroup(Ciphertext<DCRTPoly> ct) : parts({ct}) {}
+    CiphertextGroup(std::vector<Ciphertext<DCRTPoly>> cts) : parts(cts) {}
 
-// Helpers. Here ptxt will be ZEncoded
-// If scalingFactor is not given, we use ct
-Ciphertext<DCRTPoly> zEvalAdd(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt);
-// If scalingFactor is not given, we use ct
-Ciphertext<DCRTPoly> zEvalMult(LeveledZ z, ConstCiphertext<DCRTPoly> ct, uint32_t ptxt,
-                               BigFixedPoint scalingFactor = BigFixedPoint::zero());
+    std::vector<Ciphertext<DCRTPoly>> getParts() const {
+        return parts;
+    }
+
+    Ciphertext<DCRTPoly>& operator[](size_t idx) {
+        return parts[idx];
+    }
+
+    size_t size() const {
+        return parts.size();
+    }
+
+    operator Ciphertext<DCRTPoly>() const {
+        if (parts.size() != 1) {
+            OPENFHE_THROW("Cannot convert CiphertextGroup with multiple parts to single Ciphertext");
+        }
+        return parts[0];
+    }
+
+    using MapFunc = std::function<Ciphertext<DCRTPoly>(ConstCiphertext<DCRTPoly>&)>;
+    CiphertextGroup map(MapFunc func) const {
+        std::vector<Ciphertext<DCRTPoly>> result;
+        for (const auto& part : parts) {
+            result.push_back(func(part));
+        }
+        return CiphertextGroup(result);
+    }
+
+    using MapWideFunc = std::function<CiphertextGroup(ConstCiphertext<DCRTPoly>&)>;
+    CiphertextGroup mapWide(MapWideFunc func) const {
+        std::vector<Ciphertext<DCRTPoly>> result;
+        for (const auto& part : parts) {
+            auto newParts = func(part);
+            for (auto& newPart : newParts.getParts()) {
+                result.push_back(newPart);
+            }
+        }
+        return CiphertextGroup(result);
+    }
+
+private:
+    std::vector<Ciphertext<DCRTPoly>> parts;
+};
 
 class LeveledZImpl {
 public:
@@ -104,6 +141,23 @@ public:
                                      BigFixedPoint scalingFactor = BigFixedPoint::zero());
 
     Ciphertext<DCRTPoly> EvalConjugateInC(ConstCiphertext<DCRTPoly> ct);
+
+    //
+    // Boolean Mode Operations
+    //
+
+    CiphertextGroup EvalBooleanAND(CiphertextGroup ct1, CiphertextGroup ct2);
+    CiphertextGroup EvalBooleanOR(CiphertextGroup ct1, CiphertextGroup ct2);
+    CiphertextGroup EvalBooleanXOR(CiphertextGroup ct1, CiphertextGroup ct2);
+    CiphertextGroup EvalBooleanNOT(CiphertextGroup ct1);
+
+    // Here left/right is defined in a big-endian manner
+    CiphertextGroup EvalBooleanShiftLeft(CiphertextGroup ct1, uint64_t offset);
+    CiphertextGroup EvalBooleanShiftRight(CiphertextGroup ct1, uint64_t offset);
+    CiphertextGroup EvalBooleanRotateLeft(CiphertextGroup ct1, uint64_t offset);
+    CiphertextGroup EvalBooleanRotateRight(CiphertextGroup ct1, uint64_t offset);
+
+    Ciphertext<DCRTPoly> EvalSignExtract(CiphertextGroup ct1);
 
 private:
     // value, scalingFactor, modulus
