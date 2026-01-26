@@ -373,12 +373,13 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto r2z = EvalC2Z(g0);
 
     //------------------------------------------------------------------------------
-    // Multiply by t^{-1} in Z
+    // Multiply by t^{-1} in Z and subtract with proper zDeg
     //------------------------------------------------------------------------------
 
     r2z = z->EvalMultTInvInZ(r2z);
     z->ModReduceInPlace(r2z);
 
+    // TODO: match zDeg and scaling factor...
     return z->EvalSubWithAdjust(ct, r2z);
 }
 
