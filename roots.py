@@ -101,8 +101,8 @@ def main2(n):
         )
 
 if __name__ == "__main__":
-    for deg in [8, 16, 32, 64, 128]:
-        print(f"const BigCVector Z_ROOTS_M{2 * deg} = ", "{")
+    for deg in [8, 16, 32, 64, 128, 256]:
+        print(f"const BigCVector Z_ROOTS_N{deg} = ", "{")
         main(deg)
         print("};")
     #for deg in range(1, 18):
