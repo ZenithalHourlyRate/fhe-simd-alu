@@ -33,6 +33,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
     std::cout << msg << "  q: " << log2q << std::endl;
     auto l = ct->GetElements()[0].GetParams()->GetParams().size();
     std::cout << msg << "  l: " << l - 1 << std::endl;
+    std::cout << msg << "  zEncodingParams: " << ct->GetZEncodingParams().toString() << std::endl;
 
     // TODO: fix it
     auto zDeg = msg == "CMult" ? ct->GetZEncodingParams().getZDeg() : 1;
@@ -48,13 +49,24 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
 
     auto printZPoly = [&](const ZPolynomial zPoly) {
         auto decoded = ZPolynomial::decode(zPoly);
-        std::cout << msg << "  zPoly Decoded: 0x" << std::hex << decoded << std::dec
-                  << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
-        //auto I = ZPolynomial::extractI(zPoly);
-        //std::cout << msg << "  zPoly I: ";
-        //for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
-        //    std::cout << I[i].toHexString(16) << " ";
+        //for (size_t i = 0; i != zPoly.getCoefficients().size(); ++i) {
+        //    auto coeff = zPoly[i];
+        //    std::cout << msg << "  zPoly [" << i << "]: " << coeff.toHexString(ceil(log2sf / 4.0)) << std::endl;
         //}
+        auto I         = ZPolynomial::extractI(zPoly);
+        auto maxIValue = 0;
+        for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
+            auto Idouble = std::abs(I[i].round().convertToDouble());
+            if (Idouble > maxIValue) {
+                maxIValue = static_cast<int>(Idouble);
+            }
+        }
+        std::cout << msg << "  zPoly Decoded: 0x" << std::hex << decoded << std::dec
+                  << "  zPoly error log2Norm: " << std::setprecision(2) << std::fixed
+                  << ZPolynomial::extractError(zPoly).getLog2Norm() << " maxI: " << std::hex << "0x" << maxIValue
+                  << std::dec << std::endl;
+
+        //std::cout << msg << "  zPoly I: ";
         //std::cout << std::endl;
         //std::cout << msg << "  zPoly error log2Norm: " << ZPolynomial::extractError(zPoly).getLog2Norm() << std::endl;
     };
@@ -226,7 +238,10 @@ void SimpleBootstrapExample(int zN) {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 50;
+    uint32_t dcrtBits            = 43;
+    // for HEXL acceleration. Extra 6 bit for SPARSE_ENCAPSULATED
+    // This is effectly on headers, not directly set here.
+    //uint32_t auxiDcrtBits        = 50;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
@@ -330,10 +345,14 @@ void SimpleBootstrapExample(int zN) {
     auto encoded4_2   = Encrypt(ptxt4_2, keyPair.publicKey);
     CiphertextGroup encoded4({encoded4_1, encoded4_2});
 
-    //#define DEBUG
+#define DEBUG
+
+#ifdef DEBUG
+    __heir_debug2(encoded, "Input");
+#endif
 
     // Mult
-    if (1) {
+    if (0) {
         BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 3, "MultFull");
 #ifdef DEBUG
         auto ct2 = z->EvalMultFullInZ(encoded, encoded);
@@ -342,7 +361,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // Bool
-    if (1) {
+    if (0) {
         BENCHMARK(z->EvalBooleanOR(encoded3, encoded4), 3, "BooleanOR");
 #ifdef DEBUG
         auto ct2 = z->EvalBooleanOR(encoded3, encoded4);
@@ -351,7 +370,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // BoolToArith
-    if (1) {
+    if (0) {
         BENCHMARK(fheZ->EvalBooleanToArith(encoded3), 1, "BooleanToArith");
 #ifdef DEBUG
         auto ct2 = z->EvalBooleanOR(encoded3, encoded4);
@@ -361,17 +380,17 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // BooleanToBoolean
-    if (1) {
+    if (0) {
         BENCHMARK((fheZ->EvalBooleanToBooleanFull(encoded3)), 1, "BooleanToBoolean");
     }
 
     // ArithToArithHigh
-    if (1) {
+    if (0) {
         BENCHMARK(fheZ->EvalArithToArithHigh(encoded2), 1, "ArithToArithHigh");
     }
 
     // ArithToArithNoise
-    if (1) {
+    if (0) {
         BENCHMARK(fheZ->EvalArithToArithNoise(encoded2), 1, "ArithToArithNoise");
     }
 
@@ -381,11 +400,22 @@ void SimpleBootstrapExample(int zN) {
 #ifdef DEBUG
         auto ct2 = fheZ->EvalArithToArith(encoded2);
         __heir_debug2(ct2, "A2A");
+
+        auto ct3 = z->EvalMultFullInZ(ct2, ct2);
+        z->ModReduceInPlace(ct3);
+        __heir_debug2(ct3, "CMult");
+
+        auto ct4 = fheZ->EvalArithToArith(ct3);
+        __heir_debug2(ct4, "CMult");
+
+        auto ct5 = z->EvalMultFullInZ(ct4, ct4);
+        z->ModReduceInPlace(ct5);
+        __heir_debug2(ct5, "CMult");
 #endif
     }
 
     // ArithToBooleanBatched
-    if (1) {
+    if (0) {
         std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
         auto batchSize                             = zN / 4;  // zN / w
         while (batchCts.size() < batchSize) {
@@ -404,7 +434,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     //ArithToBooleanFull
-    if (1) {
+    if (0) {
 #ifdef DEBUG
         auto ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2);
         __heir_debug2(ctGroupBool[0], "A2B0");

@@ -124,6 +124,11 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0)
         else {
             OPENFHE_THROW("Not implemented yet");
         }
+
+        // Now reset zDeg to 1
+        auto zEncParams    = ct->GetZEncodingParams();
+        auto newZEncParams = ZEncodingParams(ZMode, zEncParams.getZN(), zEncParams.getZSlots(), 1);
+        ct->SetZEncodingParams(newZEncParams);
         return ct;
     };
 
@@ -374,13 +379,13 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     r2z = z->EvalMultTInvInZ(r2z);
     z->ModReduceInPlace(r2z);
 
-    return r2z;
+    return z->EvalSubWithAdjust(ct, r2z);
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct) const {
-    auto high  = EvalArithToArithHigh(ct);
-    auto noise = EvalArithToArithNoise(ct);
-    return z->EvalSubWithAdjust(high, noise);
+    auto lowNoiseCt = EvalArithToArithNoise(ct);
+    auto resetICt   = EvalArithToArithHigh(lowNoiseCt);
+    return resetICt;
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly>& ct) {

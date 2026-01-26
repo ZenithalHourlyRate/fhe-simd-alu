@@ -144,6 +144,27 @@ public:
         }
         return ZEncodingParams(ZMode, getZN(), getZSlots(), getZDeg() + rhs.getZDeg());
     }
+
+    std::string toString() const {
+        std::string result;
+        if (m_encodingType == ZMode) {
+            result = "ZMode: zN=" + std::to_string(m_zN) + " zSlots=" + std::to_string(m_zSlots) +
+                     " zDeg=" + std::to_string(m_zDeg);
+        }
+        else if (m_encodingType == BModeSparse) {
+            result = "BModeSparse: zN=" + std::to_string(m_zN) + " zSlots=" + std::to_string(m_zSlots);
+        }
+        else if (m_encodingType == BModeFull) {
+            result = "BModeFull: zN=" + std::to_string(m_zN) + " zSlots=" + std::to_string(m_zSlots);
+        }
+        else if (m_encodingType == CMode) {
+            result = "CMode: rN=" + std::to_string(m_rN) + " cSlots=" + std::to_string(m_cSlots);
+        }
+        else {
+            result = "Invalid Encoding";
+        }
+        return result;
+    }
 };
 
 struct RPolynomial;
