@@ -345,14 +345,14 @@ void SimpleBootstrapExample(int zN) {
     auto encoded4_2   = Encrypt(ptxt4_2, keyPair.publicKey);
     CiphertextGroup encoded4({encoded4_1, encoded4_2});
 
-#define DEBUG
+    //#define DEBUG
 
 #ifdef DEBUG
     __heir_debug2(encoded, "Input");
 #endif
 
     // Mult
-    if (0) {
+    if (1) {
         BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 3, "MultFull");
 #ifdef DEBUG
         auto ct2 = z->EvalMultFullInZ(encoded, encoded);
@@ -361,7 +361,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // Bool
-    if (0) {
+    if (1) {
         BENCHMARK(z->EvalBooleanOR(encoded3, encoded4), 3, "BooleanOR");
 #ifdef DEBUG
         auto ct2 = z->EvalBooleanOR(encoded3, encoded4);
@@ -370,7 +370,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // BoolToArith
-    if (0) {
+    if (1) {
         BENCHMARK(fheZ->EvalBooleanToArith(encoded3), 1, "BooleanToArith");
 #ifdef DEBUG
         auto ct2 = z->EvalBooleanOR(encoded3, encoded4);
@@ -380,17 +380,17 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // BooleanToBoolean
-    if (0) {
+    if (1) {
         BENCHMARK((fheZ->EvalBooleanToBooleanFull(encoded3)), 1, "BooleanToBoolean");
     }
 
     // ArithToArithHigh
-    if (0) {
+    if (1) {
         BENCHMARK(fheZ->EvalArithToArithHigh(encoded2), 1, "ArithToArithHigh");
     }
 
     // ArithToArithNoise
-    if (0) {
+    if (1) {
         BENCHMARK(fheZ->EvalArithToArithNoise(encoded2), 1, "ArithToArithNoise");
     }
 
@@ -415,7 +415,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // ArithToBooleanBatched
-    if (0) {
+    if (1) {
         std::vector<Ciphertext<DCRTPoly>> batchCts = {encoded, encoded2};
         auto batchSize                             = zN / 4;  // zN / w
         while (batchCts.size() < batchSize) {
@@ -434,7 +434,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     //ArithToBooleanFull
-    if (0) {
+    if (1) {
 #ifdef DEBUG
         auto ctGroupBool = fheZ->EvalArithToBooleanFull(encoded2);
         __heir_debug2(ctGroupBool[0], "A2B0");
