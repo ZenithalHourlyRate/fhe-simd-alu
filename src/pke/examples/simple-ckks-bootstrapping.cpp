@@ -238,18 +238,19 @@ void SimpleBootstrapExample(int zN) {
     //parameters.SetNumLargeDigits(6);
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 43;
+    uint32_t dcrtBits            = 30;
+    // bit size for aux moduli in P
     // for HEXL acceleration. Extra 6 bit for SPARSE_ENCAPSULATED
-    // This is effectly on headers, not directly set here.
-    //uint32_t auxiDcrtBits        = 50;
+    AUXMODSIZE_FLEXIBLEMANUAL = 50;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
+    parameters.SetNumLargeDigits(3);
 
-    std::vector<uint32_t> levelBudget = {3, 3};
+    std::vector<uint32_t> levelBudget = {2, 2};
 
-    parameters.SetMultiplicativeDepth(22);
+    parameters.SetMultiplicativeDepth(19);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -345,7 +346,7 @@ void SimpleBootstrapExample(int zN) {
     auto encoded4_2   = Encrypt(ptxt4_2, keyPair.publicKey);
     CiphertextGroup encoded4({encoded4_1, encoded4_2});
 
-    //#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
     __heir_debug2(encoded, "Input");
@@ -398,25 +399,25 @@ void SimpleBootstrapExample(int zN) {
     if (1) {
         BENCHMARK(fheZ->EvalArithToArith(encoded2), 1, "ArithToArith");
 #ifdef DEBUG
-        auto ct2 = fheZ->EvalArithToArith(encoded2);
+        auto ct2 = fheZ->EvalArithToArithNoise(encoded2);
         __heir_debug2(ct2, "A2A");
 
-        auto ct3 = z->EvalMultFullInZ(ct2, ct2);
-        z->ModReduceInPlace(ct3);
-        __heir_debug2(ct3, "CMult");
+        //auto ct3 = z->EvalMultFullInZ(ct2, ct2);
+        //z->ModReduceInPlace(ct3);
+        //__heir_debug2(ct3, "CMult");
 
-        auto ct4 = fheZ->EvalArithToArith(ct3);
-        __heir_debug2(ct4, "CMult");
+        //auto ct4 = fheZ->EvalArithToArith(ct3);
+        //__heir_debug2(ct4, "CMult");
 
-        auto ct5 = z->EvalMultFullInZ(ct4, ct4);
-        z->ModReduceInPlace(ct5);
-        __heir_debug2(ct5, "CMult");
+        //auto ct5 = z->EvalMultFullInZ(ct4, ct4);
+        //z->ModReduceInPlace(ct5);
+        //__heir_debug2(ct5, "CMult");
 
-        auto ct6 = fheZ->EvalArithToArith(ct5);
-        __heir_debug2(ct6, "A2A");
+        //auto ct6 = fheZ->EvalArithToArith(ct5);
+        //__heir_debug2(ct6, "A2A");
 
-        auto ct7 = fheZ->EvalArithToArith(ct6);
-        __heir_debug2(ct7, "A2A");
+        //auto ct7 = fheZ->EvalArithToArith(ct6);
+        //__heir_debug2(ct7, "A2A");
 #endif
     }
 

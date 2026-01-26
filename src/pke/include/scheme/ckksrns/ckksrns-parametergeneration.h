@@ -44,6 +44,9 @@
  */
 namespace lbcrypto {
 
+// CUSTOM: hijack AUXMODSIZE for FLEXIBLEMANUAL
+extern size_t AUXMODSIZE_FLEXIBLEMANUAL;
+
 class ParameterGenerationCKKSRNS : public ParameterGenerationRNS {
 protected:
     void CompositePrimeModuliGen(std::vector<NativeInteger>& moduliQ, std::vector<NativeInteger>& rootsQ,

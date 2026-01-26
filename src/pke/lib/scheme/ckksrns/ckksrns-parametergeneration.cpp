@@ -53,6 +53,8 @@ constexpr size_t AUXMODSIZE = 119;
 constexpr size_t AUXMODSIZE = 28;
 #else
 constexpr size_t AUXMODSIZE = 60;
+
+size_t AUXMODSIZE_FLEXIBLEMANUAL = 50;
 #endif
 
 bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNSInternal(std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParams,
@@ -116,10 +118,11 @@ bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNSInternal(std::shared_ptr<Crypto
     SecurityLevel stdLevel = cryptoParamsCKKSRNS->GetStdLevel();
     // TODO Duhyeong: Let's check if auxBits = registerWordSize makes an error in the P prime generation.
     // CUSTOM: FLEXIBLEMANUXL use 50 bits aux prime by default for HEXL
+    // KEYWORD: auxBits
     uint32_t auxBits =
         ((scalTech == COMPOSITESCALINGAUTO || scalTech == COMPOSITESCALINGMANUAL) && registerWordSize <= AUXMODSIZE) ?
             (registerWordSize - 1) :
-            (scalTech == FLEXIBLEMANUAL ? 50 : AUXMODSIZE);
+            (scalTech == FLEXIBLEMANUAL ? AUXMODSIZE_FLEXIBLEMANUAL : AUXMODSIZE);
     uint32_t n = cyclOrder / 2;
 
     // GAUSSIAN security constraint
