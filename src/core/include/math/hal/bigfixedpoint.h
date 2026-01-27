@@ -92,7 +92,7 @@ public:
         return (value == BigInteger(0));
     }
 
-    // -40 is based on the consideration we often choose Delta = 2^40
+    // -40 is based on the consideration we often choose Delta = 2^40 (?TODO)
     bool almostEqual(const BigFixedPoint& other, int maxLog2Diff = -40) const {
         auto a = this->scaleTo(std::max(this->getLog2Scale(), other.getLog2Scale()));
         auto b = other.scaleTo(std::max(this->getLog2Scale(), other.getLog2Scale()));
@@ -164,6 +164,16 @@ public:
             frac = iFracPos;
         }
         return i - frac;
+    }
+
+    uint64_t getRoundedInteger() const {
+        auto rounded = this->round();
+        return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
+    }
+
+    BigInteger getRoundedBigInteger() const {
+        auto rounded = this->round();
+        return rounded.getValue() >> rounded.getLog2Scale();
     }
 
     double log2Norm() const {

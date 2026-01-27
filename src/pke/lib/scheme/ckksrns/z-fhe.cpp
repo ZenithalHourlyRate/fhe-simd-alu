@@ -15,8 +15,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const
     auto sfNow = ct->GetScalingFactorBFP();
     auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
     // q / Delta
-    auto div       = (qBFP / sfNow).round();
-    auto divScalar = div.getValue() >> div.getLog2Scale();
+    auto divScalar = (qBFP / sfNow).getRoundedInteger();
     auto ct2       = z->EvalMultScalar(ct, divScalar);
     ct2->SetScalingFactorBFP(qBFP);
     // Reduce all the way to the bottom
@@ -198,9 +197,8 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
 
     auto scaleDown = [&](Ciphertext<DCRTPoly> target, BigFixedPoint scale) {
         // Manually scale down by N
-        auto sfNow     = target->GetScalingFactorBFP();
-        auto scalarBFP = (sfNow * scale).round();
-        auto scalar    = scalarBFP.getValue() >> scalarBFP.getLog2Scale();
+        auto sfNow  = target->GetScalingFactorBFP();
+        auto scalar = (sfNow * scale).getRoundedInteger();
         // Use EvalMultScalarInPlace to avoid precision loss
         // Should not use EvalMultInPlaceInC here as it will cause precision loss
         // TODO: should be OK to use EvalMultInPlaceInC?
@@ -345,7 +343,6 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto cSlots    = ct->GetZEncodingParams().getCSlots();
     auto precomp   = GetBootPrecom(cSlots);
     auto elemParam = ct->GetElements()[0].GetParams();
-    auto sf        = ct->GetScalingFactorBFP();
 
     auto ctT = z->EvalMultTInZ(ct);
     z->ModReduceInPlace(ctT);

@@ -52,31 +52,7 @@ public:
     }
 
     static ZEncoding encodeR(const RPolynomial& input, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                             const BigFixedPoint& scalingFactor) {
-        auto N              = elementParams->GetRingDimension();
-        auto q              = elementParams->GetModulus();
-        auto n              = input.getCoefficients().size();
-        const auto& rCoeffs = input.getCoefficients();
-        BigVector V(N, q);
-        for (size_t i = 0; i < n; ++i) {
-            auto bfp     = (rCoeffs[i] * scalingFactor).round();
-            auto integer = bfp.getValue() >> bfp.getLog2Scale();
-            auto neg     = bfp.getNeg();
-            if (neg) {
-                V[i * N / n] = q.Sub(integer.Mod(q));
-            }
-            else {
-                V[i * N / n] = integer.Mod(q);
-            }
-        }
-
-        DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * N, q, 1));
-        polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
-
-        DCRTPoly poly(polyLarge, elementParams);
-        poly.SetFormat(Format::EVALUATION);
-        return std::make_shared<ZEncodingImpl>(elementParams, poly, scalingFactor, input.getZEncodingParams());
-    }
+                             const BigFixedPoint& scalingFactor);
 
     static RPolynomial decodeR(ZEncoding input) {
         auto dcrtPoly      = input->GetElement<DCRTPoly>();
@@ -101,48 +77,7 @@ public:
     }
 
     static ZEncoding encodeC(const BigComplex& input, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                             const BigFixedPoint& scalingFactor) {
-        auto n = elementParams->GetRingDimension();
-        auto q = elementParams->GetModulus();
-
-        // for a value in C, its representation in R is
-        // 1. Real part in constant coeff
-        // 2. Imaginary part in coeff of n/2
-        auto scaledValueComplex = input * scalingFactor;
-        BigVector V(n, q);
-        // Real part in V[0]
-        {
-            auto realBFP     = scaledValueComplex.getReal().round();
-            auto realInteger = realBFP.getValue() >> realBFP.getLog2Scale();
-            auto realNeg     = realBFP.getNeg();
-            if (realNeg) {
-                V[0] = q.Sub(realInteger.Mod(q));
-            }
-            else {
-                V[0] = realInteger.Mod(q);
-            }
-        }
-        // Imag part in V[n//2]
-        {
-            auto imagBFP     = scaledValueComplex.getImag().round();
-            auto imagInteger = imagBFP.getValue() >> imagBFP.getLog2Scale();
-            auto imagNeg     = imagBFP.getNeg();
-            if (imagNeg) {
-                V[n / 2] = q.Sub(imagInteger.Mod(q));
-            }
-            else {
-                V[n / 2] = imagInteger.Mod(q);
-            }
-        }
-
-        DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer>>(2 * n, q, 1));
-        polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
-
-        DCRTPoly poly(polyLarge, elementParams);
-        poly.SetFormat(Format::EVALUATION);
-        ZEncodingParams params(CMode, 2);
-        return std::make_shared<ZEncodingImpl>(elementParams, poly, scalingFactor, params);
-    }
+                             const BigFixedPoint& scalingFactor);
 
     static ZEncoding encodeC(const CSlots& cSlots, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                              const BigFixedPoint& scalingFactor) {

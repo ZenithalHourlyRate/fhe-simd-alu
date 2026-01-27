@@ -214,9 +214,9 @@ public:
         std::vector<BigFixedPoint> tInv;
         // denominator
         auto one = BigFixedPoint::one();
-        auto d   = BigFixedPoint(BigInteger(1) << zN, 0, false).scaleTo(128);
+        auto d   = BigFixedPoint::pow2(zN);
         for (size_t i = 0; i != zN; ++i) {
-            auto powerOf2 = BigFixedPoint(BigInteger(1) << (zN - 1 - i), 0, false).scaleTo(128);
+            auto powerOf2 = BigFixedPoint::pow2(zN - 1 - i);
             if (i == 0) {
                 tInv.push_back((one - powerOf2) / d);
             }
@@ -298,7 +298,7 @@ public:
         // Add small epsilon to ensure range in (-1, 0)
         // epsilon = 2^{-zN-1}
         auto zN  = input.getZN();
-        auto eps = BigFixedPoint(BigInteger(1) << (128 - zN - 1), 128, false);
+        auto eps = BigFixedPoint::pow2(128 - zN - 1);
         // do [\cdot ]_1
         std::vector<BigFixedPoint> output;
         for (auto i : input.getCoefficients()) {
@@ -331,10 +331,10 @@ public:
         }
         auto rounded = result[0].round();
         // Now do mod 2^zN
-        auto modValueBFP = BigFixedPoint(BigInteger(1) << input.getZN(), 0, false).scaleTo(128);
+        auto modValueBFP = BigFixedPoint::pow2(input.getZN());
         rounded          = rounded - (rounded / modValueBFP).floor() * modValueBFP;
         //std::cout << "Decoded X-2: " << result[0].toHexString() << "\n";
-        return (rounded.getValue() >> rounded.getLog2Scale()).ConvertToInt();
+        return rounded.getRoundedInteger();
     }
 
     static ZPolynomial add(ZPolynomial lhs, ZPolynomial rhs) {
