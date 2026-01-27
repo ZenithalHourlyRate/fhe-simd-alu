@@ -348,7 +348,7 @@ void SimpleBootstrapExample(int zN) {
     auto encoded4_2   = Encrypt(ptxt4_2, keyPair.publicKey);
     CiphertextGroup encoded4({encoded4_1, encoded4_2});
 
-#define DEBUG
+    //#define DEBUG
 
 #ifdef DEBUG
     __heir_debug2(encoded, "Input");

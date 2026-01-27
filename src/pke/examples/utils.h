@@ -102,7 +102,11 @@ Ciphertext<DCRTPoly> Encrypt(Plaintext ptxt, const PublicKey<DCRTPoly> publicKey
 
 #define BENCHMARK(x, times, str)                                                           \
     {                                                                                      \
+        auto startW = std::chrono::high_resolution_clock::now();                           \
         (x);                                                                               \
+        auto endW                           = std::chrono::high_resolution_clock::now();   \
+        std::chrono::duration<double> diffW = endW - startW;                               \
+        std::cout << "Finished Warmup for " str " " << diffW.count() << " s" << std::endl; \
         auto start = std::chrono::high_resolution_clock::now();                            \
         for (size_t i = 0; i != (times); ++i)                                              \
             (x);                                                                           \
