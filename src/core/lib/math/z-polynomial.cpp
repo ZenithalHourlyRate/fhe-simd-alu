@@ -1,4 +1,5 @@
 #include "math/z-polynomial.h"
+#include "math/dftransform.h"
 #include "math/dftransform-bigcomplex.h"
 
 namespace lbcrypto {
@@ -29,25 +30,53 @@ ZPolynomial CSlots::getZPolynomial(size_t slotIndex) const {
 CSlots RPolynomial::toCSlots() const {
     auto m      = coefficients.size() * 2;
     auto cSlots = coefficients.size() / 2;
+    std::vector<std::complex<double>> forwardDouble(cSlots);
+    for (size_t i = 0; i != cSlots; ++i) {
+        //forward[i] = BigComplex(coefficients[i], coefficients[i + cSlots]);
+        forwardDouble[i] =
+            std::complex<double>(coefficients[i].convertToDouble(), coefficients[i + cSlots].convertToDouble());
+    }
+    DiscreteFourierTransform::FFTSpecial(forwardDouble, m);
+
     BigCVector forward(cSlots);
     for (size_t i = 0; i != cSlots; ++i) {
-        forward[i] = BigComplex(coefficients[i], coefficients[i + cSlots]);
+        forward[i] = BigComplex(BigFixedPoint::fromDouble(forwardDouble[i].real()),
+                                BigFixedPoint::fromDouble(forwardDouble[i].imag()));
     }
-    DiscreteFourierTransformBigComplex::FFTSpecial(forward, m);
+
+    // TOO SLOW...
+    //DiscreteFourierTransformBigComplex::FFTSpecial(forward, m);
     return CSlots(params, forward);
 }
 
 RPolynomial CSlots::toRPolynomial() const {
     auto m             = slots.size() * 4;
     BigCVector inverse = slots;
-    DiscreteFourierTransformBigComplex::FFTSpecialInv(inverse, m);
-
-    std::vector<BigFixedPoint> rValues(2 * slots.size());
+    std::vector<std::complex<double>> inverseInDouble(inverse.size());
     for (size_t i = 0; i != inverse.size(); ++i) {
-        rValues[i]                = inverse[i].getReal();
-        rValues[i + slots.size()] = inverse[i].getImag();
+        inverseInDouble[i] =
+            std::complex<double>(inverse[i].getReal().convertToDouble(), inverse[i].getImag().convertToDouble());
     }
-    return RPolynomial(params, rValues);
+    DiscreteFourierTransform::FFTSpecialInv(inverseInDouble, m);
+    // ....DiscreteFourierTransformBigComplex is too slow....
+    //for (size_t i = 0; i != inverse.size(); ++i) {
+    //DiscreteFourierTransformBigComplex::FFTSpecialInv(inverse, m);
+
+    //std::vector<BigFixedPoint> rValues(2 * slots.size());
+    //for (size_t i = 0; i != inverse.size(); ++i) {
+    //    rValues[i]                = inverse[i].getReal();
+    //    rValues[i + slots.size()] = inverse[i].getImag();
+    //}
+    std::vector<double> rValues(2 * slots.size());
+    for (size_t i = 0; i != inverse.size(); ++i) {
+        rValues[i]                = inverseInDouble[i].real();
+        rValues[i + slots.size()] = inverseInDouble[i].imag();
+    }
+    std::vector<BigFixedPoint> rValuesBFP(2 * slots.size());
+    for (size_t i = 0; i != rValuesBFP.size(); ++i) {
+        rValuesBFP[i] = BigFixedPoint::fromDouble(rValues[i]);
+    }
+    return RPolynomial(params, rValuesBFP);
 }
 
 // TODO: deprecate into BMode...

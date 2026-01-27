@@ -2,6 +2,7 @@
 #include "math/hermite.h"
 #include "math/z-constants.h"
 #include "scheme/ckksrns/z-fhe.h"
+#include "math/dftransform.h"
 #include "math/dftransform-bigcomplex.h"
 
 namespace lbcrypto {
@@ -24,11 +25,14 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     ZLinearTransform::Initialize(zN);
     auto cSlots2 = cSlots * 2;
     // For regular encoding
-    DiscreteFourierTransformBigComplex::Initialize(cSlots * 4, cSlots);
+    DiscreteFourierTransform::Initialize(cSlots * 4, cSlots);
+    //DiscreteFourierTransformBigComplex::Initialize(cSlots * 4, cSlots);
     // For encoding of t and tInv, and scalar ptxt in Z
-    DiscreteFourierTransformBigComplex::Initialize(zN * 2, zN / 2);
+    DiscreteFourierTransform::Initialize(zN * 2, zN / 2);
+    //DiscreteFourierTransformBigComplex::Initialize(zN * 2, zN / 2);
     // For encoding of bootstrapping related plaintext for sparse bootstrapping
-    DiscreteFourierTransformBigComplex::Initialize(cSlots2 * 4, cSlots2);
+    DiscreteFourierTransform::Initialize(cSlots2 * 4, cSlots2);
+    //DiscreteFourierTransformBigComplex::Initialize(cSlots2 * 4, cSlots2);
     auto& ZU = ZLinearTransform::GetZU(zN);
     auto& ZV = ZLinearTransform::GetZUInverse(zN);
 
