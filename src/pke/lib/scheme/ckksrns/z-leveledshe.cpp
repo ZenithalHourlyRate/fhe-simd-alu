@@ -340,6 +340,49 @@ void LeveledZImpl::ModReduceInPlace(Ciphertext<DCRTPoly>& ciphertext, size_t lev
     }
 }
 
+Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertextToLevel(ConstCiphertext<DCRTPoly> ct, size_t level) {
+    if (ct->GetLevel() == level) {
+        return ct->Clone();
+    }
+    else if (ct->GetLevel() > level) {
+        OPENFHE_THROW("Can not adjust ct to smaller level (i.e. more moduli)");
+    }
+
+    auto ctBFP        = ct->GetScalingFactorBFP();
+    auto cc           = ct->GetCryptoContext();
+    auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
+    auto sfTarget     = cryptoParams->GetScalingFactorBFP(level);
+
+    auto ctBFPLog2       = std::log2(ctBFP.convertToDouble());
+    auto sfTargetBFPLog2 = std::log2(sfTarget.convertToDouble());
+
+    // The case of Noise Deg = 2 is not handled now.
+    // TODO: Should track noise degree...
+    // FIXME: actually very bad thing can happen here...
+    // The selection of moduli chain can lead to large scaling factors
+    // Use this as a safeguard for now
+    if (ctBFPLog2 > 100 || sfTargetBFPLog2 > 100) {
+        std::cout << "ctBFPLog2: " << ctBFPLog2 << ", ctTargetBFPLog2: " << sfTargetBFPLog2 << std::endl;
+        OPENFHE_THROW("Can not Adjust Ciphertext with large scaling factor");
+    }
+
+    auto sizeQl       = ct->GetElements()[0].GetNumOfElements();
+    auto sizeQlTarget = cryptoParams->GetMultiplicativeDepth() + 1 - level;
+
+    auto qlTargetPlusOne    = cryptoParams->GetElementParams()->GetParams()[sizeQlTarget]->GetModulus();
+    auto qlTargetPlusOneBFP = BigFixedPoint(qlTargetPlusOne, 0, false).scaleTo(128);
+
+    auto ctNew = ct->Clone();
+    LevelReduceInPlace(ctNew, sizeQl - sizeQlTarget - 1);
+
+    auto adjustFactorBFP = sfTarget * qlTargetPlusOneBFP / ctBFP;
+    auto adjustFactor    = adjustFactorBFP.round().getValue() >> adjustFactorBFP.getLog2Scale();
+    EvalMultScalarInPlace(ctNew, adjustFactor);
+    ModReduceInPlace(ctNew);
+    ctNew->SetScalingFactorBFP(sfTarget);
+    return ctNew;
+}
+
 Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ctTarget) {
     auto ctBFP       = ct->GetScalingFactorBFP();
     auto ctTargetBFP = ctTarget->GetScalingFactorBFP();

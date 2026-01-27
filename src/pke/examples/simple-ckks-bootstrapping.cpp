@@ -142,15 +142,16 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
         auto cSlots          = values.toCSlots();
         auto maxSlotsToPrint = std::min(zSlots_global, size_t(16));
         for (size_t i = 0; i != maxSlotsToPrint; ++i) {
-            //auto value       = cSlots[i].getReal();
-            //auto p           = BigFixedPoint::positive(1 << zN_global);
-            //auto lutPart     = (value * p).round() / p;
-            //auto fracPart    = value - lutPart;
-            //double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
-            //std::cout << msg << "  cSlots Slot " << i << " Reconstructed: " << lutPart.toHexString() << " "
-            //          << fracPart.toHexString(ceil(log2sf / 4.0)) << " error: " << log2Error << std::endl;
-            std::cout << msg << "  cSlots Slot " << i << " " << cSlots[i].getReal().toHexString(ceil(log2sf / 4.0))
+            auto value       = cSlots[i].getReal();
+            auto p           = BigFixedPoint::positive(1 << zN_global);
+            auto lutPart     = (value * p).round() / p;
+            auto fracPart    = value - lutPart;
+            double log2Error = std::log2(std::abs(fracPart.convertToDouble()));
+            std::cout << msg << "  cSlots Slot " << i << " Reconstructed: " << lutPart.toHexString() << " "
+                      << fracPart.toHexString(ceil(log2sf / 4.0)) << " error: " << std::setprecision(2) << log2Error
                       << std::endl;
+            //std::cout << msg << "  cSlots Slot " << i << " " << cSlots[i].getReal().toHexString(ceil(log2sf / 4.0))
+            //          << std::endl;
         }
         if (zSlots_global > maxSlotsToPrint) {
             std::cout << msg << "  ... (total " << zSlots_global << " slots)" << std::endl;
@@ -250,7 +251,8 @@ void SimpleBootstrapExample(int zN) {
 
     std::vector<uint32_t> levelBudget = {2, 2};
 
-    parameters.SetMultiplicativeDepth(19);
+    uint32_t mulDepth = 20;
+    parameters.SetMultiplicativeDepth(mulDepth);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -289,7 +291,7 @@ void SimpleBootstrapExample(int zN) {
     zSlots_global = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
 
-    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1, 8, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     cc_global = cc;
@@ -353,7 +355,7 @@ void SimpleBootstrapExample(int zN) {
 #endif
 
     // Mult
-    if (0) {
+    if (1) {
         BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 3, "MultFull");
 #ifdef DEBUG
         auto ct2 = z->EvalMultFullInZ(encoded, encoded);
@@ -362,7 +364,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // Bool
-    if (0) {
+    if (1) {
         BENCHMARK(z->EvalBooleanOR(encoded3, encoded4), 3, "BooleanOR");
 #ifdef DEBUG
         auto ct2 = z->EvalBooleanOR(encoded3, encoded4);
@@ -381,7 +383,7 @@ void SimpleBootstrapExample(int zN) {
     }
 
     // BooleanToBoolean
-    if (0) {
+    if (1) {
         BENCHMARK((fheZ->EvalBooleanToBooleanFull(encoded3)), 1, "BooleanToBoolean");
     }
 
@@ -399,7 +401,7 @@ void SimpleBootstrapExample(int zN) {
     if (1) {
         BENCHMARK(fheZ->EvalArithToArith(encoded2), 1, "ArithToArith");
 #ifdef DEBUG
-        auto ct2 = fheZ->EvalArithToArithNoise(encoded2);
+        auto ct2 = fheZ->EvalArithToArithHigh(encoded2);
         __heir_debug2(ct2, "A2A");
 
         //auto ct3 = z->EvalMultFullInZ(ct2, ct2);
@@ -408,6 +410,9 @@ void SimpleBootstrapExample(int zN) {
 
         //auto ct4 = fheZ->EvalArithToArith(ct3);
         //__heir_debug2(ct4, "CMult");
+
+        //auto ct5 = fheZ->EvalArithToArith(ct4);
+        //__heir_debug2(ct5, "CMult");
 
         //auto ct5 = z->EvalMultFullInZ(ct4, ct4);
         //z->ModReduceInPlace(ct5);

@@ -98,6 +98,7 @@ public:
     //
     // Cross level adjustment
     //
+    Ciphertext<DCRTPoly> AdjustCiphertextToLevel(ConstCiphertext<DCRTPoly> ciphertext, size_t level);
     Ciphertext<DCRTPoly> AdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ctTarget);
 
     // Automatic adjustment family

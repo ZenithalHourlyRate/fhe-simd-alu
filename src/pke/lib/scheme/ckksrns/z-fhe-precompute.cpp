@@ -12,8 +12,8 @@ namespace lbcrypto {
 
 void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                                   std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1, uint32_t w,
-                                  int32_t arithToBooleanCutoff, uint32_t lutMSBOrder, uint32_t lutIDOrder,
-                                  uint32_t zSlotsThresholdForScaling) {
+                                  int32_t arithToBooleanCutoff, uint32_t lutOrder, uint32_t zSlotsThresholdForScaling,
+                                  uint32_t lTrunc) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
     uint32_t N  = cc.GetRingDimension();
@@ -218,8 +218,8 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     uint64_t p            = 1l << w;
     precom->m_w           = w;
     precom->m_cutoff      = arithToBooleanCutoff;
-    precom->m_lutIDOrder  = lutIDOrder;
-    precom->m_lutMSBOrder = lutMSBOrder;
+    precom->m_lutIDOrder  = lutOrder;
+    precom->m_lutMSBOrder = lutOrder;
 
     auto lutMSBCoeffs = GetHermiteTrigCoefficients(
         [&](int64_t x) -> int64_t {
@@ -233,7 +233,7 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                 return 0;
             }
         },
-        p, lutMSBOrder, 1);  // We do not rescale here
+        p, lutOrder, 1);  // We do not rescale here
     auto lutIDCoeffs = GetHermiteTrigCoefficients(
         [&](int64_t x) -> int64_t {
             // Input x is in {0, 1, ..., p-1}
@@ -243,7 +243,7 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
             else
                 return x - p;
         },
-        p, lutIDOrder, p);
+        p, lutOrder, p);
 
     // Temporary: directly convert to BigComplex
     std::vector<BigComplex> lutMSBCoeffsBC(lutMSBCoeffs.size());
@@ -258,6 +258,19 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
     }
     precom->m_lutMSBCoeffs = lutMSBCoeffsBC;
     precom->m_lutIDCoeffs  = lutIDCoeffsBC;
+
+    // Misc Params
+    precom->m_lTrunc = lTrunc;
+    if (lTrunc == 0) {
+        // actually sf at top.
+        auto q0               = cryptoParams->GetScalingFactorBFP(0);
+        auto mulDepth         = cryptoParams->GetMultiplicativeDepth();
+        auto sfBottom         = cryptoParams->GetScalingFactorBFP(mulDepth);
+        auto sfBottomMismatch = ((sfBottom / q0) - BigFixedPoint::one()).log2Norm();
+        std::cout << "Notice: EvalTruncate does not consume level: Mismatch between sfTop and sfBottom: "
+                  << sfBottomMismatch << " would cause absolute error of " << sfBottomMismatch + q0.log2Norm()
+                  << std::endl;
+    }
 }
 
 //------------------------------------------------------------------------------

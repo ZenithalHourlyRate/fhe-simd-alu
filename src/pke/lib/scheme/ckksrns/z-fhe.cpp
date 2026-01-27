@@ -104,6 +104,17 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0)
     auto precomp  = GetBootPrecom(cSlots);
     auto isSparse = precomp.m_isSparse;
 
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
+    // adjust ciphertext to level just above z2c + c2r + trunc
+    // TODO: fix lZ2C
+    uint32_t lZ2C    = 2;
+    uint32_t lMask   = specialB0;  // when specialB0, leave one level for masking.
+    uint32_t lC2R    = precomp.m_paramsDec.lvlb;
+    uint32_t lTrunc  = precomp.m_lTrunc;
+    auto mulDepth    = cryptoParams->GetMultiplicativeDepth();
+    auto levelForZ2C = mulDepth - lZ2C - lMask - lC2R - lTrunc;
+    auto ctNew       = z->AdjustCiphertextToLevel(ct, levelForZ2C);
+
     const CiphertextGroup::MapFunc postProcess = [&, this](ConstCiphertext<DCRTPoly>& z2c) -> Ciphertext<DCRTPoly> {
         // Take the Real
         auto ct = z->EvalAdd(z2c, z->EvalConjugateInC(z2c));
@@ -134,12 +145,12 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0)
 
     // We force a sparse packing
     if (isSparse) {
-        auto z2c = EvalZLinearTransform(specialB0 ? precomp.m_ZVSpecialB0Pre : precomp.m_ZVPre, ct);
+        auto z2c = EvalZLinearTransform(specialB0 ? precomp.m_ZVSpecialB0Pre : precomp.m_ZVPre, ctNew);
         return postProcess(z2c);
     }
     else {
-        auto z2c0 = EvalZLinearTransform(specialB0 ? precomp.m_ZV0SpecialB0Pre : precomp.m_ZV0Pre, ct);
-        auto z2c1 = EvalZLinearTransform(precomp.m_ZV1Pre, ct);
+        auto z2c0 = EvalZLinearTransform(specialB0 ? precomp.m_ZV0SpecialB0Pre : precomp.m_ZV0Pre, ctNew);
+        auto z2c1 = EvalZLinearTransform(precomp.m_ZV1Pre, ctNew);
 
         CiphertextGroup z2cGroup({z2c0, z2c1});
         return z2cGroup.map(postProcess);
@@ -154,16 +165,25 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     bool isSparse      = precomp.m_isSparse;
     bool isLTBootstrap = (precomp.m_paramsEnc.lvlb == 1) && (precomp.m_paramsDec.lvlb == 1);
 
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
+    // adjust ciphertext to level just above c2r + trunc
+    uint32_t lC2R    = precomp.m_paramsDec.lvlb;
+    uint32_t lTrunc  = precomp.m_lTrunc;
+    auto mulDepth    = cryptoParams->GetMultiplicativeDepth();
+    auto levelForC2R = mulDepth - lC2R - lTrunc;
+    auto ctNew       = z->AdjustCiphertextToLevel(ct, levelForC2R);
+
     if (isSparse) {
-        auto c2r = isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
+        auto c2r =
+            isLTBootstrap ? EvalLinearTransform(precomp.m_U0Pre, ctNew) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ctNew);
         // Trace
         z->EvalAddInPlace(c2r, cc->EvalRotate(c2r, cSlots));
         z->ModReduceInPlace(c2r);
         return c2r;
     }
     else {
-        auto c2r =
-            (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0Pre, ct) : EvalSlotsToCoeffs(precomp.m_U0PreFFT, ct);
+        auto c2r = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0Pre, ctNew) :
+                                     EvalSlotsToCoeffs(precomp.m_U0PreFFT, ctNew);
         z->ModReduceInPlace(c2r);
         return c2r;
     }
