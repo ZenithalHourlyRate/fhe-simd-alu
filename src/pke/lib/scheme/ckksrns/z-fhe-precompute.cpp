@@ -146,8 +146,9 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U1hatT[j][i] = U1[i][j].conj();
                 }
             }
-            precom->m_U0Pre             = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
-            precom->m_U0hatTPre         = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
+            precom->m_U0Pre     = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
+            precom->m_U0hatTPre = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
+            // The following two deprecated
             precom->m_U0hatTPreScaledN  = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CN);
             precom->m_U0hatTPreScaledNK = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CNK);
         }
@@ -160,15 +161,17 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U0hatT[j][i] = U0[i][j].conj();
                 }
             }
-            precom->m_U0Pre             = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
-            precom->m_U0hatTPre         = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
+            precom->m_U0Pre     = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
+            precom->m_U0hatTPre = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
+            // The following two deprecated
             precom->m_U0hatTPreScaledN  = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CN);
             precom->m_U0hatTPreScaledNK = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CNK);
         }
     }
     else {
-        precom->m_U0PreFFT             = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
-        precom->m_U0hatTPreFFT         = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
+        precom->m_U0PreFFT     = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
+        precom->m_U0hatTPreFFT = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
+        // The following two deprecated
         precom->m_U0hatTPreFFTScaledN  = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFTN);
         precom->m_U0hatTPreFFTScaledNK = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFTNK);
     }

@@ -109,6 +109,13 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOp
             for (size_t j = 0; j != zDeg; ++j) {
                 scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
             }
+            //{
+            //    auto sfNow       = ct->GetScalingFactorBFP();
+            //    auto scalarWhole = sfNow * scaleDown;
+            //    auto scalarFrac  = scalarWhole - scalarWhole.round();
+            //    auto precLoss    = scalarFrac / scalarWhole;
+            //    std::cout << "Z2C Scale down precision loss: " << precLoss.log2Norm() << std::endl;
+            //}
             z->EvalMultInPlaceInC(ct, scaleDown);
             z->ModReduceInPlace(ct);
         }
@@ -186,6 +193,12 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
         // Manually scale down by N
         auto sfNow  = target->GetScalingFactorBFP();
         auto scalar = (sfNow * scale).getRoundedBigInteger();
+        //{
+        //    auto scalarWhole = sfNow * scale;
+        //    auto scalarFrac  = scalarWhole - scalarWhole.round();
+        //    auto precLoss    = scalarFrac / scalarWhole;
+        //    std::cout << "Scale down precision loss: " << precLoss.log2Norm() << std::endl;
+        //}
         // Use EvalMultScalarInPlace to avoid precision loss
         // Should not use EvalMultInPlaceInC here as it will cause precision loss
         // TODO: should be OK to use EvalMultInPlaceInC?
@@ -206,10 +219,12 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
                                 EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
     }
     else if (scalingOption == SCALE_N_PRE) {
+        OPENFHE_THROW("Disabled");
         r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPreScaledN, ct) :
                                 EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledN, ct);
     }
     else {  // scalingOption == SCALE_NK_PRE
+        OPENFHE_THROW("Disabled");
         r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPreScaledNK, ct) :
                                 EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledNK, ct);
     }
@@ -828,7 +843,7 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTsSparse(ConstCiphertext
     // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
     // can do so in low precision as we do not need high precision here
     // Since we call C2R without imaginary part, we only need the real part here
-    auto r2c = EvalR2C(raised, SCALE_NK_PRE)[0];
+    auto r2c = EvalR2C(raised, SCALE_NK)[0];
     return r2c;
 }
 
@@ -855,7 +870,7 @@ CiphertextGroup FHEZImpl::internalBooleanToBooleanLTsFull(CiphertextGroup ct) co
 
     // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
     // can do so in low precision as we do not need high precision here
-    auto r2cGroup = EvalR2C(raised, SCALE_NK_PRE);
+    auto r2cGroup = EvalR2C(raised, SCALE_NK);
     return r2cGroup;
 }
 

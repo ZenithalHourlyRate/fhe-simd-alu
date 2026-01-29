@@ -79,7 +79,7 @@ public:
             return m_zSlots * m_zN / 2;
         }
         else if (m_encodingType == BModeSparse) {
-            return m_zSlots * m_zN;
+            return m_zSlots * m_zN / 2;
         }
         else {
             return m_cSlots;
