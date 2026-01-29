@@ -5,6 +5,9 @@ namespace lbcrypto {
 ZEncoding ZEncodingImpl::encodeR(const RPolynomial& input,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                  const BigFixedPoint& scalingFactor) {
+    if (scalingFactor.log2Norm() > 60) {
+        OPENFHE_THROW("Scaling factor too large in ZEncodingImpl::encodeR");
+    }
     auto N           = elementParams->GetRingDimension();
     auto n           = input.getCoefficients().size();
     auto inputCoeffs = input.getCoefficients();
@@ -38,6 +41,9 @@ ZEncoding ZEncodingImpl::encodeR(const RPolynomial& input,
 ZEncoding ZEncodingImpl::encodeC(const BigComplex& input,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                  const BigFixedPoint& scalingFactor) {
+    if (scalingFactor.log2Norm() > 60) {
+        OPENFHE_THROW("Scaling factor too large in ZEncodingImpl::encodeC");
+    }
     auto N              = elementParams->GetRingDimension();
     int64_t roundedReal = (input.getReal() * scalingFactor).getRoundedInteger() * (input.getReal().getNeg() ? -1 : 1);
     int64_t roundedImag = (input.getImag() * scalingFactor).getRoundedInteger() * (input.getImag().getNeg() ? -1 : 1);

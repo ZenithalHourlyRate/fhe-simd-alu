@@ -15,7 +15,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const
     auto sfNow = ct->GetScalingFactorBFP();
     auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
     // q / Delta
-    auto divScalar = (qBFP / sfNow).getRoundedInteger();
+    auto divScalar = (qBFP / sfNow).getRoundedBigInteger();
     auto ct2       = z->EvalMultScalar(ct, divScalar);
     ct2->SetScalingFactorBFP(qBFP);
     // Reduce all the way to the bottom
@@ -97,7 +97,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalTruncateModRaisePartialSum(ConstCiphertext<DC
     return ctNew;
 }
 
-CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0) const {
+CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOption) const {
     auto cc       = ct->GetCryptoContext();
     auto cSlots   = ct->GetZEncodingParams().getCSlots();
     auto precomp  = GetBootPrecom(cSlots);
@@ -107,7 +107,7 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0)
     // adjust ciphertext to level just above z2c + c2r + trunc
     // TODO: fix lZ2C
     uint32_t lZ2C    = 2;
-    uint32_t lMask   = specialB0;  // when specialB0, leave one level for masking.
+    uint32_t lMask   = (z2cOption == Z2C_SPECIAL_B0);  // when specialB0, leave one level for masking.
     uint32_t lC2R    = precomp.m_paramsDec.lvlb;
     uint32_t lTrunc  = precomp.m_lTrunc;
     auto mulDepth    = cryptoParams->GetMultiplicativeDepth();
@@ -142,14 +142,21 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0)
         return ct;
     };
 
-    // We force a sparse packing
     if (isSparse) {
-        auto z2c = EvalZLinearTransform(specialB0 ? precomp.m_ZVSpecialB0Pre : precomp.m_ZVPre, ctNew);
+        auto z2c = EvalZLinearTransform(z2cOption == Z2C_SPECIAL_A2AE ?
+                                            precomp.m_ZVSpecialA2AePre :
+                                            (z2cOption == Z2C_SPECIAL_B0 ? precomp.m_ZVSpecialB0Pre : precomp.m_ZVPre),
+                                        ctNew);
         return postProcess(z2c);
     }
     else {
-        auto z2c0 = EvalZLinearTransform(specialB0 ? precomp.m_ZV0SpecialB0Pre : precomp.m_ZV0Pre, ctNew);
-        auto z2c1 = EvalZLinearTransform(precomp.m_ZV1Pre, ctNew);
+        auto z2c0 =
+            EvalZLinearTransform(z2cOption == Z2C_SPECIAL_A2AE ?
+                                     precomp.m_ZV0SpecialA2AePre :
+                                     (z2cOption == Z2C_SPECIAL_B0 ? precomp.m_ZV0SpecialB0Pre : precomp.m_ZV0Pre),
+                                 ctNew);
+        auto z2c1 =
+            EvalZLinearTransform(z2cOption == Z2C_SPECIAL_A2AE ? precomp.m_ZV1SpecialA2AePre : precomp.m_ZV1Pre, ctNew);
 
         CiphertextGroup z2cGroup({z2c0, z2c1});
         return z2cGroup.map(postProcess);
@@ -198,7 +205,7 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
     auto scaleDown = [&](Ciphertext<DCRTPoly> target, BigFixedPoint scale) {
         // Manually scale down by N
         auto sfNow  = target->GetScalingFactorBFP();
-        auto scalar = (sfNow * scale).getRoundedInteger();
+        auto scalar = (sfNow * scale).getRoundedBigInteger();
         // Use EvalMultScalarInPlace to avoid precision loss
         // Should not use EvalMultInPlaceInC here as it will cause precision loss
         // TODO: should be OK to use EvalMultInPlaceInC?
@@ -263,38 +270,41 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
     }
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(CiphertextGroup ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalC2Z(CiphertextGroup ct, C2ZOption c2zOption) const {
     auto cc       = ct[0]->GetCryptoContext();
     auto cSlots   = ct[0]->GetZEncodingParams().getCSlots();
     auto precomp  = GetBootPrecom(cSlots);
     bool isSparse = precomp.m_isSparse;
 
     if (isSparse) {
-        auto c2z = EvalZLinearTransform(precomp.m_ZUPre, ct[0]);
+        auto c2z =
+            EvalZLinearTransform(c2zOption == C2Z_SPECIAL_A2AE ? precomp.m_ZUSpecialA2AePre : precomp.m_ZUPre, ct[0]);
         z->EvalAddInPlace(c2z, cc->EvalRotate(c2z, cSlots));
         z->ModReduceInPlace(c2z);
         return c2z;
     }
     else {
-        auto c2z0 = EvalZLinearTransform(precomp.m_ZU0Pre, ct[0]);
-        auto c2z1 = EvalZLinearTransform(precomp.m_ZU1Pre, ct[1]);
+        auto c2z0 =
+            EvalZLinearTransform(c2zOption == C2Z_SPECIAL_A2AE ? precomp.m_ZU0SpecialA2AePre : precomp.m_ZU0Pre, ct[0]);
+        auto c2z1 =
+            EvalZLinearTransform(c2zOption == C2Z_SPECIAL_A2AE ? precomp.m_ZU1SpecialA2AePre : precomp.m_ZU1Pre, ct[1]);
         z->EvalAddInPlace(c2z0, c2z1);
         z->ModReduceInPlace(c2z0);
         return c2z0;
     }
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const {
+Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOption) const {
     auto cc       = ct->GetCryptoContext();
     auto cSlots   = ct->GetZEncodingParams().getCSlots();
     auto precomp  = GetBootPrecom(cSlots);
     auto isSparse = precomp.m_isSparse;
 
     if (isSparse) {
-        return EvalC2R(EvalZ2C(ct)[0]);
+        return EvalC2R(EvalZ2C(ct, z2cOption)[0]);
     }
     else {
-        auto z2cGroup = EvalZ2C(ct);
+        auto z2cGroup = EvalZ2C(ct, z2cOption);
         auto z2c0     = z2cGroup[0];
         auto z2c1     = z2cGroup[1];
         cc->GetScheme()->MultByMonomialInPlace(z2c1, cSlots);
@@ -303,8 +313,9 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const {
     }
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const {
-    return EvalC2Z(EvalR2C(ct, scalingOption));
+Ciphertext<DCRTPoly> FHEZImpl::EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption,
+                                       C2ZOption c2zOption) const {
+    return EvalC2Z(EvalR2C(ct, scalingOption), c2zOption);
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ct) const {
@@ -312,7 +323,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     auto cSlots  = ct->GetZEncodingParams().getCSlots();
     auto precomp = GetBootPrecom(cSlots);
 
-    auto z2r = EvalZ2R(ct);
+    auto z2r = EvalZ2R(ct, Z2C_NORMAL);
 
     //------------------------------------------------------------------------------
     // Truncate, ModRaise and PartialSum
@@ -325,7 +336,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     //------------------------------------------------------------------------------
 
     // R2C then will multiply by rN then divide by N. Carried out in high precision
-    auto r2z = EvalR2Z(raised, R2CScalingOption::SCALE_N);
+    auto r2z = EvalR2Z(raised, R2CScalingOption::SCALE_N, C2Z_NORMAL);
     return r2z;
 }
 
@@ -333,8 +344,8 @@ void FHEZImpl::ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ct, uint32_t num
     auto cc = ct->GetCryptoContext();
     for (int32_t i = 0; i != numIter; ++i) {
         ct = z->EvalMult(ct, ct);
-        z->EvalAddInPlace(ct, z->EvalAddInC(ct, r_sparse_scalars[i]));
         z->ModReduceInPlace(ct);
+        z->EvalAddInPlace(ct, z->EvalAddInC(ct, r_sparse_scalars[i]));
     }
 }
 
@@ -344,10 +355,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto precomp   = GetBootPrecom(cSlots);
     auto elemParam = ct->GetElements()[0].GetParams();
 
-    auto ctT = z->EvalMultTInZ(ct);
-    z->ModReduceInPlace(ctT);
-
-    auto z2r = EvalZ2R(ctT);
+    auto z2r = EvalZ2R(ct, Z2C_SPECIAL_A2AE);
     //__heir_debug2(z2r, "Z2R");
 
     //------------------------------------------------------------------------------
@@ -387,14 +395,11 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     // C-To-Z
     //------------------------------------------------------------------------------
 
-    auto r2z = EvalC2Z(g0);
+    auto r2z = EvalC2Z(g0, C2Z_SPECIAL_A2AE);
 
     //------------------------------------------------------------------------------
-    // Multiply by t^{-1} in Z and subtract with proper zDeg
+    // Subtract with proper zDeg
     //------------------------------------------------------------------------------
-
-    r2z = z->EvalMultTInvInZ(r2z);
-    z->ModReduceInPlace(r2z);
 
     // TODO: match zDeg and scaling factor...
     return z->EvalSubWithAdjust(ct, r2z);
@@ -416,7 +421,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly
     }
 
     // Our core ct
-    auto core = EvalZ2C(ct, /*specialB0=*/true)[0];
+    auto core = EvalZ2C(ct, Z2C_SPECIAL_B0)[0];
     // TODO: We need to keep core ct at bottom; rescale if necessary
 
     auto zN     = ct->GetZEncodingParams().getZN();
@@ -508,7 +513,7 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct) 
     }
 
     // Our core ct
-    auto cores = EvalZ2C(ct, /*specialB0=*/true);
+    auto cores = EvalZ2C(ct, Z2C_SPECIAL_B0);
     auto core0 = cores[0];
     auto core1 = cores[1];
     // TODO: We need to keep core ct at bottom; rescale if necessary
@@ -611,7 +616,7 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
         OPENFHE_THROW("Batch size mismatch for batched EvalArithToBooleanBatched");
     }
 
-    auto core = ctxts.mapWide([&](ConstCiphertext<DCRTPoly>& ct) { return EvalZ2C(ct, /*specialB0=*/true); });
+    auto core = ctxts.mapWide([&](ConstCiphertext<DCRTPoly>& ct) { return EvalZ2C(ct, Z2C_SPECIAL_B0); });
 
     std::vector<Ciphertext<DCRTPoly>> coreFirstHalfVec;
     std::vector<Ciphertext<DCRTPoly>> coreSecondHalfVec;
@@ -1035,9 +1040,8 @@ CiphertextGroup FHEZImpl::EvalBooleanToBooleanFull(CiphertextGroup ct) const {
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToArith(CiphertextGroup ct) const {
-    auto res = EvalC2Z(ct);
-    res      = z->EvalMultTInvInZ(res);
-    z->ModReduceInPlace(res);
+    // which will multiply by t^{-1} in Z
+    auto res = EvalC2Z(ct, C2Z_SPECIAL_A2AE);
     return res;
 }
 

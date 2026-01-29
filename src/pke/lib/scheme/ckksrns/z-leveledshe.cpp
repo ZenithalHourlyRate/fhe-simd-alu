@@ -376,7 +376,7 @@ Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertextToLevel(ConstCiphertext<DCRTP
     LevelReduceInPlace(ctNew, sizeQl - sizeQlTarget - 1);
 
     auto adjustFactorBFP = sfTarget * qlTargetPlusOneBFP / ctBFP;
-    auto adjustFactor    = adjustFactorBFP.getRoundedInteger();
+    auto adjustFactor    = adjustFactorBFP.getRoundedBigInteger();
     EvalMultScalarInPlace(ctNew, adjustFactor);
     ModReduceInPlace(ctNew);
     ctNew->SetScalingFactorBFP(sfTarget);
@@ -419,7 +419,7 @@ Ciphertext<DCRTPoly> LeveledZImpl::AdjustCiphertext(ConstCiphertext<DCRTPoly> ct
     LevelReduceInPlace(ctNew, sizeQl - sizeQlTarget - 1);
 
     auto adjustFactorBFP = ctTargetBFP * qlTargetPlusOneBFP / ctBFP;
-    auto adjustFactor    = adjustFactorBFP.getRoundedInteger();
+    auto adjustFactor    = adjustFactorBFP.getRoundedBigInteger();
     EvalMultScalarInPlace(ctNew, adjustFactor);
     ModReduceInPlace(ctNew);
     ctNew->SetScalingFactorBFP(ctTargetBFP);

@@ -96,6 +96,10 @@ public:
     // coefficients for ZV with preprocessing for b0
     std::vector<ZBootstrapPlaintextCache> m_ZVSpecialB0Pre;
 
+    // coefficients for ZU and ZV in A2Ae
+    std::vector<ZBootstrapPlaintextCache> m_ZUSpecialA2AePre;
+    std::vector<ZBootstrapPlaintextCache> m_ZVSpecialA2AePre;
+
     // Parameters for scaleZV, i.e., whether we scale down by zSlots during multiplying ZV
     // If larger than this threshold, we do not scale down during multiplying ZV
     // And a manual scaling down is needed (i.e. takes two levels for ZV LT)
@@ -107,6 +111,10 @@ public:
     std::vector<ZBootstrapPlaintextCache> m_ZV0Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV1Pre;
     std::vector<ZBootstrapPlaintextCache> m_ZV0SpecialB0Pre;
+    std::vector<ZBootstrapPlaintextCache> m_ZU0SpecialA2AePre;
+    std::vector<ZBootstrapPlaintextCache> m_ZU1SpecialA2AePre;
+    std::vector<ZBootstrapPlaintextCache> m_ZV0SpecialA2AePre;
+    std::vector<ZBootstrapPlaintextCache> m_ZV1SpecialA2AePre;
 
     // Parameters for ArithToBoolean
     // Num bits per iteration
@@ -159,18 +167,21 @@ public:
 
     Ciphertext<DCRTPoly> EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
 
-    CiphertextGroup EvalZ2C(ConstCiphertext<DCRTPoly>& ct, bool specialB0 = false) const;
+    enum Z2COption { Z2C_NORMAL, Z2C_SPECIAL_B0, Z2C_SPECIAL_A2AE };
+    CiphertextGroup EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOption) const;
 
     Ciphertext<DCRTPoly> EvalC2R(ConstCiphertext<DCRTPoly>& ct) const;
 
     enum R2CScalingOption { SCALE_N, SCALE_NK, SCALE_N_PRE, SCALE_NK_PRE };
     CiphertextGroup EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
 
-    Ciphertext<DCRTPoly> EvalC2Z(CiphertextGroup ct) const;
+    enum C2ZOption { C2Z_NORMAL, C2Z_SPECIAL_A2AE };
+    Ciphertext<DCRTPoly> EvalC2Z(CiphertextGroup ct, C2ZOption c2zOption) const;
 
-    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOption) const;
 
-    Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption) const;
+    Ciphertext<DCRTPoly> EvalR2Z(ConstCiphertext<DCRTPoly>& ct, R2CScalingOption scalingOption,
+                                 C2ZOption c2zOption) const;
 
     Ciphertext<DCRTPoly> EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& ctxt) const;
 

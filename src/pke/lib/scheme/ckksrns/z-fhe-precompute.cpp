@@ -195,6 +195,24 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         ZV0SpecialB0[0][i] = ZV0SpecialB0[1][i] * BigFixedPoint::two();
     }
 
+    // Special matrices for Arith-To-Arith Noise
+    auto tInC    = ZPolynomial::getT(zN).toCSlots();
+    auto tInvInC = ZPolynomial::getTInv(zN).toCSlots();
+    // It is a diag(tInv encoded in C) * ZU
+    BigCMatrix ZU0SpecialA2Ae(zN / 2, BigCVector(zN / 2));
+    BigCMatrix ZU1SpecialA2Ae(zN / 2, BigCVector(zN / 2));
+    // It is a ZV * diag(t encoded in C)
+    BigCMatrix ZV0SpecialA2Ae(zN / 2, BigCVector(zN / 2));
+    BigCMatrix ZV1SpecialA2Ae(zN / 2, BigCVector(zN / 2));
+    for (size_t i = 0; i != zN / 2; ++i) {
+        for (size_t j = 0; j != zN / 2; ++j) {
+            ZU0SpecialA2Ae[i][j] = (tInvInC[i] * ZU0[i][j]).scaleTo(128);
+            ZU1SpecialA2Ae[i][j] = (tInvInC[i] * ZU1[i][j]).scaleTo(128);
+            ZV0SpecialA2Ae[i][j] = (ZV0[i][j] * tInC[j]).scaleTo(128);
+            ZV1SpecialA2Ae[i][j] = (ZV1[i][j] * tInC[j]).scaleTo(128);
+        }
+    }
+
     // scaled during encoding
     BigFixedPoint scaleZU = BigFixedPoint::positive(zSlots);
     // NOTE: for large zSlots, scaling ZV by zSlots may cause precision issue
@@ -209,13 +227,21 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         precom->m_ZUPre          = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots, scaleZU);
         precom->m_ZVPre          = EvalZLinearTransformPrecompute(cc, ZV0, ZV1, zSlots, scaleZV);
         precom->m_ZVSpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, ZV1, zSlots, scaleZV);
+        precom->m_ZUSpecialA2AePre =
+            EvalZLinearTransformPrecompute(cc, ZU0SpecialA2Ae, ZU1SpecialA2Ae, zSlots, scaleZU);
+        precom->m_ZVSpecialA2AePre =
+            EvalZLinearTransformPrecompute(cc, ZV0SpecialA2Ae, ZV1SpecialA2Ae, zSlots, scaleZV);
     }
     else {
-        precom->m_ZU0Pre          = EvalZLinearTransformPrecompute(cc, ZU0, zSlots, scaleZU);
-        precom->m_ZU1Pre          = EvalZLinearTransformPrecompute(cc, ZU1, zSlots, scaleZU);
-        precom->m_ZV0Pre          = EvalZLinearTransformPrecompute(cc, ZV0, zSlots, scaleZV);
-        precom->m_ZV1Pre          = EvalZLinearTransformPrecompute(cc, ZV1, zSlots, scaleZV);
-        precom->m_ZV0SpecialB0Pre = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, zSlots, scaleZV);
+        precom->m_ZU0Pre            = EvalZLinearTransformPrecompute(cc, ZU0, zSlots, scaleZU);
+        precom->m_ZU1Pre            = EvalZLinearTransformPrecompute(cc, ZU1, zSlots, scaleZU);
+        precom->m_ZV0Pre            = EvalZLinearTransformPrecompute(cc, ZV0, zSlots, scaleZV);
+        precom->m_ZV1Pre            = EvalZLinearTransformPrecompute(cc, ZV1, zSlots, scaleZV);
+        precom->m_ZV0SpecialB0Pre   = EvalZLinearTransformPrecompute(cc, ZV0SpecialB0, zSlots, scaleZV);
+        precom->m_ZU0SpecialA2AePre = EvalZLinearTransformPrecompute(cc, ZU0SpecialA2Ae, zSlots, scaleZU);
+        precom->m_ZU1SpecialA2AePre = EvalZLinearTransformPrecompute(cc, ZU1SpecialA2Ae, zSlots, scaleZU);
+        precom->m_ZV0SpecialA2AePre = EvalZLinearTransformPrecompute(cc, ZV0SpecialA2Ae, zSlots, scaleZV);
+        precom->m_ZV1SpecialA2AePre = EvalZLinearTransformPrecompute(cc, ZV1SpecialA2Ae, zSlots, scaleZV);
     }
 
     // LUTs for ArithToBoolean
