@@ -118,8 +118,24 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZLinearTransform(std::vector<ZBootstrapPlaint
 }
 
 //------------------------------------------------------------------------------
-// EVALUATION: CoeffsToSlots and SlotsToCoeffs
+// EVALUATION: CoeffsToSlots and SlotsToCoeffs; possibly fused with truncate
 //------------------------------------------------------------------------------
+
+static BigFixedPoint getScalingFactorFusingTruncate(ConstCiphertext<DCRTPoly>& ct) {
+    auto elementParams = ct->GetElements()[0].GetParams();
+    auto sfBFP         = ct->GetScalingFactorBFP();
+    // When at l = 1, we fuse EvalTruncate for C2R
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
+    auto mulDepth           = cryptoParams->GetMultiplicativeDepth();
+    auto l                  = mulDepth - ct->GetLevel();
+    if (l == 1) {
+        auto q0   = BigInteger(elementParams->GetParams()[0]->GetModulus());
+        auto q1   = BigInteger(elementParams->GetParams()[1]->GetModulus());
+        auto qBFP = BigFixedPoint(q0 * q1, 0, false).scaleTo(128);
+        sfBFP     = qBFP / sfBFP;
+    }
+    return sfBFP;
+}
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalLinearTransform(std::vector<ZBootstrapPlaintextCache>& A,
                                                    ConstCiphertext<DCRTPoly>& ct) const {
@@ -139,7 +155,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalLinearTransform(std::vector<ZBootstrapPlainte
         fastRotation[j - 1] = cc->EvalFastRotationExt(ct, j, digits, true);
 
     auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
-    auto sfBFP         = ct->GetScalingFactorBFP();
+    auto sfBFP         = getScalingFactorFusingTruncate(ct);
 
     // Now initialize cache if not cached
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A.size()))
@@ -248,7 +264,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalCoeffsToSlots(const std::vector<std::vector<Z
                                                     cc->KeySwitchExt(result, true);
 
         auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
-        auto sfBFP         = fastRotation[0]->GetScalingFactorBFP();
+        // Here we are never possible to fuse truncate
+        auto sfBFP = fastRotation[0]->GetScalingFactorBFP();
 
         // Now initialize cache if not cached
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[s].size()))
@@ -419,7 +436,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalSlotsToCoeffs(const std::vector<std::vector<Z
                                                     cc->KeySwitchExt(result, true);
 
         auto elementParams = fastRotation[0]->GetElements()[0].GetParams();
-        auto sfBFP         = fastRotation[0]->GetScalingFactorBFP();
+        auto sfBFP         = getScalingFactorFusingTruncate(fastRotation[0]);
 
         // Now initialize cache if not cached
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[s].size()))
@@ -483,7 +500,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalSlotsToCoeffs(const std::vector<std::vector<Z
                                      cc->KeySwitchExt(result, true);
 
         auto elementParams = fastRotationRem[0]->GetElements()[0].GetParams();
-        auto sfBFP         = fastRotationRem[0]->GetScalingFactorBFP();
+        auto sfBFP         = getScalingFactorFusingTruncate(fastRotationRem[0]);
 
         // Now initialize cache if not cached
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(A[smax].size()))

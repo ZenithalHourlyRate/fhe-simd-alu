@@ -127,11 +127,6 @@ public:
     // coefficients for LUTs
     std::vector<BigComplex> m_lutIDCoeffs;
     std::vector<BigComplex> m_lutMSBCoeffs;
-
-    // Misc Parameters
-    // Number of level consumed by EvalTrunc. Can be 0 or 1.
-    // If 0, we will directly approximate sfTop with sfBottom and can have precision loss
-    uint32_t m_lTrunc;
 };
 
 class FHEZImpl {
@@ -140,8 +135,8 @@ public:
 
     void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                             std::vector<uint32_t> levelBudget = {2, 2}, std::vector<uint32_t> dim1 = {0, 0},
-                            uint32_t w = 4, int32_t arithToBooleanCutoff = -12, uint32_t lutOrder = 1,
-                            uint32_t zSlotsThresholdForScaling = 8, uint32_t lTrunc = 1);
+                            uint32_t w = 4, int32_t arithToBooleanCutoff = -16, uint32_t lutOrder = 1,
+                            uint32_t zSlotsThresholdForScaling = 8);
 
     void EvalBootstrapKeyGen(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots);
 
@@ -159,13 +154,11 @@ public:
                                            ConstCiphertext<DCRTPoly>& ctxt) const;
 
 public:
-    Ciphertext<DCRTPoly> EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const;
-
     Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const;
 
     void EvalPartialSumInPlace(Ciphertext<DCRTPoly>& ct) const;
 
-    Ciphertext<DCRTPoly> EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
+    Ciphertext<DCRTPoly> EvalModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const;
 
     enum Z2COption { Z2C_NORMAL, Z2C_SPECIAL_B0, Z2C_SPECIAL_A2AE };
     CiphertextGroup EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOption) const;

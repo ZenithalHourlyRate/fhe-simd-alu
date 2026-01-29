@@ -10,24 +10,6 @@ double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::stri
 
 namespace lbcrypto {
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const {
-    auto q     = ct->GetElements()[0].GetModulus();
-    auto sfNow = ct->GetScalingFactorBFP();
-    auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
-    // q / Delta
-    auto divScalar = (qBFP / sfNow).getRoundedBigInteger();
-    auto ct2       = z->EvalMultScalar(ct, divScalar);
-    ct2->SetScalingFactorBFP(qBFP);
-    // Reduce all the way to the bottom
-    z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
-    // To make sure the scaling factor is exactly q0 / 2
-    auto q0     = ct2->GetElements()[0].GetModulus();
-    auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
-    auto sfNow2 = q0BFP;
-    ct2->SetScalingFactorBFP(sfNow2);
-    return ct2;
-}
-
 Ciphertext<DCRTPoly> FHEZImpl::EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
 
@@ -91,8 +73,8 @@ void FHEZImpl::EvalPartialSumInPlace(Ciphertext<DCRTPoly>& ct) const {
     // Now the message is multplied by N/(rN)
 }
 
-Ciphertext<DCRTPoly> FHEZImpl::EvalTruncateModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const {
-    auto ctNew = EvalModRaise(EvalTruncate(ct));
+Ciphertext<DCRTPoly> FHEZImpl::EvalModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const {
+    auto ctNew = EvalModRaise(ct);
     EvalPartialSumInPlace(ctNew);
     return ctNew;
 }
@@ -109,9 +91,8 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOp
     uint32_t lZ2C    = 2;
     uint32_t lMask   = (z2cOption == Z2C_SPECIAL_B0);  // when specialB0, leave one level for masking.
     uint32_t lC2R    = precomp.m_paramsDec.lvlb;
-    uint32_t lTrunc  = precomp.m_lTrunc;
     auto mulDepth    = cryptoParams->GetMultiplicativeDepth();
-    auto levelForZ2C = mulDepth - lZ2C - lMask - lC2R - lTrunc;
+    auto levelForZ2C = mulDepth - lZ2C - lMask - lC2R;
     auto ctNew       = z->AdjustCiphertextToLevel(ct, levelForZ2C);
 
     const CiphertextGroup::MapFunc postProcess = [&, this](ConstCiphertext<DCRTPoly>& z2c) -> Ciphertext<DCRTPoly> {
@@ -174,9 +155,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalC2R(ConstCiphertext<DCRTPoly>& ct) const {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
     // adjust ciphertext to level just above c2r + trunc
     uint32_t lC2R    = precomp.m_paramsDec.lvlb;
-    uint32_t lTrunc  = precomp.m_lTrunc;
     auto mulDepth    = cryptoParams->GetMultiplicativeDepth();
-    auto levelForC2R = mulDepth - lC2R - lTrunc;
+    auto levelForC2R = mulDepth - lC2R;
     auto ctNew       = z->AdjustCiphertextToLevel(ct, levelForC2R);
 
     if (isSparse) {
@@ -326,10 +306,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     auto z2r = EvalZ2R(ct, Z2C_NORMAL);
 
     //------------------------------------------------------------------------------
-    // Truncate, ModRaise and PartialSum
+    // ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto raised = EvalTruncateModRaisePartialSum(z2r);
+    auto raised = EvalModRaisePartialSum(z2r);
 
     //------------------------------------------------------------------------------
     // R-To-Z
@@ -359,10 +339,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     //__heir_debug2(z2r, "Z2R");
 
     //------------------------------------------------------------------------------
-    // Truncate, ModRaise and PartialSum
+    // ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto raised = EvalTruncateModRaisePartialSum(z2r);
+    auto raised = EvalModRaisePartialSum(z2r);
     // Now the message is multplied by N/(rN)
     //__heir_debug2(raised, "Raised");
 
@@ -835,10 +815,10 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTsSparse(ConstCiphertext
     auto c2r = EvalC2R(ct);
 
     //------------------------------------------------------------------------------
-    // Truncate, ModRaise and PartialSum
+    // ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto raised = EvalTruncateModRaisePartialSum(c2r);
+    auto raised = EvalModRaisePartialSum(c2r);
     // Now the message is multplied by N/(rN)
 
     //------------------------------------------------------------------------------
@@ -864,10 +844,10 @@ CiphertextGroup FHEZImpl::internalBooleanToBooleanLTsFull(CiphertextGroup ct) co
     auto c2r = EvalC2R(ctComb);
 
     //------------------------------------------------------------------------------
-    // Truncate, ModRaise and PartialSum
+    // ModRaise and PartialSum
     //------------------------------------------------------------------------------
 
-    auto raised = EvalTruncateModRaisePartialSum(c2r);
+    auto raised = EvalModRaisePartialSum(c2r);
 
     //------------------------------------------------------------------------------
     // R-To-C
@@ -984,9 +964,9 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToBooleanSparse(ConstCiphertext<DCRTPo
 
     // Double angle-iterations to get cos(pi*x)
     res = z->EvalSquare(res);
+    z->ModReduceInPlace(res);
     z->EvalAddInPlace(res, res);
-    z->EvalAddInPlaceInC(res, -BigFixedPoint::one());
-    z->ModReduceInPlace(res);  // cos(pi x)
+    z->EvalAddInPlaceInC(res, -BigFixedPoint::one());  // cos(pi x)
     res = z->EvalSquare(res);
     z->ModReduceInPlace(res);  // cos^2(pi x)
 
@@ -1020,9 +1000,9 @@ CiphertextGroup FHEZImpl::EvalBooleanToBooleanFull(CiphertextGroup ct) const {
 
         // Double angle-iterations to get cos(pi*x)
         res = z->EvalSquare(res);
+        z->ModReduceInPlace(res);
         z->EvalAddInPlace(res, res);
-        z->EvalAddInPlaceInC(res, -BigFixedPoint::one());
-        z->ModReduceInPlace(res);  // cos(pi x)
+        z->EvalAddInPlaceInC(res, -BigFixedPoint::one());  // cos(pi x)
         res = z->EvalSquare(res);
         z->ModReduceInPlace(res);  // cos^2(pi x)
 

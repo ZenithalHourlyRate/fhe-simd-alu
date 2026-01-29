@@ -256,14 +256,15 @@ public:
     }
 
     // Binary
-    // TODO: support larger integer
-    static ZPolynomial encodeBinary(uint32_t zN, uint64_t input) {
+    static ZPolynomial encodeBinary(uint32_t zN, BigInteger input) {
         auto one  = BigFixedPoint::one();
         auto zero = BigFixedPoint::zero();
         std::vector<BigFixedPoint> bits;
         // get bits of input in {0, 1}
         for (size_t i = 0; i != zN; ++i) {
-            auto flag = (input & (1 << i)) >> i;
+            // OpenFHE have LSB = 1...
+            auto flag = input.GetBitAtIndex(i + 1);
+            //auto flag = (input & (1 << i)) >> i;
             if (flag) {
                 bits.push_back(one);
             }
@@ -275,7 +276,7 @@ public:
     }
 
     // Standard
-    static ZPolynomial encode(uint32_t zN, uint64_t input) {
+    static ZPolynomial encode(uint32_t zN, BigInteger input) {
         return multiplyRaw(encodeBinary(zN, input), getTInv(zN));
     }
 
@@ -314,7 +315,7 @@ public:
         return roundNOneToZero(input);
     }
 
-    static uint64_t decode(ZPolynomial input) {
+    static BigInteger decode(ZPolynomial input) {
         auto poly = multiplyRaw(input, getT(input.getZN()));
 
         // For each coefficient, do rounding
@@ -334,7 +335,7 @@ public:
         auto modValueBFP = BigFixedPoint::pow2(input.getZN());
         rounded          = rounded - (rounded / modValueBFP).floor() * modValueBFP;
         //std::cout << "Decoded X-2: " << result[0].toHexString() << "\n";
-        return rounded.getRoundedInteger();
+        return rounded.getRoundedBigInteger();
     }
 
     static ZPolynomial add(ZPolynomial lhs, ZPolynomial rhs) {

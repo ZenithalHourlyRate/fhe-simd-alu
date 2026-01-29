@@ -61,7 +61,7 @@ double __heir_debug2(CiphertextT ct, std::string msg) {
                 maxIValue = static_cast<int>(Idouble);
             }
         }
-        std::cout << msg << "  zPoly Decoded: 0x" << std::hex << decoded << std::dec
+        std::cout << msg << "  zPoly Decoded: " << bigIntegerToHexString(decoded)
                   << "  zPoly error log2Norm: " << std::setprecision(2) << std::fixed
                   << ZPolynomial::extractError(zPoly).getLog2Norm() << " logMaxI: " << std::log2(maxIValue)
                   << std::endl;
@@ -242,7 +242,7 @@ void SimpleBootstrapExample(int zN) {
     uint32_t dcrtBits            = 30;
     // bit size for aux moduli in P
     // for HEXL acceleration. Extra 6 bit for SPARSE_ENCAPSULATED
-    AUXMODSIZE_FLEXIBLEMANUAL = 50;
+    AUXMODSIZE_FLEXIBLEMANUAL = 45;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetFirstModSize(dcrtBits);
@@ -291,7 +291,7 @@ void SimpleBootstrapExample(int zN) {
     zSlots_global = zSlots;
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
 
-    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1, 8, 1);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     cc_global = cc;
@@ -348,7 +348,7 @@ void SimpleBootstrapExample(int zN) {
     auto encoded4_2   = Encrypt(ptxt4_2, keyPair.publicKey);
     CiphertextGroup encoded4({encoded4_1, encoded4_2});
 
-    //#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
     __heir_debug2(encoded, "Input");
@@ -404,15 +404,15 @@ void SimpleBootstrapExample(int zN) {
         auto ct2 = fheZ->EvalArithToArithHigh(encoded2);
         __heir_debug2(ct2, "A2A");
 
-        //auto ct3 = z->EvalMultFullInZ(ct2, ct2);
-        //z->ModReduceInPlace(ct3);
-        //__heir_debug2(ct3, "CMult");
+        auto ct3 = z->EvalMultFullInZ(ct2, ct2);
+        z->ModReduceInPlace(ct3);
+        __heir_debug2(ct3, "CMult");
 
-        //auto ct4 = fheZ->EvalArithToArith(ct3);
-        //__heir_debug2(ct4, "CMult");
+        auto ct4 = fheZ->EvalArithToArith(ct3);
+        __heir_debug2(ct4, "CMult");
 
-        //auto ct5 = fheZ->EvalArithToArith(ct4);
-        //__heir_debug2(ct5, "CMult");
+        auto ct5 = fheZ->EvalArithToArith(ct4);
+        __heir_debug2(ct5, "CMult");
 
         //auto ct5 = z->EvalMultFullInZ(ct4, ct4);
         //z->ModReduceInPlace(ct5);

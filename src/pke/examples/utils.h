@@ -115,3 +115,25 @@ Ciphertext<DCRTPoly> Encrypt(Plaintext ptxt, const PublicKey<DCRTPoly> publicKey
         std::cout << "Time for " str " : " << diff.count() / (times) << " s" << std::endl; \
     }                                                                                      \
     while (0)
+
+static inline std::string bigIntegerToHexString(BigInteger value) {
+    std::stringstream ss;
+    NTL::ZZ v = value;
+
+    if (v == 0) {
+        return "0x0";
+    }
+
+    long nbytes = NumBytes(v);
+    std::vector<unsigned char> buf(nbytes);
+    BytesFromZZ(buf.data(), v, nbytes);
+    std::reverse(buf.begin(), buf.end());
+
+    std::ostringstream oss;
+    oss << "0x";
+
+    for (unsigned char b : buf) {
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(b);
+    }
+    return oss.str();
+};
