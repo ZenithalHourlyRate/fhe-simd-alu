@@ -135,8 +135,7 @@ public:
 
     void EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                             std::vector<uint32_t> levelBudget = {2, 2}, std::vector<uint32_t> dim1 = {0, 0},
-                            uint32_t w = 4, int32_t arithToBooleanCutoff = -16, uint32_t lutOrder = 1,
-                            uint32_t zSlotsThresholdForScaling = 8);
+                            uint32_t w = 4, int32_t arithToBooleanCutoff = -16, uint32_t lutOrder = 1);
 
     void EvalBootstrapKeyGen(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots);
 

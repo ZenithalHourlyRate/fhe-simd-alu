@@ -22,16 +22,13 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, Big
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
     // encodeBinary here is crucial: making it become MultShort
-    auto plaintext =
-        ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, 0, elemParam, sf);
+    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
     // This is actually MultShort
     return EvalMult(ct, plaintext);
 }
 
 Ciphertext<DCRTPoly> LeveledZImpl::EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
-    // Each input message is scaled by zSlots (maybe?)
     auto ct = EvalMultWithAdjust(ct1, ct2);
-    // Now the message is scaled by zSlots^2 (maybe?)
     return ct;
 }
 
@@ -58,12 +55,6 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct)
 Ciphertext<DCRTPoly> LeveledZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
     auto ct = EvalMultWithAdjust(ct1, ct2);
     ModReduceInPlace(ct);
-
-    // Adjust the ZDeg
-    auto ct1Params = ct1->GetZEncodingParams();
-    auto ct1ZDeg   = ct1->GetZEncodingParams().getZDeg();
-    auto ct2ZDeg   = ct2->GetZEncodingParams().getZDeg();
-    ct->SetZEncodingParams(ZEncodingParams(ZMode, ct1Params.getZN(), ct1Params.getZSlots(), ct1ZDeg + ct2ZDeg));
 
     // Multiply by tPtxt
     auto zN         = ct->GetZEncodingParams().getZN();

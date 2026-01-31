@@ -21,8 +21,6 @@ private:
     // Meaningful only for ZPolynomial/Boolean representation
     uint32_t m_zN;
     uint32_t m_zSlots;
-    // Meaningful only for ZPolynomial representation
-    uint32_t m_zDeg;  // the degree d of (N/n)^d in scaling factor
     // Meaningful only for C mode
     uint32_t m_rN;
     uint32_t m_cSlots;
@@ -31,19 +29,17 @@ public:
     ZEncodingParams() : m_encodingType(INVALID) {}
     ZEncodingParams(const ZEncodingParams&) = default;
 
-    ZEncodingParams(ZEncodingType type, uint32_t N, uint32_t slots = 0, uint32_t zDeg = 1) {
+    ZEncodingParams(ZEncodingType type, uint32_t N, uint32_t slots = 0) {
         m_encodingType = type;
         if (type == ZMode || type == BModeSparse || type == BModeFull) {
             m_zN     = N;
             m_zSlots = slots;
-            m_zDeg   = zDeg;
             m_rN     = 0;
             m_cSlots = 0;
         }
         if (type == CMode) {
             m_zN     = 0;
             m_zSlots = 0;
-            m_zDeg   = 0;
             m_rN     = N;
             m_cSlots = N / 2;
         }
@@ -104,15 +100,6 @@ public:
         }
     }
 
-    uint32_t getZDeg() const {
-        if (m_encodingType == ZMode) {
-            return m_zDeg;
-        }
-        else {
-            OPENFHE_THROW("getZDeg called for other mode");
-        }
-    }
-
     bool isZMode() const {
         return m_encodingType == ZMode;
     }
@@ -138,18 +125,10 @@ public:
         return false;
     }
 
-    ZEncodingParams multiply(ZEncodingParams rhs) {
-        if (m_encodingType != rhs.m_encodingType || m_encodingType != ZMode) {
-            OPENFHE_THROW("Wrong Multiplication");
-        }
-        return ZEncodingParams(ZMode, getZN(), getZSlots(), getZDeg() + rhs.getZDeg());
-    }
-
     std::string toString() const {
         std::string result;
         if (m_encodingType == ZMode) {
-            result = "ZMode: zN=" + std::to_string(m_zN) + " zSlots=" + std::to_string(m_zSlots) +
-                     " zDeg=" + std::to_string(m_zDeg);
+            result = "ZMode: zN=" + std::to_string(m_zN) + " zSlots=" + std::to_string(m_zSlots);
         }
         else if (m_encodingType == BModeSparse) {
             result = "BModeSparse: zN=" + std::to_string(m_zN) + " zSlots=" + std::to_string(m_zSlots);

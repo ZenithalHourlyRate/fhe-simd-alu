@@ -19,10 +19,6 @@ ZPolynomial CSlots::getZPolynomial(size_t slotIndex) const {
     std::vector<BigComplex> cSlotsForIndex(zN / 2, BigFixedPoint::zero());
     for (size_t i = 0; i != zN / 2; ++i) {
         cSlotsForIndex[i] = slots[(slotIndex * (zN / 2)) + i];
-        for (size_t j = 0; j != params.getZDeg(); ++j) {
-            // scale down it by zSlots as we did scale up during ZEncodingImpl::encodeZ
-            cSlotsForIndex[i] /= BigFixedPoint::positive(params.getZSlots());
-        }
     }
     return ZPolynomial(ZLinearTransform::MultZUInverse(zN, cSlotsForIndex));
 }

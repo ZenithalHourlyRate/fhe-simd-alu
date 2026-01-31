@@ -13,7 +13,7 @@ namespace lbcrypto {
 
 void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t zN, uint32_t zSlots,
                                   std::vector<uint32_t> levelBudget, std::vector<uint32_t> dim1, uint32_t w,
-                                  int32_t arithToBooleanCutoff, uint32_t lutOrder, uint32_t zSlotsThresholdForScaling) {
+                                  int32_t arithToBooleanCutoff, uint32_t lutOrder) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
     uint32_t N  = cc.GetRingDimension();
@@ -146,9 +146,8 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U1hatT[j][i] = U1[i][j].conj();
                 }
             }
-            precom->m_U0Pre     = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
-            precom->m_U0hatTPre = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
-            // The following two deprecated
+            precom->m_U0Pre             = EvalLinearTransformPrecompute(cc, U0, U1, 1, scaleC2R);
+            precom->m_U0hatTPre         = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2C);
             precom->m_U0hatTPreScaledN  = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CN);
             precom->m_U0hatTPreScaledNK = EvalLinearTransformPrecompute(cc, U0hatT, U1hatT, 0, scaleR2CNK);
         }
@@ -161,17 +160,15 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
                     U0hatT[j][i] = U0[i][j].conj();
                 }
             }
-            precom->m_U0Pre     = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
-            precom->m_U0hatTPre = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
-            // The following two deprecated
+            precom->m_U0Pre             = EvalLinearTransformPrecompute(cc, U0, scaleC2R);
+            precom->m_U0hatTPre         = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2C);
             precom->m_U0hatTPreScaledN  = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CN);
             precom->m_U0hatTPreScaledNK = EvalLinearTransformPrecompute(cc, U0hatT, scaleR2CNK);
         }
     }
     else {
-        precom->m_U0PreFFT     = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
-        precom->m_U0hatTPreFFT = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
-        // The following two deprecated
+        precom->m_U0PreFFT             = EvalSlotsToCoeffsPrecompute(cc, ksiPows, rotGroup, false);
+        precom->m_U0hatTPreFFT         = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFT);
         precom->m_U0hatTPreFFTScaledN  = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFTN);
         precom->m_U0hatTPreFFTScaledNK = EvalCoeffsToSlotsPrecompute(cc, ksiPows, rotGroup, false, scaleR2CFFTNK);
     }
@@ -215,15 +212,8 @@ void FHEZImpl::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_
         }
     }
 
-    // scaled during encoding
-    BigFixedPoint scaleZU = BigFixedPoint::positive(zSlots);
-    // NOTE: for large zSlots, scaling ZV by zSlots may cause precision issue
-    // We then consume more levels to scale down during encoding
+    BigFixedPoint scaleZU = BigFixedPoint::one();
     BigFixedPoint scaleZV = BigFixedPoint::one();
-    if (zSlots < zSlotsThresholdForScaling) {
-        scaleZV = BigFixedPoint::one() / BigFixedPoint::positive(zSlots);
-    }
-    precom->m_zSlotsThresholdForScaling = zSlotsThresholdForScaling;
 
     if (isSparse) {
         precom->m_ZUPre          = EvalZLinearTransformPrecompute(cc, ZU0, ZU1, zSlots, scaleZU);

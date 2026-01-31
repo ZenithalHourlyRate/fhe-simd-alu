@@ -86,9 +86,8 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOp
     auto isSparse = precomp.m_isSparse;
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc->GetCryptoParameters());
-    // adjust ciphertext to level just above z2c + c2r + trunc
-    // TODO: fix lZ2C
-    uint32_t lZ2C    = 2;
+    // adjust ciphertext to level just above z2c + (lMask) + c2r
+    uint32_t lZ2C    = 1;
     uint32_t lMask   = (z2cOption == Z2C_SPECIAL_B0);  // when specialB0, leave one level for masking.
     uint32_t lC2R    = precomp.m_paramsDec.lvlb;
     auto mulDepth    = cryptoParams->GetMultiplicativeDepth();
@@ -99,34 +98,6 @@ CiphertextGroup FHEZImpl::EvalZ2C(ConstCiphertext<DCRTPoly>& ct, Z2COption z2cOp
         // Take the Real
         auto ct = z->EvalAdd(z2c, z->EvalConjugateInC(z2c));
         z->ModReduceInPlace(ct);
-
-        // For large zSlots, we do not scale down by zSlots during multiplying ZV
-        auto zSlots = ct->GetZEncodingParams().getZSlots();
-        if (precomp.m_zSlotsThresholdForScaling <= zSlots) {
-            auto zDeg = ct->GetZEncodingParams().getZDeg();
-            // Manually scale down by zSlots
-            BigFixedPoint scaleDown = BigFixedPoint::one();
-            for (size_t j = 0; j != zDeg; ++j) {
-                scaleDown = scaleDown / BigFixedPoint::positive(zSlots);
-            }
-            //{
-            //    auto sfNow       = ct->GetScalingFactorBFP();
-            //    auto scalarWhole = sfNow * scaleDown;
-            //    auto scalarFrac  = scalarWhole - scalarWhole.round();
-            //    auto precLoss    = scalarFrac / scalarWhole;
-            //    std::cout << "Z2C Scale down precision loss: " << precLoss.log2Norm() << std::endl;
-            //}
-            z->EvalMultInPlaceInC(ct, scaleDown);
-            z->ModReduceInPlace(ct);
-        }
-        else {
-            OPENFHE_THROW("Not implemented yet");
-        }
-
-        // Now reset zDeg to 1
-        auto zEncParams    = ct->GetZEncodingParams();
-        auto newZEncParams = ZEncodingParams(ZMode, zEncParams.getZN(), zEncParams.getZSlots(), 1);
-        ct->SetZEncodingParams(newZEncParams);
         return ct;
     };
 
@@ -194,14 +165,13 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
         auto sfNow  = target->GetScalingFactorBFP();
         auto scalar = (sfNow * scale).getRoundedBigInteger();
         //{
+        //    std::cout << "R2C scaleDown factor: " << scale.log2Norm() << std::endl;
         //    auto scalarWhole = sfNow * scale;
-        //    auto scalarFrac  = scalarWhole - scalarWhole.round();
-        //    auto precLoss    = scalarFrac / scalarWhole;
-        //    std::cout << "Scale down precision loss: " << precLoss.log2Norm() << std::endl;
+        //    std::cout << "scaleWhole: " << scalarWhole.toHexString() << std::endl;
+        //    auto scalarFrac = scalarWhole - scalarWhole.round();
+        //    auto precLoss   = scalarFrac / scalarWhole;
+        //    std::cout << "R2C Scale down precision loss: " << precLoss.log2Norm() << std::endl;
         //}
-        // Use EvalMultScalarInPlace to avoid precision loss
-        // Should not use EvalMultInPlaceInC here as it will cause precision loss
-        // TODO: should be OK to use EvalMultInPlaceInC?
         z->EvalMultScalarInPlace(target, scalar);
         target->SetScalingFactorBFP(sfNow * sfNow);
         z->ModReduceInPlace(target);
@@ -219,12 +189,10 @@ CiphertextGroup FHEZImpl::EvalR2C(ConstCiphertext<DCRTPoly>& ct, R2CScalingOptio
                                 EvalCoeffsToSlots(precomp.m_U0hatTPreFFT, ct);
     }
     else if (scalingOption == SCALE_N_PRE) {
-        OPENFHE_THROW("Disabled");
         r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPreScaledN, ct) :
                                 EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledN, ct);
     }
     else {  // scalingOption == SCALE_NK_PRE
-        OPENFHE_THROW("Disabled");
         r2c = (isLTBootstrap) ? EvalLinearTransform(precomp.m_U0hatTPreScaledNK, ct) :
                                 EvalCoeffsToSlots(precomp.m_U0hatTPreFFTScaledNK, ct);
     }
@@ -331,7 +299,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithHigh(ConstCiphertext<DCRTPoly>& c
     //------------------------------------------------------------------------------
 
     // R2C then will multiply by rN then divide by N. Carried out in high precision
-    auto r2z = EvalR2Z(raised, R2CScalingOption::SCALE_N, C2Z_NORMAL);
+    auto r2z = EvalR2Z(raised, R2CScalingOption::SCALE_N_PRE, C2Z_NORMAL);
     return r2z;
 }
 
@@ -366,7 +334,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     //------------------------------------------------------------------------------
 
     // R2C then will multiply by rN then divide by N * K; carried out in high precision
-    auto r2c = EvalR2C(raised, R2CScalingOption::SCALE_NK);
+    auto r2c = EvalR2C(raised, R2CScalingOption::SCALE_NK_PRE);
     //__heir_debug2(r2c, "R2C");
 
     //------------------------------------------------------------------------------
@@ -393,10 +361,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto r2z = EvalC2Z(g0, C2Z_SPECIAL_A2AE);
 
     //------------------------------------------------------------------------------
-    // Subtract with proper zDeg
+    // Subtract
     //------------------------------------------------------------------------------
-
-    // TODO: match zDeg and scaling factor...
     return z->EvalSubWithAdjust(ct, r2z);
 }
 
@@ -843,7 +809,7 @@ Ciphertext<DCRTPoly> FHEZImpl::internalBooleanToBooleanLTsSparse(ConstCiphertext
     // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
     // can do so in low precision as we do not need high precision here
     // Since we call C2R without imaginary part, we only need the real part here
-    auto r2c = EvalR2C(raised, SCALE_NK)[0];
+    auto r2c = EvalR2C(raised, SCALE_NK_PRE)[0];
     return r2c;
 }
 
@@ -870,7 +836,7 @@ CiphertextGroup FHEZImpl::internalBooleanToBooleanLTsFull(CiphertextGroup ct) co
 
     // R2C then will multiply by rN then divide by N * K because of scaling in pre-compute
     // can do so in low precision as we do not need high precision here
-    auto r2cGroup = EvalR2C(raised, SCALE_NK);
+    auto r2cGroup = EvalR2C(raised, SCALE_NK_PRE);
     return r2cGroup;
 }
 
