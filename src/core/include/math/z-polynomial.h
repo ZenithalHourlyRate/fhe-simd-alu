@@ -359,6 +359,18 @@ public:
         return Ipoly;
     }
 
+    static double getMaxLogI(ZPolynomial input) {
+        auto I         = extractI(input);
+        auto maxIValue = 1;  // for log2 calculation
+        for (size_t i = 0; i != I.getCoefficients().size(); ++i) {
+            auto Idouble = std::abs(I[i].round().convertToDouble());
+            if (Idouble > maxIValue) {
+                maxIValue = static_cast<int>(Idouble);
+            }
+        }
+        return std::log2(maxIValue);
+    }
+
     static ZPolynomial truncError(ZPolynomial input) {
         ZPolynomial output(input.getZN());
         auto error = extractError(input);
