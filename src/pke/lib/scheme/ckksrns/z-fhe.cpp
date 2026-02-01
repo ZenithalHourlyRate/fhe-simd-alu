@@ -285,7 +285,6 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2COption 
         auto z2cGroup = EvalZ2C(ct, z2cOption);
         auto z2c0     = z2cGroup[0];
         auto z2c1     = z2cGroup[1];
-        //pkeZ_global->debug(z2c0, "Z2C0");
         cc->GetScheme()->MultByMonomialInPlace(z2c1, cSlots);
         cc->EvalAddInPlaceNoCheck(z2c0, z2c1);
         return EvalC2R(z2c0);
@@ -478,6 +477,8 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly
         // They may have different scaling factors...
         z->EvalAddInPlace(msbs[0], msbs[i]);
     }
+    // Properly set the Z-encoding params
+    msbs[0]->SetZEncodingParams(ZEncodingParams(BModeSparse, zN, zSlots));
     return msbs[0];
 }
 
@@ -571,6 +572,10 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanFull(ConstCiphertext<DCRTPoly>& ct) 
         z->EvalAddInPlace(msb0, msbs[i]);
         z->EvalAddInPlace(msb1, msbs[msbs.size() / 2 + i]);
     }
+    // Properly set the Z-encoding params
+    msb0->SetZEncodingParams(ZEncodingParams(BModeFull, zN, zSlots));
+    msb1->SetZEncodingParams(ZEncodingParams(BModeFull, zN, zSlots));
+
     CiphertextGroup msbGroup({msb0, msb1});
     return msbGroup;
 }
@@ -802,6 +807,11 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
     }
 
     finalMSBs.insert(finalMSBs.end(), finalMSBsSec.begin(), finalMSBsSec.end());
+
+    // Properly set the Z-encoding params
+    for (auto ct : finalMSBs) {
+        ct->SetZEncodingParams(ZEncodingParams(BModeFull, zN, zSlots));
+    }
     return finalMSBs;
 }
 
@@ -1020,6 +1030,11 @@ CiphertextGroup FHEZImpl::EvalBooleanToBooleanFull(CiphertextGroup ct) const {
 Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToArith(CiphertextGroup ct) const {
     // which will multiply by t^{-1} in Z
     auto res = EvalC2Z(ct, C2Z_SPECIAL_A2AE);
+
+    // Properly set the Z-encoding params
+    auto zN     = ct[0]->GetZEncodingParams().getZN();
+    auto zSlots = ct[0]->GetZEncodingParams().getZSlots();
+    res->SetZEncodingParams(ZEncodingParams(ZMode, zN, zSlots));
     return res;
 }
 

@@ -47,7 +47,7 @@ struct ZDecryptResult {
 
     void printNoiseComparison(const ZDecryptResult& other, std::string msg) const {
         double diff = noiseComparison(other);
-        std::cout << msg << " Noise difference: " << diff << std::endl;
+        std::cout << msg << " Current Noise " << logMaxNoise << ", Difference: " << diff << std::endl;
     }
 
 private:
