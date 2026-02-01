@@ -53,16 +53,20 @@ RPolynomial CSlots::toRPolynomial() const {
         inverseInDouble[i] =
             std::complex<double>(inverse[i].getReal().convertToDouble(), inverse[i].getImag().convertToDouble());
     }
-    DiscreteFourierTransform::FFTSpecialInv(inverseInDouble, m);
+#ifdef HIGH_PREC
     // ....DiscreteFourierTransformBigComplex is too slow....
-    //for (size_t i = 0; i != inverse.size(); ++i) {
-    //DiscreteFourierTransformBigComplex::FFTSpecialInv(inverse, m);
+    DiscreteFourierTransformBigComplex::FFTSpecialInv(inverse, m);
 
-    //std::vector<BigFixedPoint> rValues(2 * slots.size());
-    //for (size_t i = 0; i != inverse.size(); ++i) {
-    //    rValues[i]                = inverse[i].getReal();
-    //    rValues[i + slots.size()] = inverse[i].getImag();
-    //}
+    std::vector<BigFixedPoint> rValues(2 * slots.size());
+    for (size_t i = 0; i != inverse.size(); ++i) {
+        for (size_t i = 0; i != inverse.size(); ++i) {
+            rValues[i]                = inverse[i].getReal();
+            rValues[i + slots.size()] = inverse[i].getImag();
+        }
+    }
+    return RPolynomial(params, rValues);
+#else
+    DiscreteFourierTransform::FFTSpecialInv(inverseInDouble, m);
     std::vector<double> rValues(2 * slots.size());
     for (size_t i = 0; i != inverse.size(); ++i) {
         rValues[i]                = inverseInDouble[i].real();
@@ -73,6 +77,7 @@ RPolynomial CSlots::toRPolynomial() const {
         rValuesBFP[i] = BigFixedPoint::fromDouble(rValues[i]);
     }
     return RPolynomial(params, rValuesBFP);
+#endif
 }
 
 // TODO: deprecate into BMode...

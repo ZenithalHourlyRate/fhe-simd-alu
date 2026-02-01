@@ -1,14 +1,28 @@
 #include "scheme/ckksrns/z-fhe.h"
+#include "scheme/ckksrns/z-pke.h"
 #include "scheme/ckksrns/ckksrns-fhe.h"
 #include "encoding/z-encoding.h"
 
-double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) __attribute__((weak));
-
-double __heir_debug2(lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly> ct, std::string msg) {
-    return 0.0;
-}
-
 namespace lbcrypto {
+
+// Not used
+Ciphertext<DCRTPoly> FHEZImpl::EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const {
+    auto q     = ct->GetElements()[0].GetModulus();
+    auto sfNow = ct->GetScalingFactorBFP();
+    auto qBFP  = BigFixedPoint(q, 0, false).scaleTo(128);
+    // q / Delta
+    auto divScalar = (qBFP / sfNow).getRoundedBigInteger();
+    auto ct2       = z->EvalMultScalar(ct, divScalar);
+    ct2->SetScalingFactorBFP(qBFP);
+    // Reduce all the way to the bottom
+    z->ModReduceInPlace(ct2, ct2->GetElements()[0].GetNumOfElements() - 1);
+    // To make sure the scaling factor is exactly q0 / 2
+    auto q0     = ct2->GetElements()[0].GetModulus();
+    auto q0BFP  = BigFixedPoint(q0, 0, false).scaleTo(128);
+    auto sfNow2 = q0BFP;
+    ct2->SetScalingFactorBFP(sfNow2);
+    return ct2;
+}
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
@@ -74,6 +88,7 @@ void FHEZImpl::EvalPartialSumInPlace(Ciphertext<DCRTPoly>& ct) const {
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalModRaisePartialSum(ConstCiphertext<DCRTPoly>& ct) const {
+    // Truncate is fused into C2R
     auto ctNew = EvalModRaise(ct);
     EvalPartialSumInPlace(ctNew);
     return ctNew;
@@ -270,6 +285,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalZ2R(ConstCiphertext<DCRTPoly>& ct, Z2COption 
         auto z2cGroup = EvalZ2C(ct, z2cOption);
         auto z2c0     = z2cGroup[0];
         auto z2c1     = z2cGroup[1];
+        //pkeZ_global->debug(z2c0, "Z2C0");
         cc->GetScheme()->MultByMonomialInPlace(z2c1, cSlots);
         cc->EvalAddInPlaceNoCheck(z2c0, z2c1);
         return EvalC2R(z2c0);
@@ -319,7 +335,6 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
     auto elemParam = ct->GetElements()[0].GetParams();
 
     auto z2r = EvalZ2R(ct, Z2C_SPECIAL_A2AE);
-    //__heir_debug2(z2r, "Z2R");
 
     //------------------------------------------------------------------------------
     // ModRaise and PartialSum
@@ -335,6 +350,7 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
 
     // R2C then will multiply by rN then divide by N * K; carried out in high precision
     auto r2c = EvalR2C(raised, R2CScalingOption::SCALE_NK_PRE);
+    //pkeZ_global->debug(r2c[0], "R2C0");
     //__heir_debug2(r2c, "R2C");
 
     //------------------------------------------------------------------------------
@@ -367,9 +383,10 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArithNoise(ConstCiphertext<DCRTPoly>& 
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalArithToArith(ConstCiphertext<DCRTPoly>& ct) const {
-    auto lowNoiseCt = EvalArithToArithNoise(ct);
-    auto resetICt   = EvalArithToArithHigh(lowNoiseCt);
-    return resetICt;
+    // We first call resetI then clean noise, as large I will affect *linear transformation precision*!!!!
+    auto resetICt   = EvalArithToArithHigh(ct);
+    auto lowNoiseCt = EvalArithToArithNoise(resetICt);
+    return lowNoiseCt;
 }
 
 Ciphertext<DCRTPoly> FHEZImpl::EvalArithToBooleanSparse(ConstCiphertext<DCRTPoly>& ct) {

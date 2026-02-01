@@ -60,12 +60,7 @@ class PKEZImpl {
 public:
     PKEZImpl(PublicKey<DCRTPoly> pk, PrivateKey<DCRTPoly> sk) : pk(pk), sk(sk) {};
 
-    void debugZ(RPolynomial rPoly);
-
-    //void debug(Plaintext ct, std::string msg);
     void debug(Ciphertext<DCRTPoly> ct, std::string msg);
-
-    double extractNoise(Ciphertext<DCRTPoly> ct);
 
     ZDecryptResult Decrypt(CiphertextGroup ct);
 
@@ -78,6 +73,8 @@ private:
 };
 
 using PKEZ = std::shared_ptr<PKEZImpl>;
+
+extern PKEZ pkeZ_global;
 
 }  // namespace lbcrypto
 

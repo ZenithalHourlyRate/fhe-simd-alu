@@ -153,6 +153,8 @@ public:
                                            ConstCiphertext<DCRTPoly>& ctxt) const;
 
 public:
+    Ciphertext<DCRTPoly> EvalTruncate(ConstCiphertext<DCRTPoly>& ct) const;
+
     Ciphertext<DCRTPoly> EvalModRaise(ConstCiphertext<DCRTPoly>& ct) const;
 
     void EvalPartialSumInPlace(Ciphertext<DCRTPoly>& ct) const;

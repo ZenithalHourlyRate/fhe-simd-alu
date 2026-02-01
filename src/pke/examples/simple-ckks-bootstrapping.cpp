@@ -67,6 +67,7 @@ void SimpleBootstrapExample(int zN) {
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
     PKEZ pkeZ      = std::make_shared<PKEZImpl>(keyPair.publicKey, keyPair.secretKey);
+    pkeZ_global    = pkeZ;  // Temporary
 
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl;
@@ -166,12 +167,15 @@ void SimpleBootstrapExample(int zN) {
     // ArithToArithNoise
     if (1) {
         //BENCHMARK(fheZ->EvalArithToArithNoise(ct2), 1, "ArithToArithNoise");
-        auto ctRes  = fheZ->EvalArithToArith(ct2);
+        auto ctRes  = fheZ->EvalArithToArithHigh(ct2);
         auto a2aDec = pkeZ->Decrypt(ctRes);
         a2aDec.print("A2Ae");
         a2aDec.printNoiseComparison(ct2Dec, "A2Ae vs ct2");
 
-        auto ctRes2    = z->EvalMultFullInZ(ctRes, ctRes);
+        auto ctRes2 = z->EvalMultFullInZ(ctRes, ctRes);
+        z->ModReduceInPlace(ctRes2);
+        ctRes2 = z->EvalMultFullInZ(ctRes2, ctRes);
+        z->ModReduceInPlace(ctRes2);
         auto a2aMulDec = pkeZ->Decrypt(ctRes2);
         a2aMulDec.print("A2Ae Mult");
         a2aMulDec.printNoiseComparison(ct2Dec, "A2Ae Mult vs ct2");
@@ -181,10 +185,10 @@ void SimpleBootstrapExample(int zN) {
         a2aMul2Dec.print("A2Ae Mult 2");
         a2aMul2Dec.printNoiseComparison(ct2Dec, "A2Ae Mult 2 vs ct2");
 
-        auto ctRes4     = fheZ->EvalArithToArith(ctRes3);
-        auto a2aMul3Dec = pkeZ->Decrypt(ctRes4);
-        a2aMul3Dec.print("A2Ae Mult 3");
-        a2aMul3Dec.printNoiseComparison(ct2Dec, "A2Ae Mult 3 vs ct2");
+        //auto ctRes4     = fheZ->EvalArithToArith(ctRes3);
+        //auto a2aMul3Dec = pkeZ->Decrypt(ctRes4);
+        //a2aMul3Dec.print("A2Ae Mult 3");
+        //a2aMul3Dec.printNoiseComparison(ct2Dec, "A2Ae Mult 3 vs ct2");
     }
 
     // ArithToArith

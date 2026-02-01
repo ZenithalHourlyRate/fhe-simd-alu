@@ -3,6 +3,8 @@
 
 namespace lbcrypto {
 
+PKEZ pkeZ_global;  // Temporary
+
 //=============================================================================
 // Encryption Utils
 //=============================================================================
@@ -207,79 +209,94 @@ void PKEZImpl::debug(Ciphertext<DCRTPoly> ct, std::string msg) {
     auto log2sf  = std::log2(sfBigFP.convertToDouble());
     std::cout << msg << "  Scaling factor log2: " << std::setprecision(20) << log2sf << std::endl;
     auto level = ct->GetLevel();
-    std::cout << msg << "  level: " << level;
+    std::cout << msg << "  level: " << level << std::endl;
     auto zEncodeParams = ct->GetZEncodingParams();
     auto zN            = zEncodeParams.getZN();
     auto zSlots        = zEncodeParams.getZSlots();
     auto zEncode       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, sfBigFP, zEncodeParams);
 
     RPolynomial values = ZEncodingImpl::decodeR(zEncode);
-    //if (!zEncodeParams.isZMode()) {
-    //    auto cSlots          = values.toCSlots();
-    //    auto maxSlotsToPrint = std::min(zN / 2, uint(16));
-    //    for (size_t i = 0; i != maxSlotsToPrint; ++i) {
-    //        auto value    = cSlots[i].getReal();
-    //        auto p        = BigFixedPoint::positive(1 << zN);
-    //        auto lutPart  = (value * p).round() / p;
-    //        auto fracPart = value - lutPart;
-    //        if (i % 4 == 3) {
-    //            std::cout << msg << "  cSlots Slot " << i << " " << cSlots[i].getReal().toHexString(ceil(log2sf / 4.0))
-    //                      << std::endl;
-    //        }
-    //    }
-    //    if (zSlots > maxSlotsToPrint) {
-    //        std::cout << msg << "  ... (total " << zSlots << " slots)" << std::endl;
-    //    }
-    //}
-    if (zEncodeParams.isZMode()) {
-        auto cSlots = values.toCSlots();
-        std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial(zN));
-        auto maxSlotsToPrint = std::min(zSlots, uint(8));
-#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(maxSlotsToPrint))
-        for (size_t i = 0; i != maxSlotsToPrint; ++i) {
-            zPolys[i] = cSlots.getZPolynomial(i);
+
+    enum class DecodeMode { RDecode, CSlotsDecode, ZDecode };
+    std::map<std::string, DecodeMode> decodeMap = {
+        // RDecode
+        {"Z2R", DecodeMode::RDecode},
+        // CDecode
+        {"Scaled", DecodeMode::CSlotsDecode},
+        {"Z2C0", DecodeMode::CSlotsDecode},
+        {"R2C0", DecodeMode::CSlotsDecode},
+    };
+
+    auto decodeModeIt = decodeMap.find(msg);
+    if (decodeModeIt == decodeMap.end()) {
+        return;
+    }
+    auto decodeMode = decodeModeIt->second;
+
+    if (decodeMode == DecodeMode::RDecode) {
+        // Threshold print to avoid too much output
+        for (size_t i = 0; i != std::min(values.getCoefficients().size(), 8ul); ++i) {
+            auto valueI = values[i];
+            std::cout << msg << "  values [" << i << "]: " << values[i].toHexString(ceil(log2sf / 4.0)) << std::endl;
         }
+        if (values.getCoefficients().size() > 4) {
+            std::cout << msg << "  ... (total " << values.getCoefficients().size() << " coefficients)" << std::endl;
+        }
+    }
+    if (decodeMode == DecodeMode::CSlotsDecode) {
+        auto cSlots          = values.toCSlots();
+        auto maxSlotsToPrint = std::min(zN / 2, uint(16));
         for (size_t i = 0; i != maxSlotsToPrint; ++i) {
-            //printZPoly(zPolys[i], msg);
+            auto value    = cSlots[i].getReal();
+            auto p        = BigFixedPoint::positive(16);
+            auto lutPart  = (value * p).round() / p;
+            auto fracPart = value - lutPart;
+            //if (i % 4 == 3) {
+            std::cout << msg << "  cSlots Slot " << i << " " << cSlots[i].getReal().toHexString(ceil(log2sf / 4.0))
+                      << " (LUT part: " << lutPart.toHexString(ceil(log2sf / 4.0))
+                      << ", frac part: " << fracPart.toHexString(ceil(log2sf / 4.0)) << ")" << std::endl;
+            //}
+            if (msg == "Z2C0") {
+                // See truncation noise
+                auto cc                 = ct->GetCryptoContext();
+                const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
+                auto mulDepth           = cryptoParams->GetMultiplicativeDepth();
+                auto elementParams      = ct->GetElements()[0].GetParams();
+                auto q0                 = BigInteger(elementParams->GetParams()[0]->GetModulus());
+                auto q1                 = BigInteger(elementParams->GetParams()[1]->GetModulus());
+                auto qBFP               = BigFixedPoint(q0 * q1, 0, false).scaleTo(128);
+                auto sfBeforeTrunc      = cryptoParams->GetScalingFactorBFP(mulDepth - 1);
+                auto sfTrunc            = qBFP / sfBeforeTrunc;
+                auto sfTruncInt         = sfTrunc.round();
+                auto sfTruncFrac        = sfTrunc - sfTruncInt;
+                //std::cout << msg << "    Truncation scaling factor: " << sfTruncFrac.log2Norm() << std::endl;
+                auto noiseNow = lutPart * (sfTruncFrac * sfBeforeTrunc / qBFP) + fracPart;
+                std::cout << msg << "    Truncation noise estimate: " << noiseNow.toHexString(ceil(log2sf / 4.0))
+                          << std::endl;
+                //std::cout << msg << "    Truncation scaling factor ratio: " << ratio.toHexString(ceil(log2sf / 4.0))
+                //          << std::endl;
+            }
         }
         if (zSlots > maxSlotsToPrint) {
             std::cout << msg << "  ... (total " << zSlots << " slots)" << std::endl;
         }
     }
+    //if (zEncodeParams.isZMode()) {
+    //    auto cSlots = values.toCSlots();
+    //    std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial(zN));
+    //    auto maxSlotsToPrint = std::min(zSlots, uint(8));
+    //#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(maxSlotsToPrint))
+    //    for (size_t i = 0; i != maxSlotsToPrint; ++i) {
+    //        zPolys[i] = cSlots.getZPolynomial(i);
+    //    }
+    //    for (size_t i = 0; i != maxSlotsToPrint; ++i) {
+    //        //printZPoly(zPolys[i], msg);
+    //    }
+    //    if (zSlots > maxSlotsToPrint) {
+    //        std::cout << msg << "  ... (total " << zSlots << " slots)" << std::endl;
+    //    }
+    //}
     return;
-}
-
-double PKEZImpl::extractNoise(Ciphertext<DCRTPoly> ct) {
-    auto b = DecryptCore(ct->GetElements(), sk);
-
-    auto sfBigFP       = ct->GetScalingFactorBFP();
-    auto zEncodeParams = ct->GetZEncodingParams();
-    auto zN            = zEncodeParams.getZN();
-    auto zSlots        = zEncodeParams.getZSlots();
-    auto zEncode       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, sfBigFP, zEncodeParams);
-
-    RPolynomial values = ZEncodingImpl::decodeR(zEncode);
-
-    double log2MaxNoise;
-
-    if (zEncodeParams.isZMode()) {
-        auto cSlots = values.toCSlots();
-        std::vector<ZPolynomial> zPolys(zSlots, ZPolynomial(zN));
-#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zSlots))
-        for (size_t i = 0; i != zSlots; ++i) {
-            zPolys[i] = cSlots.getZPolynomial(i);
-        }
-        std::vector<double> log2Noises(zSlots);
-#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zSlots))
-        for (size_t i = 0; i != zSlots; ++i) {
-            log2Noises[i] = ZPolynomial::extractError(zPolys[i]).getLog2Norm();
-        }
-        log2MaxNoise = *std::max_element(log2Noises.begin(), log2Noises.end());
-    }
-    else {
-        OPENFHE_THROW("Not implemented");
-    }
-    return log2MaxNoise;
 }
 
 }  // namespace lbcrypto
