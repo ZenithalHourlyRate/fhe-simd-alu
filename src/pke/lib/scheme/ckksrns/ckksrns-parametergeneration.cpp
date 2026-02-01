@@ -54,7 +54,7 @@ constexpr size_t AUXMODSIZE = 28;
 #else
 constexpr size_t AUXMODSIZE = 60;
 
-size_t AUXMODSIZE_FLEXIBLEMANUAL = 50;
+size_t AUXMODSIZE_FLEXIBLEMANUAL = 60;
 #endif
 
 bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNSInternal(std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParams,

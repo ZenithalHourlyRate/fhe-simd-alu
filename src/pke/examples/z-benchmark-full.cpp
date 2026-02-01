@@ -31,24 +31,24 @@ void SimpleBootstrapExample(int zN, std::string directive) {
     parameters.SetSecretKeyDist(lbcrypto::SPARSE_ENCAPSULATED);
 
     uint32_t repeats = 1;
-    if (directive == "bench") {
+    if (directive == "bench" || directive == "verify") {
         parameters.SetSecurityLevel(lbcrypto::HEStd_128_classic);
         parameters.SetRingDim(1 << 16);
-        repeats = 5;
+        if (directive == "bench")
+            repeats = 5;
+        if (directive == "verify")
+            repeats = 0;
     }
     else {  // test
         parameters.SetSecurityLevel(lbcrypto::HEStd_NotSet);
         parameters.SetRingDim(1 << 10);
-        if (directive == "verify") {
-            repeats = 0;
-        }
     }
 
     ScalingTechnique rescaleTech = FLEXIBLEMANUAL;
-    uint32_t dcrtBits            = 43;
+    uint32_t dcrtBits            = 50;
     // bit size for aux moduli in P
     // for HEXL acceleration. Extra 6 bit for SPARSE_ENCAPSULATED
-    AUXMODSIZE_FLEXIBLEMANUAL = 50;
+    //AUXMODSIZE_FLEXIBLEMANUAL = 50;
     std::cout << "Scaling Factor: " << dcrtBits << " bits\n";
     std::cout << "Auxiliary Prime Size: " << AUXMODSIZE_FLEXIBLEMANUAL << " bits\n";
 

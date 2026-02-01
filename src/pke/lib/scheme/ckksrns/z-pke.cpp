@@ -299,4 +299,18 @@ void PKEZImpl::debug(Ciphertext<DCRTPoly> ct, std::string msg) {
     return;
 }
 
+bool ZDecryptResult::valuesEqual(const ZDecryptResult& other) const {
+    if (values.size() != other.values.size()) {
+        return false;
+    }
+    for (size_t i = 0; i != values.size(); ++i) {
+        if (values[i] != other.values[i]) {
+            std::cout << "Value mismatch at index " << i << ": " << bigIntegerToHexString(values[i])
+                      << " != " << bigIntegerToHexString(other.values[i]) << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace lbcrypto

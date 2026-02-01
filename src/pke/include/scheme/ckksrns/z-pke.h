@@ -29,17 +29,7 @@ struct ZDecryptResult {
 
     void print(std::string msg, size_t maxSlotsToPrint = 4) const;
 
-    bool valuesEqual(const ZDecryptResult& other) const {
-        if (values.size() != other.values.size()) {
-            return false;
-        }
-        for (size_t i = 0; i != values.size(); ++i) {
-            if (values[i] != other.values[i]) {
-                return false;
-            }
-        }
-        return true;
-    }
+    bool valuesEqual(const ZDecryptResult& other) const;
 
     double noiseComparison(const ZDecryptResult& other) const {
         return logMaxNoise - other.logMaxNoise;
