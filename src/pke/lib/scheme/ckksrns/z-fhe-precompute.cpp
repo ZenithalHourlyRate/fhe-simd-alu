@@ -680,7 +680,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
                     //for (auto& c : coeff[smax][ij])
                     //    c *= scale;
 
-                    auto rot = Rotate(coeff[smax][ij], ReduceRotation(-rotScale * (ij / p.g), slots));
+                    auto rot = Rotate(coeff[smax][ij], ReduceRotation(-rotScale * (ij / p.gRem), slots));
 
                     result[smax][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }
@@ -736,7 +736,7 @@ std::vector<std::vector<ZBootstrapPlaintextCache>> FHEZImpl::EvalSlotsToCoeffsPr
                     //for (auto& c : clearTmp)
                     //    c *= scale;
 
-                    auto rot = Rotate(clearTmp, ReduceRotation(-rotScale * (ij / p.g), M4));
+                    auto rot = Rotate(clearTmp, ReduceRotation(-rotScale * (ij / p.gRem), M4));
 
                     result[smax][ij] = std::make_shared<ZBootstrapPlaintextCacheImpl>(rot);
                 }

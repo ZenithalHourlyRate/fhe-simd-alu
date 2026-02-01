@@ -2,6 +2,9 @@
 
 namespace lbcrypto {
 
+//#define HIGH_PREC
+
+#ifndef HIGH_PREC
 ZEncoding ZEncodingImpl::encodeR(const RPolynomial& input,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                  const BigFixedPoint& scalingFactor) {
@@ -21,7 +24,7 @@ ZEncoding ZEncodingImpl::encodeR(const RPolynomial& input,
 
     auto& mVectors = poly.GetAllElements();
     auto t         = poly.GetNumOfElements();
-#pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(t))
+    #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(t))
     for (size_t i = 0; i < t; ++i) {
         auto& singlePoly = mVectors[i];
         auto qi          = mVectors[i].GetModulus();
@@ -37,6 +40,37 @@ ZEncoding ZEncodingImpl::encodeR(const RPolynomial& input,
     poly.SetFormat(Format::EVALUATION);
     return std::make_shared<ZEncodingImpl>(elementParams, poly, scalingFactor, input.getZEncodingParams());
 }
+
+#else
+
+ZEncoding ZEncodingImpl::encodeR(const RPolynomial& input,
+                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                 const BigFixedPoint& scalingFactor) {
+    auto N              = elementParams->GetRingDimension();
+    auto q              = elementParams->GetModulus();
+    auto n              = input.getCoefficients().size();
+    const auto& rCoeffs = input.getCoefficients();
+    BigVector V(N, q);
+    for (size_t i = 0; i < n; ++i) {
+        auto bfp     = (rCoeffs[i] * scalingFactor);
+        auto integer = bfp.getRoundedBigInteger();
+        auto neg     = bfp.getNeg();
+        if (neg) {
+            V[i * N / n] = q.Sub(integer.Mod(q));
+        }
+        else {
+            V[i * N / n] = integer.Mod(q);
+        }
+    }
+
+    DCRTPoly::PolyLargeType polyLarge(std::make_shared<ILParamsImpl<DCRTPoly::Integer> >(2 * N, q, 1));
+    polyLarge.SetValues(std::move(V), Format::COEFFICIENT);
+
+    DCRTPoly poly(polyLarge, elementParams);
+    poly.SetFormat(Format::EVALUATION);
+    return std::make_shared<ZEncodingImpl>(elementParams, poly, scalingFactor, input.getZEncodingParams());
+}
+#endif
 
 ZEncoding ZEncodingImpl::encodeC(const BigComplex& input,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,

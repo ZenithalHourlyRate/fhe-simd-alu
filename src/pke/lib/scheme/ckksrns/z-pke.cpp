@@ -255,27 +255,6 @@ void PKEZImpl::debug(Ciphertext<DCRTPoly> ct, std::string msg) {
             std::cout << msg << "  cSlots Slot " << i << " " << cSlots[i].getReal().toHexString(ceil(log2sf / 4.0))
                       << " (LUT part: " << lutPart.toHexString(ceil(log2sf / 4.0))
                       << ", frac part: " << fracPart.toHexString(ceil(log2sf / 4.0)) << ")" << std::endl;
-            //}
-            if (msg == "Z2C0") {
-                // See truncation noise
-                auto cc                 = ct->GetCryptoContext();
-                const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ct->GetCryptoParameters());
-                auto mulDepth           = cryptoParams->GetMultiplicativeDepth();
-                auto elementParams      = ct->GetElements()[0].GetParams();
-                auto q0                 = BigInteger(elementParams->GetParams()[0]->GetModulus());
-                auto q1                 = BigInteger(elementParams->GetParams()[1]->GetModulus());
-                auto qBFP               = BigFixedPoint(q0 * q1, 0, false).scaleTo(128);
-                auto sfBeforeTrunc      = cryptoParams->GetScalingFactorBFP(mulDepth - 1);
-                auto sfTrunc            = qBFP / sfBeforeTrunc;
-                auto sfTruncInt         = sfTrunc.round();
-                auto sfTruncFrac        = sfTrunc - sfTruncInt;
-                //std::cout << msg << "    Truncation scaling factor: " << sfTruncFrac.log2Norm() << std::endl;
-                auto noiseNow = lutPart * (sfTruncFrac * sfBeforeTrunc / qBFP) + fracPart;
-                std::cout << msg << "    Truncation noise estimate: " << noiseNow.toHexString(ceil(log2sf / 4.0))
-                          << std::endl;
-                //std::cout << msg << "    Truncation scaling factor ratio: " << ratio.toHexString(ceil(log2sf / 4.0))
-                //          << std::endl;
-            }
         }
         if (zSlots > maxSlotsToPrint) {
             std::cout << msg << "  ... (total " << zSlots << " slots)" << std::endl;

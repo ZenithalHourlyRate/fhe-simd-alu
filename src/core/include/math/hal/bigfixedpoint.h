@@ -481,6 +481,9 @@ using BigFPVector = std::vector<BigFixedPoint>;
 BigCVector ToCVector(const BigFPVector& input);
 BigFPVector ToReal(const BigCVector& input);
 
+std::vector<std::complex<double>> ToStdComplexVector(const BigCVector& input);
+BigCVector FromStdComplexVector(const std::vector<std::complex<double>>& input);
+
 }  // namespace lbcrypto
 
 #endif  // SRC_CORE_INCLUDE_MATH_HAL_BIGFIXEDPOINT_H_

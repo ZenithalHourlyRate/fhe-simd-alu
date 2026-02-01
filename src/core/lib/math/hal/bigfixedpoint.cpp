@@ -138,4 +138,23 @@ BigFPVector ToReal(const BigCVector& input) {
     return result;
 }
 
+std::vector<std::complex<double>> ToStdComplexVector(const BigCVector& input) {
+    std::vector<std::complex<double>> result;
+    result.reserve(input.size());
+    for (size_t i = 0; i < input.size(); i++) {
+        result.push_back(input[i].convertToComplex());
+    }
+    return result;
+}
+
+BigCVector FromStdComplexVector(const std::vector<std::complex<double>>& input) {
+    BigCVector result;
+    result.reserve(input.size());
+    for (size_t i = 0; i < input.size(); i++) {
+        result.push_back(
+            BigComplex(BigFixedPoint::fromDouble(input[i].real()), BigFixedPoint::fromDouble(input[i].imag())));
+    }
+    return result;
+}
+
 }  // namespace lbcrypto
