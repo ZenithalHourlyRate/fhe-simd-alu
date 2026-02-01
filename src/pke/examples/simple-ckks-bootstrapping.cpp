@@ -1,4 +1,5 @@
 #include "openfhe.h"
+#include "scheme/ckksrns/z-user.h"
 #include "utils.h"
 #include "scheme/ckksrns/z-fhe.h"
 #include "scheme/ckksrns/z-pke.h"
@@ -18,7 +19,6 @@ void SimpleBootstrapExample(int zN) {
     parameters.SetSecretKeyDist(secretKeyDist);
 
     parameters.SetSecurityLevel(HEStd_NotSet);
-    // 1 << 12 is buggy? WHY?
     parameters.SetRingDim(1 << 10);
     //parameters.SetNumLargeDigits(6);
 
@@ -64,6 +64,7 @@ void SimpleBootstrapExample(int zN) {
     std::cout << "log2(Q) = " << logQ << " log2(P) = " << logP << " log2(QP) = " << logQ + logP << std::endl;
 
     LeveledZ z     = std::make_shared<LeveledZImpl>();
+    UserZ u        = std::make_shared<UserZImpl>(z);
     AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
     FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
     PKEZ pkeZ      = std::make_shared<PKEZImpl>(keyPair.publicKey, keyPair.secretKey);
@@ -123,7 +124,7 @@ void SimpleBootstrapExample(int zN) {
     // Mult
     if (1) {
         //BENCHMARK(z->EvalMultFullInZ(encoded2, encoded), 3, "MultFull");
-        auto ctRes    = z->EvalMultFullInZ(ct, ct);
+        auto ctRes    = u->EvalMultFullInZ(ct, ct);
         auto ctResDec = pkeZ->Decrypt(ctRes);
         ctResDec.print("Mult Result");
 #ifdef DEBUG
@@ -134,7 +135,7 @@ void SimpleBootstrapExample(int zN) {
 
     // Bool
     if (1) {
-        auto ctRes    = z->EvalBooleanOR(ct3, ct4);
+        auto ctRes    = u->EvalBooleanOR(ct3, ct4);
         auto ctResDec = pkeZ->Decrypt(ctRes);
         ctResDec.print("BoolOR Result");
         //BENCHMARK(z->EvalBooleanOR(encoded3, encoded4), 3, "BooleanOR");
@@ -172,10 +173,8 @@ void SimpleBootstrapExample(int zN) {
         a2aDec.print("A2Ae");
         a2aDec.printNoiseComparison(ct2Dec, "A2Ae vs ct2");
 
-        auto ctRes2 = z->EvalMultFullInZ(ctRes, ctRes);
-        z->ModReduceInPlace(ctRes2);
-        ctRes2 = z->EvalMultFullInZ(ctRes2, ctRes);
-        z->ModReduceInPlace(ctRes2);
+        auto ctRes2    = u->EvalMultFullInZ(ctRes, ctRes);
+        ctRes2         = u->EvalMultFullInZ(ctRes2, ctRes);
         auto a2aMulDec = pkeZ->Decrypt(ctRes2);
         a2aMulDec.print("A2Ae Mult");
         a2aMulDec.printNoiseComparison(ct2Dec, "A2Ae Mult vs ct2");

@@ -1,4 +1,5 @@
 #include "scheme/ckksrns/z-leveledshe.h"
+#include "scheme/ckksrns/z-user.h"
 #include "encoding/z-encoding.h"
 
 namespace lbcrypto {
@@ -7,16 +8,26 @@ namespace lbcrypto {
 // Operations in Z
 //
 
-Ciphertext<DCRTPoly> LeveledZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    return z->EvalAddWithAdjust(ct1, ct2);
+}
+Ciphertext<DCRTPoly> UserZImpl::EvalSubInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    return z->EvalSubWithAdjust(ct1, ct2);
+}
+Ciphertext<DCRTPoly> UserZImpl::EvalNegateInZ(ConstCiphertext<DCRTPoly> ct1) {
+    return z->EvalNegate(ct1);
+}
+
+Ciphertext<DCRTPoly> UserZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
     auto plaintext = ZEncodingImpl::encodeArith(ptxt.ConvertToInt(), zN, elemParam, sf);
-    return EvalAdd(ct, plaintext);
+    return z->EvalAdd(ct, plaintext);
 }
 
-Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
@@ -24,44 +35,53 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, Big
     // encodeBinary here is crucial: making it become MultShort
     auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
     // This is actually MultShort
-    return EvalMult(ct, plaintext);
+    auto res = z->EvalMult(ct, plaintext);
+    z->ModReduceInPlace(res);
+    return res;
 }
 
-Ciphertext<DCRTPoly> LeveledZImpl::EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
-    auto ct = EvalMultWithAdjust(ct1, ct2);
+Ciphertext<DCRTPoly> UserZImpl::EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    auto ct = z->EvalMultWithAdjust(ct1, ct2);
+    z->ModReduceInPlace(ct);
     return ct;
 }
 
-Ciphertext<DCRTPoly> LeveledZImpl::EvalMultTInZ(ConstCiphertext<DCRTPoly> ct) {
+Ciphertext<DCRTPoly> UserZImpl::EvalMultTInZ(ConstCiphertext<DCRTPoly> ct) {
     // Multiply by tPtxt
     auto zN         = ct->GetZEncodingParams().getZN();
     auto elemParam  = ct->GetElements()[0].GetParams();
     auto sf         = ct->GetScalingFactorBFP();
-    Plaintext tPtxt = GetTPlaintext(zN, sf, elemParam);
+    Plaintext tPtxt = z->GetTPlaintext(zN, sf, elemParam);
 
-    return EvalMult(ct, tPtxt);
+    auto ct2 = z->EvalMult(ct, tPtxt);
+    z->ModReduceInPlace(ct2);
+    return ct2;
 }
 
-Ciphertext<DCRTPoly> LeveledZImpl::EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct) {
+Ciphertext<DCRTPoly> UserZImpl::EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct) {
     // Multiply by tPtxt
     auto zN            = ct->GetZEncodingParams().getZN();
     auto elemParam     = ct->GetElements()[0].GetParams();
     auto sf            = ct->GetScalingFactorBFP();
-    Plaintext tInvPtxt = GetTInvPlaintext(zN, sf, elemParam);
+    Plaintext tInvPtxt = z->GetTInvPlaintext(zN, sf, elemParam);
 
-    return EvalMult(ct, tInvPtxt);
+    auto ct2 = z->EvalMult(ct, tInvPtxt);
+    z->ModReduceInPlace(ct2);
+    return ct2;
 }
 
-Ciphertext<DCRTPoly> LeveledZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
-    auto ct = EvalMultWithAdjust(ct1, ct2);
-    ModReduceInPlace(ct);
+Ciphertext<DCRTPoly> UserZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    auto ct = z->EvalMultWithAdjust(ct1, ct2);
+    z->ModReduceInPlace(ct);
 
     // Multiply by tPtxt
     auto zN         = ct->GetZEncodingParams().getZN();
     auto elemParam  = ct->GetElements()[0].GetParams();
     auto sf         = ct->GetScalingFactorBFP();
-    Plaintext tPtxt = GetTPlaintext(zN, sf, elemParam);
-    return EvalMult(ct, tPtxt);
+    Plaintext tPtxt = z->GetTPlaintext(zN, sf, elemParam);
+    ct              = z->EvalMult(ct, tPtxt);
+    z->ModReduceInPlace(ct);
+    return ct;
 }
 
 //
@@ -80,6 +100,7 @@ Ciphertext<DCRTPoly> LeveledZImpl::EvalAddInC(ConstCiphertext<DCRTPoly> ct, cons
     return EvalAdd(ct, ptxtEnc);
 }
 
+// We do not automatically rescale...these are used internally
 void LeveledZImpl::EvalMultInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt, BigFixedPoint scalingFactor) {
     auto elemParams = ct->GetElements()[0].GetParams();
     if (scalingFactor.equalZero()) {

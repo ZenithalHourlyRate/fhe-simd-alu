@@ -59,8 +59,15 @@ private:
     std::vector<Ciphertext<DCRTPoly>> parts;
 };
 
+class UserZImpl;
+class FHEZImpl;
+class AdvancedZImpl;
 class LeveledZImpl {
-public:
+    friend class UserZImpl;
+    friend class FHEZImpl;
+    friend class AdvancedZImpl;
+
+private:
     //
     // Generic methods involving Ciphertext and Plaintext
     //
@@ -69,6 +76,7 @@ public:
     Ciphertext<DCRTPoly> EvalAdd(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
     Ciphertext<DCRTPoly> EvalSub(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
     Ciphertext<DCRTPoly> EvalNegate(ConstCiphertext<DCRTPoly> ct1);
+    // They do not mod reduce
     Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct, Plaintext ptxt);
     Ciphertext<DCRTPoly> EvalMult(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
     Ciphertext<DCRTPoly> EvalSquare(ConstCiphertext<DCRTPoly> ct1);
@@ -81,7 +89,7 @@ public:
     // Buggy
     //void EvalSquareInPlace(Ciphertext<DCRTPoly> ct);
 
-    // Special methods for MSB bootstrapping
+    // Used internally
     Ciphertext<DCRTPoly> EvalMultScalar(ConstCiphertext<DCRTPoly> ct, BigInteger scalar);
     void EvalMultScalarInPlace(Ciphertext<DCRTPoly> ct, BigInteger scalar);
 
@@ -99,6 +107,8 @@ public:
     // Cross level adjustment
     //
     Ciphertext<DCRTPoly> AdjustCiphertextToLevel(ConstCiphertext<DCRTPoly> ciphertext, size_t level);
+
+private:
     Ciphertext<DCRTPoly> AdjustCiphertext(ConstCiphertext<DCRTPoly> ct, ConstCiphertext<DCRTPoly> ctTarget);
 
     // Automatic adjustment family
@@ -110,27 +120,9 @@ public:
     void EvalSubWithAdjustInPlace(Ciphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
 
     //
-    // Operations in Z
-    //
-
-    // Here is short cut multiplication, ct1 * ct2 where one is in binary encoding
-    Ciphertext<DCRTPoly> EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-    // Here is full multiplication, ct1 * ct2 * t
-    Ciphertext<DCRTPoly> EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
-
-    // Helpers. Here ptxt will be ZEncoded
-    // This wont change the zSlot scale
-    Ciphertext<DCRTPoly> EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
-    // This wont change the zSlot scale
-    Ciphertext<DCRTPoly> EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
-
-    // Conversion between [m]_t / t and [m]_t
-    Ciphertext<DCRTPoly> EvalMultTInZ(ConstCiphertext<DCRTPoly> ct);
-    Ciphertext<DCRTPoly> EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct);
-
-    //
     // Operations in C
     //
+    // Mainly used by bootstrapping/AdvancedSHE
 
     void EvalAddInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt);
     void EvalMultInPlaceInC(Ciphertext<DCRTPoly> ct, const BigComplex& ptxt,
@@ -142,23 +134,6 @@ public:
                                      BigFixedPoint scalingFactor = BigFixedPoint::zero());
 
     Ciphertext<DCRTPoly> EvalConjugateInC(ConstCiphertext<DCRTPoly> ct);
-
-    //
-    // Boolean Mode Operations
-    //
-
-    CiphertextGroup EvalBooleanAND(CiphertextGroup ct1, CiphertextGroup ct2);
-    CiphertextGroup EvalBooleanOR(CiphertextGroup ct1, CiphertextGroup ct2);
-    CiphertextGroup EvalBooleanXOR(CiphertextGroup ct1, CiphertextGroup ct2);
-    CiphertextGroup EvalBooleanNOT(CiphertextGroup ct1);
-
-    // Here left/right is defined in a big-endian manner
-    CiphertextGroup EvalBooleanShiftLeft(CiphertextGroup ct1, uint64_t offset);
-    CiphertextGroup EvalBooleanShiftRight(CiphertextGroup ct1, uint64_t offset);
-    CiphertextGroup EvalBooleanRotateLeft(CiphertextGroup ct1, uint64_t offset);
-    CiphertextGroup EvalBooleanRotateRight(CiphertextGroup ct1, uint64_t offset);
-
-    Ciphertext<DCRTPoly> EvalSignExtract(CiphertextGroup ct1);
 
 private:
     // value, scalingFactor, modulus
