@@ -1,0 +1,14 @@
+Scaling Factor: 43 bits
+Auxiliary Prime Size: 50 bits
+Level Budget: 3 2 
+Multiplicative Depth: 20
+CKKS scheme ring dimension: 65536
+log2(Q) = 904 log2(P) = 350 log2(QP) = 1254
+Bootstrapping parameters: zN = 64, zSlots = 1024
+
+
+Max noise growth after Mult on A2A ct over 10 runs: 5.50316 bits.
+Max noise growth after MultShort on A2A ct over 10 runs: 2.38537 bits.
+
+Average noise growth after Mult on A2A ct over 10 runs: 4.97182 bits.
+Average noise growth after MultShort on A2A ct over 10 runs: 2.03294 bits.
