@@ -103,7 +103,7 @@ void SimpleBootstrapExample(int zN, std::string directive) {
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl << std::endl;
 
-    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -24, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     auto elemParam = cc->GetCryptoParameters()->GetElementParams();
@@ -146,7 +146,7 @@ void SimpleBootstrapExample(int zN, std::string directive) {
         WARMUP(([&]() {
                    auto ctRes    = u->EvalMultFullInZ(ct, ct);
                    auto ctResDec = pkeZ->Decrypt(ctRes);
-                   if (ctResDec[0] != ctDec[0] * ctDec[0]) {
+                   if (ctResDec[0] != (ctDec[0] * ctDec[0]) % (BigInteger(1) << zN)) {
                        std::cout << "Error in MultFull!" << std::endl;
                    }
                    ctResDec.printNoiseComparison(ctDec, "MultFull");
