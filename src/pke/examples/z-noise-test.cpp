@@ -156,7 +156,7 @@ void NoiseTestExample(int zN, std::string directive) {
 
         // Test ct-pt mult, i.e. multshort
 
-        auto ctMultShort = u->EvalMultInZ(ctA2A, BigInteger(vec2[0]));
+        auto ctMultShort = u->EvalMultPtInZ(ctA2A, BigInteger(vec2[0]));
 
         auto ctMultShortDec          = pkeZ->Decrypt(ctMultShort);
         auto valueMultShort0         = ctMultShortDec[0];

@@ -113,6 +113,10 @@ public:
         return m_encodingType == BModeFull;
     }
 
+    ZEncodingType getEncodingType() const {
+        return m_encodingType;
+    }
+
     bool compatible(ZEncodingParams rhs) {
         if (m_encodingType == rhs.m_encodingType) {
             if (m_encodingType == ZMode && m_zN == rhs.getZN() && m_zSlots == rhs.getZSlots()) {

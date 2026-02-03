@@ -116,9 +116,9 @@ public:
         return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
     }
 
-    static ZEncoding encodeArith(BigInteger input, uint32_t zN,
-                                 const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                 const BigFixedPoint& scalingFactor) {
+    static ZEncoding encodeArithSingle(BigInteger input, uint32_t zN,
+                                       const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                       const BigFixedPoint& scalingFactor) {
         // Here zSlots = 1 can be automatically broadcasted to actual zSlots by sparse packing
         return encodeArith({input}, zN, 1, elementParams, scalingFactor);
     }
@@ -167,7 +167,7 @@ public:
         }
         auto N = elementParams->GetRingDimension();
         if (zSlots * zN > N / 2) {
-            OPENFHE_THROW("zSlots mismatch with ring dimension in encodeBooleanFull");
+            OPENFHE_THROW("zSlots mismatch with ring dimension in encodeBooleanSparse");
         }
         std::vector<BigComplex> lowHalf, highHalf;
         for (size_t i = 0; i != input.size(); ++i) {
@@ -181,6 +181,21 @@ public:
         lowHalf.insert(lowHalf.end(), highHalf.begin(), highHalf.end());
         ZEncodingParams params(BModeSparse, zN, zSlots);
         return encodeC(CSlots(params, lowHalf), elementParams, scalingFactor);
+    }
+
+    static std::vector<ZEncoding> encodeBooleanFullSingle(
+        BigInteger input, uint32_t zN, const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+        const BigFixedPoint& scalingFactor) {
+        std::vector<BigComplex> lowHalf, highHalf;
+        auto zPoly = ZPolynomial::encodeBinary(zN, input);
+        for (size_t i = 0; i != zN / 2; ++i) {
+            lowHalf.push_back(zPoly[i]);
+            highHalf.push_back(zPoly[i + zN / 2]);
+        }
+        ZEncodingParams params(BModeFull, zN, 1);
+        auto lowHalfEncoded  = encodeC(CSlots(params, lowHalf), elementParams, scalingFactor);
+        auto highHalfEncoded = encodeC(CSlots(params, highHalf), elementParams, scalingFactor);
+        return {lowHalfEncoded, highHalfEncoded};
     }
 };
 

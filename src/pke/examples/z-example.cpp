@@ -124,7 +124,7 @@ void SimpleExample() {
 
     // Add
     if (1) {
-        auto ctRes    = u->EvalAddPtInZ(ct, vec2);
+        auto ctRes    = u->EvalAddPtVecInZ(ct, vec2);
         auto ctResDec = pkeZ->Decrypt(ctRes);
         if (ctResDec[0] != (ctDec[0] + ct2Dec[0]) % (BigInteger(1) << zN)) {
             std::cout << "Error in Add!" << std::endl;
@@ -160,7 +160,7 @@ void SimpleExample() {
 
     // MultShort ct-pt
     if (1) {
-        auto ctRes    = u->EvalMultPtInZ(ct, vec3);
+        auto ctRes    = u->EvalMultPtVecInZ(ct, vec3);
         auto ctResDec = pkeZ->Decrypt(ctRes);
         if (ctResDec[0] != (ctDec[0] * BigInteger(vec3[0])) % (BigInteger(1) << zN)) {
             std::cout << "Error in MultShort!" << std::endl;
@@ -179,6 +179,61 @@ void SimpleExample() {
         }
         ctResDec.print("BooleanAND");
         ctResDec.printNoiseComparison(ctDec, "BooleanAND");
+        std::cout << std::endl;
+    }
+
+    // BoolAND with ptxt
+    if (1) {
+        auto ctRes    = u->EvalBooleanANDPt(ct3, 0xff);
+        auto ctResDec = pkeZ->Decrypt(ctRes);
+        if (ctResDec[0].ConvertToInt() != (ct3Dec[0].ConvertToInt() & 0xff)) {
+            std::cout << "Error in BooleanAND pt!" << std::endl;
+        }
+        ctResDec.print("BooleanAND pt");
+        ctResDec.printNoiseComparison(ctDec, "BooleanAND pt");
+        std::cout << std::endl;
+    }
+
+    // ShiftLeft
+    if (1) {
+        uint64_t shift      = 8;
+        auto ctRes          = u->EvalBooleanShiftLeft(ct3, shift);
+        auto ctResDec       = pkeZ->Decrypt(ctRes);
+        BigInteger expected = (vec[0] << shift) % (BigInteger(1) << zN);
+        if (ctResDec[0] != expected) {
+            std::cout << "Error in ShiftLeft!" << std::endl;
+        }
+        ctResDec.print("ShiftLeft");
+        ctResDec.printNoiseComparison(ct3Dec, "ShiftLeft");
+        std::cout << std::endl;
+    }
+
+    // ShiftRight
+    if (1) {
+        uint64_t shift      = 8;
+        auto ctRes          = u->EvalBooleanShiftRight(ct3, shift);
+        auto ctResDec       = pkeZ->Decrypt(ctRes);
+        BigInteger expected = (vec[0] >> shift) % (BigInteger(1) << zN);
+        if (ctResDec[0] != expected) {
+            std::cout << "Error in ShiftRight!" << std::endl;
+        }
+        ctResDec.print("ShiftRight");
+        ctResDec.printNoiseComparison(ct3Dec, "ShiftRight");
+        std::cout << std::endl;
+    }
+
+    // RotateRight
+    if (1) {
+        uint64_t shift = 8;
+        auto ctRes     = u->EvalBooleanRotateRight(ct3, shift);
+        auto ctResDec  = pkeZ->Decrypt(ctRes);
+        BigInteger expected;
+        expected = BigInteger((vec[0] >> shift) | (vec[0] << (zN - shift))) % (BigInteger(1) << zN);
+        if (ctResDec[0] != expected) {
+            std::cout << "Error in RotateRight!" << std::endl;
+        }
+        ctResDec.print("RotateRight");
+        ctResDec.printNoiseComparison(ct3Dec, "RotateRight");
         std::cout << std::endl;
     }
 

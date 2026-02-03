@@ -9,34 +9,42 @@ namespace lbcrypto {
 //
 
 Ciphertext<DCRTPoly> UserZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    VERIFY_ARITH_ENCODING(ct1);
+    VERIFY_ARITH_ENCODING(ct2);
     return z->EvalAddWithAdjust(ct1, ct2);
 }
 Ciphertext<DCRTPoly> UserZImpl::EvalSubInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    VERIFY_ARITH_ENCODING(ct1);
+    VERIFY_ARITH_ENCODING(ct2);
     return z->EvalSubWithAdjust(ct1, ct2);
 }
 Ciphertext<DCRTPoly> UserZImpl::EvalNegateInZ(ConstCiphertext<DCRTPoly> ct1) {
+    VERIFY_ARITH_ENCODING(ct1);
     return z->EvalNegate(ct1);
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+    VERIFY_ARITH_ENCODING(ct);
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
-    auto plaintext = ZEncodingImpl::encodeArith(ptxt, zN, elemParam, sf);
+    auto plaintext = ZEncodingImpl::encodeArithSingle(ptxt, zN, elemParam, sf);
     return z->EvalAdd(ct, plaintext);
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+    VERIFY_ARITH_ENCODING(ct);
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
-    auto plaintext = ZEncodingImpl::encodeArith(ptxt, zN, elemParam, sf);
+    auto plaintext = ZEncodingImpl::encodeArithSingle(ptxt, zN, elemParam, sf);
     return z->EvalSub(ct, plaintext);
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+    VERIFY_ARITH_ENCODING(ct);
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
@@ -50,12 +58,15 @@ Ciphertext<DCRTPoly> UserZImpl::EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, BigI
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalMultShortInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    VERIFY_ARITH_ENCODING(ct1);
+    VERIFY_ARITH_ENCODING(ct2);
     auto ct = z->EvalMultWithAdjust(ct1, ct2);
     z->ModReduceInPlace(ct);
     return ct;
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalMultTInZ(ConstCiphertext<DCRTPoly> ct) {
+    VERIFY_ARITH_ENCODING(ct);
     // Multiply by tPtxt
     auto zN         = ct->GetZEncodingParams().getZN();
     auto elemParam  = ct->GetElements()[0].GetParams();
@@ -68,6 +79,7 @@ Ciphertext<DCRTPoly> UserZImpl::EvalMultTInZ(ConstCiphertext<DCRTPoly> ct) {
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct) {
+    VERIFY_ARITH_ENCODING(ct);
     // Multiply by tPtxt
     auto zN            = ct->GetZEncodingParams().getZN();
     auto elemParam     = ct->GetElements()[0].GetParams();
@@ -80,6 +92,8 @@ Ciphertext<DCRTPoly> UserZImpl::EvalMultTInvInZ(ConstCiphertext<DCRTPoly> ct) {
 }
 
 Ciphertext<DCRTPoly> UserZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2) {
+    VERIFY_ARITH_ENCODING(ct1);
+    VERIFY_ARITH_ENCODING(ct2);
     auto ct = z->EvalMultWithAdjust(ct1, ct2);
     z->ModReduceInPlace(ct);
 
@@ -93,7 +107,8 @@ Ciphertext<DCRTPoly> UserZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, C
     return ct;
 }
 
-Ciphertext<DCRTPoly> UserZImpl::EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalAddPtVecInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+    VERIFY_ARITH_ENCODING(ct);
     auto zSlots = ct->GetZEncodingParams().getZSlots();
     if (ptxt.size() != zSlots) {
         OPENFHE_THROW("Plaintext size not matching zSlots in EvalAddInZ");
@@ -106,7 +121,8 @@ Ciphertext<DCRTPoly> UserZImpl::EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, std::
     return z->EvalAdd(ct, plaintext);
 }
 
-Ciphertext<DCRTPoly> UserZImpl::EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalSubPtVecInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+    VERIFY_ARITH_ENCODING(ct);
     auto zSlots = ct->GetZEncodingParams().getZSlots();
     if (ptxt.size() != zSlots) {
         OPENFHE_THROW("Plaintext size not matching zSlots in EvalSubInZ");
@@ -119,7 +135,8 @@ Ciphertext<DCRTPoly> UserZImpl::EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, std::
     return z->EvalSub(ct, plaintext);
 }
 
-Ciphertext<DCRTPoly> UserZImpl::EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalMultPtVecInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+    VERIFY_ARITH_ENCODING(ct);
     auto zSlots = ct->GetZEncodingParams().getZSlots();
     if (ptxt.size() != zSlots) {
         OPENFHE_THROW("Plaintext size not matching zSlots in EvalMultInZ");
