@@ -189,11 +189,15 @@ public:
 
     CiphertextGroup EvalArithToBooleanBatched(CiphertextGroup ctxts);
 
+    // Dispatcher
     CiphertextGroup EvalArithToBoolean(CiphertextGroup ctxts);
 
     Ciphertext<DCRTPoly> EvalBooleanToBooleanSparse(ConstCiphertext<DCRTPoly>& ctxt) const;
 
     CiphertextGroup EvalBooleanToBooleanFull(CiphertextGroup ctxt) const;
+
+    // Dispatcher
+    CiphertextGroup EvalBooleanToBoolean(CiphertextGroup ctxt) const;
 
     Ciphertext<DCRTPoly> EvalBooleanToArith(CiphertextGroup ctxt) const;
 

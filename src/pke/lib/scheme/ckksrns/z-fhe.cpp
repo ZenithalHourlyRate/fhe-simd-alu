@@ -1038,4 +1038,66 @@ Ciphertext<DCRTPoly> FHEZImpl::EvalBooleanToArith(CiphertextGroup ct) const {
     return res;
 }
 
+CiphertextGroup FHEZImpl::EvalArithToBoolean(CiphertextGroup ct) {
+    auto cSlots   = ct[0]->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto zN       = ct[0]->GetZEncodingParams().getZN();
+    auto isSparse = precomp.m_isSparse;
+
+    // For batched
+    uint32_t w = precomp.m_w;
+    // We ask zN to be multiple of w now...
+    uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+
+    if (isSparse) {
+        auto res = EvalArithToBooleanSparse(ct[0]);
+        return CiphertextGroup({res});
+    }
+    if (ct.size() == 1) {
+        auto res = EvalArithToBooleanFull(ct[0]);
+        return res;
+    }
+    else {
+        if (ct.size() > numIter) {
+            // We can do batched EvalArithToBoolean
+            OPENFHE_THROW("Batch size mismatch for batched EvalArithToBoolean");
+        }
+        if (ct.size() < numIter) {
+            // Pad with dummy ciphertexts
+            std::cout
+                << "Warning: Padding ciphertexts for batched EvalArithToBoolean (TODO: implement batched mode for less ciphertexts)"
+                << std::endl;
+            auto dummyCt = ct[0]->Clone();
+            std::vector<Ciphertext<DCRTPoly>> newCts;
+            for (size_t i = 0; i != ct.size(); ++i) {
+                newCts.push_back(ct[i]);
+            }
+            for (size_t i = ct.size(); i != numIter; ++i) {
+                newCts.push_back(dummyCt);
+            }
+            ct = CiphertextGroup(newCts);
+        }
+        auto res = EvalArithToBooleanBatched(ct);
+        return res;
+    }
+}
+
+CiphertextGroup FHEZImpl::EvalBooleanToBoolean(CiphertextGroup ct) const {
+    auto cSlots   = ct[0]->GetZEncodingParams().getCSlots();
+    auto precomp  = GetBootPrecom(cSlots);
+    auto isSparse = precomp.m_isSparse;
+
+    if (isSparse) {
+        auto res = EvalBooleanToBooleanSparse(ct[0]);
+        return CiphertextGroup({res});
+    }
+    else {
+        if (ct.size() != 2) {
+            OPENFHE_THROW("Full packing BooleanToBoolean requires 2 ciphertexts");
+        }
+        auto res = EvalBooleanToBooleanFull(ct);
+        return res;
+    }
+}
+
 }  // namespace lbcrypto

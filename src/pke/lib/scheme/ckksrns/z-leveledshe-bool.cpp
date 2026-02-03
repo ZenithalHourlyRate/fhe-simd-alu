@@ -552,4 +552,11 @@ CiphertextGroup UserZImpl::EvalBooleanRotateRight(CiphertextGroup ct, uint64_t o
     return EvalBooleanShiftLeft(ct, offset, true);
 }
 
+CiphertextGroup UserZImpl::EvalSignExtract(CiphertextGroup ct) {
+    VERIFY_BOOL_ENCODING(ct);
+    auto zEncodeParams = ct[0]->GetZEncodingParams();
+    auto zN            = zEncodeParams.getZN();
+    return EvalBooleanShiftRight(ct, zN - 1);
+}
+
 }  // namespace lbcrypto

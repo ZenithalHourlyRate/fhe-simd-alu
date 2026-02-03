@@ -63,7 +63,10 @@ public:
     CiphertextGroup EvalBooleanRotateLeft(CiphertextGroup ct1, uint64_t offset);
     CiphertextGroup EvalBooleanRotateRight(CiphertextGroup ct1, uint64_t offset);
 
-    Ciphertext<DCRTPoly> EvalSignExtract(CiphertextGroup ct1);
+    CiphertextGroup EvalSignExtract(CiphertextGroup ct1);
+
+    void Setup(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots, std::vector<uint32_t> leftShifts,
+               std::vector<uint32_t> rightShifts, bool enableSignExtract);
 
 private:
     LeveledZ z;

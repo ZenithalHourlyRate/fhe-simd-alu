@@ -55,6 +55,14 @@ public:
         return CiphertextGroup(result);
     }
 
+    CiphertextGroup append(const CiphertextGroup& other) const {
+        std::vector<Ciphertext<DCRTPoly>> result = parts;
+        for (const auto& part : other.getParts()) {
+            result.push_back(part);
+        }
+        return CiphertextGroup(result);
+    }
+
 private:
     std::vector<Ciphertext<DCRTPoly>> parts;
 };

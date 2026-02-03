@@ -1,5 +1,6 @@
 #include "openfhe.h"
 #include "scheme/ckksrns/z-user.h"
+#include "scheme/ckksrns/z-user-advanced.h"
 #include "scheme/ckksrns/z-fhe.h"
 #include "scheme/ckksrns/z-pke.h"
 
@@ -64,11 +65,12 @@ void SimpleExample() {
     auto logP               = moduliP.GetMSB();
     std::cout << "log2(Q) = " << logQ << " log2(P) = " << logP << " log2(QP) = " << logQ + logP << std::endl;
 
-    LeveledZ z     = std::make_shared<LeveledZImpl>();
-    UserZ u        = std::make_shared<UserZImpl>(z);
-    AdvancedZ advZ = std::make_shared<AdvancedZImpl>(z);
-    FHEZ fheZ      = std::make_shared<FHEZImpl>(z, advZ);
-    PKEZ pkeZ      = std::make_shared<PKEZImpl>(keyPair.publicKey, keyPair.secretKey);
+    LeveledZ z         = std::make_shared<LeveledZImpl>();
+    UserZ u            = std::make_shared<UserZImpl>(z);
+    AdvancedZ advZ     = std::make_shared<AdvancedZImpl>(z);
+    FHEZ fheZ          = std::make_shared<FHEZImpl>(z, advZ);
+    PKEZ pkeZ          = std::make_shared<PKEZImpl>(keyPair.publicKey, keyPair.secretKey);
+    UserZAdvanced uAdv = std::make_shared<UserZAdvancedImpl>(z, fheZ, u);
 
     uint32_t zN     = 64;
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
@@ -80,6 +82,9 @@ void SimpleExample() {
     // lutOrder = 1, the A2B LUT parameter
     fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -24, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
+
+    // Enable sign extraction
+    u->Setup(keyPair.secretKey, zN, zSlots, {}, {}, true);
 
     auto elemParam = cc->GetCryptoParameters()->GetElementParams();
     auto sfq0      = cryptoParams->GetScalingFactorBFP(0);
@@ -234,6 +239,30 @@ void SimpleExample() {
         }
         ctResDec.print("RotateRight");
         ctResDec.printNoiseComparison(ct3Dec, "RotateRight");
+        std::cout << std::endl;
+    }
+
+    // Compare
+    if (1) {
+        std::vector<BigInteger> compareVec(zSlots, 0);
+        for (size_t i = 0; i != zSlots; ++i) {
+            if (i % 2 == 0)
+                compareVec[i] = vec[i] + BigInteger(10);
+            else
+                compareVec[i] = vec[i] - BigInteger(10);
+        }
+        auto ptxtCompare = ZEncodingImpl::encodeArith(compareVec, zN, zSlots, elemParam, sfq0);
+        auto ctCompare   = pkeZ->Encrypt(ptxtCompare);
+        auto ctRes       = uAdv->EvalLessThan(ct, ctCompare);
+        auto ctResDec    = pkeZ->Decrypt(ctRes);
+        for (size_t i = 0; i != zSlots; ++i) {
+            BigInteger expected = (vec[i] < compareVec[i]) ? BigInteger(1) : BigInteger(0);
+            if (ctResDec[i] != expected) {
+                std::cout << "Error in Compare at slot " << i << "!" << std::endl;
+            }
+        }
+        ctResDec.print("Compare");
+        ctResDec.printNoiseComparison(ctDec, "Compare");
         std::cout << std::endl;
     }
 
