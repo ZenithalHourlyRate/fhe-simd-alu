@@ -111,7 +111,7 @@ void NoiseTestExample(int zN, std::string directive) {
     auto elemParam = cc->GetCryptoParameters()->GetElementParams();
     auto sfq0      = cryptoParams->GetScalingFactorBFP(0);
 
-    auto oneTest = [&]() -> std::pair<double, double> {
+    auto oneTest = [&]() -> std::array<double, 6> {
         std::vector<uint64_t> vec(zSlots, 0);
         std::vector<uint64_t> vec2(zSlots, 0);
         for (size_t i = 0; i != zSlots; ++i) {
@@ -149,6 +149,9 @@ void NoiseTestExample(int zN, std::string directive) {
         }
 
         auto noiseGrowth = ctMultDec.getLogMaxNoise() - std::max(ctA2ADec.getLogMaxNoise(), ct2A2ADec.getLogMaxNoise());
+        auto overflowGrowth = ctMultDec.getLogMaxI() - std::max(ctA2ADec.getLogMaxI(), ct2A2ADec.getLogMaxI());
+        auto overflowA      = ctA2ADec.getLogMaxI();
+        auto overflowB      = ct2A2ADec.getLogMaxI();
         //std::cout << "Noise growth after Mult on A2A ct: " << noiseGrowth << " bits." << std::endl;
 
         // Test ct-pt mult, i.e. multshort
@@ -162,17 +165,25 @@ void NoiseTestExample(int zN, std::string directive) {
             std::cout << "Error in MultShort!" << std::endl;
         }
 
-        auto noiseGrowthShort = ctMultShortDec.getLogMaxNoise() - ctA2ADec.getLogMaxNoise();
+        auto noiseGrowthShort    = ctMultShortDec.getLogMaxNoise() - ctA2ADec.getLogMaxNoise();
+        auto overflowGrowthShort = ctMultShortDec.getLogMaxI() - ctA2ADec.getLogMaxI();
         //std::cout << "Noise growth after MultShort on A2A ct: " << noiseGrowthShort << " bits." << std::endl;
-        return {noiseGrowth, noiseGrowthShort};
+        return {noiseGrowth, noiseGrowthShort, overflowGrowth, overflowGrowthShort, overflowA, overflowB};
     };
 
     std::vector<double> noiseGrowths;
     std::vector<double> noiseGrowthShorts;
+    std::vector<double> overflowGrowths;
+    std::vector<double> overflowGrowthShorts;
+    std::vector<double> overflows;
     for (uint32_t i = 0; i < repeats; i++) {
-        auto [a, b] = oneTest();
+        auto [a, b, c, d, e, f] = oneTest();
         noiseGrowths.push_back(a);
         noiseGrowthShorts.push_back(b);
+        overflowGrowths.push_back(c);
+        overflowGrowthShorts.push_back(d);
+        overflows.push_back(e);
+        overflows.push_back(f);
     }
     if (repeats >= 1) {
         double avgNoiseGrowth = std::accumulate(noiseGrowths.begin(), noiseGrowths.end(), 0.0) / noiseGrowths.size();
@@ -180,6 +191,7 @@ void NoiseTestExample(int zN, std::string directive) {
             std::accumulate(noiseGrowthShorts.begin(), noiseGrowthShorts.end(), 0.0) / noiseGrowthShorts.size();
         double maxNoiseGrowth      = *std::max_element(noiseGrowths.begin(), noiseGrowths.end());
         double maxNoiseGrowthShort = *std::max_element(noiseGrowthShorts.begin(), noiseGrowthShorts.end());
+
         std::cout << "\nMax noise growth after Mult on A2A ct over " << repeats << " runs: " << maxNoiseGrowth
                   << " bits." << std::endl;
         std::cout << "Max noise growth after MultShort on A2A ct over " << repeats << " runs: " << maxNoiseGrowthShort
@@ -188,5 +200,28 @@ void NoiseTestExample(int zN, std::string directive) {
                   << " bits." << std::endl;
         std::cout << "Average noise growth after MultShort on A2A ct over " << repeats
                   << " runs: " << avgNoiseGrowthShort << " bits." << std::endl;
+
+        double maxOverflowGrowth      = *std::max_element(overflowGrowths.begin(), overflowGrowths.end());
+        double maxOverflowGrowthShort = *std::max_element(overflowGrowthShorts.begin(), overflowGrowthShorts.end());
+        double maxOverflow            = *std::max_element(overflows.begin(), overflows.end());
+
+        double avgOverflowGrowth =
+            std::accumulate(overflowGrowths.begin(), overflowGrowths.end(), 0.0) / overflowGrowths.size();
+        double avgOverflowGrowthShort = std::accumulate(overflowGrowthShorts.begin(), overflowGrowthShorts.end(), 0.0) /
+                                        overflowGrowthShorts.size();
+        double avgOverflow = std::accumulate(overflows.begin(), overflows.end(), 0.0) / overflows.size();
+        std::cout << "\nMax overflow growth after Mult on A2A ct over " << repeats << " runs: " << maxOverflowGrowth
+                  << " bits." << std::endl;
+        std::cout << "Max overflow growth after MultShort on A2A ct over " << repeats
+                  << " runs: " << maxOverflowGrowthShort << " bits." << std::endl;
+        std::cout << "Max overflow before Mult on A2A ct over " << repeats << " runs: " << maxOverflow << " bits."
+                  << std::endl;
+
+        std::cout << "\nAverage overflow growth after Mult on A2A ct over " << repeats << " runs: " << avgOverflowGrowth
+                  << " bits." << std::endl;
+        std::cout << "Average overflow growth after MultShort on A2A ct over " << repeats
+                  << " runs: " << avgOverflowGrowthShort << " bits." << std::endl;
+        std::cout << "Average overflow before Mult on A2A ct over " << repeats << " runs: " << avgOverflow << " bits."
+                  << std::endl;
     }
 }

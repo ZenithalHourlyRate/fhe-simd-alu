@@ -35,6 +35,10 @@ struct ZDecryptResult {
         return logMaxNoise - other.logMaxNoise;
     }
 
+    double overflowComparison(const ZDecryptResult& other) const {
+        return logMaxI - other.logMaxI;
+    }
+
     void printNoiseComparison(const ZDecryptResult& other, std::string msg) const {
         double diff = noiseComparison(other);
         std::cout << msg << " Current Noise " << logMaxNoise << ", Difference: " << diff << std::endl;
