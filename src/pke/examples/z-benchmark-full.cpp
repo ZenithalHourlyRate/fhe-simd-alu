@@ -109,13 +109,13 @@ void SimpleBootstrapExample(int zN, std::string directive) {
     auto elemParam = cc->GetCryptoParameters()->GetElementParams();
     auto sfq0      = cryptoParams->GetScalingFactorBFP(0);
 
-    std::vector<uint64_t> vec(zSlots, 0);
+    std::vector<BigInteger> vec(zSlots, 0);
     for (size_t i = 0; i != zSlots; ++i) {
         vec[i] = i + 0xdeadbeaf;
     }
     auto ptxt1 = ZEncodingImpl::encodeArith(vec, zN, zSlots, elemParam, sfq0);
 
-    std::vector<uint64_t> vec2(zSlots, 0);
+    std::vector<BigInteger> vec2(zSlots, 0);
     for (size_t i = 0; i != zSlots; ++i) {
         vec2[i] = i + 0xf0f0f0ff;
     }

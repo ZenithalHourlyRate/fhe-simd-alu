@@ -18,22 +18,31 @@ Ciphertext<DCRTPoly> UserZImpl::EvalNegateInZ(ConstCiphertext<DCRTPoly> ct1) {
     return z->EvalNegate(ct1);
 }
 
-Ciphertext<DCRTPoly> UserZImpl::EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
-    auto plaintext = ZEncodingImpl::encodeArith(ptxt.ConvertToInt(), zN, elemParam, sf);
+    auto plaintext = ZEncodingImpl::encodeArith(ptxt, zN, elemParam, sf);
     return z->EvalAdd(ct, plaintext);
 }
 
-Ciphertext<DCRTPoly> UserZImpl::EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+Ciphertext<DCRTPoly> UserZImpl::EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
+    // Encode ptxt in Z encoding
+    auto zN        = ct->GetZEncodingParams().getZN();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+    auto plaintext = ZEncodingImpl::encodeArith(ptxt, zN, elemParam, sf);
+    return z->EvalSub(ct, plaintext);
+}
+
+Ciphertext<DCRTPoly> UserZImpl::EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt) {
     // Encode ptxt in Z encoding
     auto zN        = ct->GetZEncodingParams().getZN();
     auto elemParam = ct->GetElements()[0].GetParams();
     auto sf        = ct->GetScalingFactorBFP();
     // encodeBinary here is crucial: making it become MultShort
-    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt.ConvertToInt())}, zN, 1, elemParam, sf);
+    auto plaintext = ZEncodingImpl::encodeZ({ZPolynomial::encodeBinary(zN, ptxt)}, zN, 1, elemParam, sf);
     // This is actually MultShort
     auto res = z->EvalMult(ct, plaintext);
     z->ModReduceInPlace(res);
@@ -82,6 +91,53 @@ Ciphertext<DCRTPoly> UserZImpl::EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, C
     ct              = z->EvalMult(ct, tPtxt);
     z->ModReduceInPlace(ct);
     return ct;
+}
+
+Ciphertext<DCRTPoly> UserZImpl::EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    if (ptxt.size() != zSlots) {
+        OPENFHE_THROW("Plaintext size not matching zSlots in EvalAddInZ");
+    }
+    // Encode ptxt in Z encoding
+    auto zN        = ct->GetZEncodingParams().getZN();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+    auto plaintext = ZEncodingImpl::encodeArith(ptxt, zN, zSlots, elemParam, sf);
+    return z->EvalAdd(ct, plaintext);
+}
+
+Ciphertext<DCRTPoly> UserZImpl::EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    if (ptxt.size() != zSlots) {
+        OPENFHE_THROW("Plaintext size not matching zSlots in EvalSubInZ");
+    }
+    // Encode ptxt in Z encoding
+    auto zN        = ct->GetZEncodingParams().getZN();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+    auto plaintext = ZEncodingImpl::encodeArith(ptxt, zN, zSlots, elemParam, sf);
+    return z->EvalSub(ct, plaintext);
+}
+
+Ciphertext<DCRTPoly> UserZImpl::EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt) {
+    auto zSlots = ct->GetZEncodingParams().getZSlots();
+    if (ptxt.size() != zSlots) {
+        OPENFHE_THROW("Plaintext size not matching zSlots in EvalMultInZ");
+    }
+    // Encode ptxt in Z encoding
+    auto zN        = ct->GetZEncodingParams().getZN();
+    auto elemParam = ct->GetElements()[0].GetParams();
+    auto sf        = ct->GetScalingFactorBFP();
+    // encodeBinary here is crucial: making it become MultShort
+    std::vector<ZPolynomial> zPolys(ptxt.size(), ZPolynomial(zN));
+    for (size_t i = 0; i != ptxt.size(); ++i) {
+        zPolys[i] = ZPolynomial::encodeBinary(zN, ptxt[i]);
+    }
+    auto plaintext = ZEncodingImpl::encodeZ(zPolys, zN, zSlots, elemParam, sf);
+    // This is actually MultShort
+    auto res = z->EvalMult(ct, plaintext);
+    z->ModReduceInPlace(res);
+    return res;
 }
 
 //

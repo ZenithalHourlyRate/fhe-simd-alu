@@ -259,6 +259,10 @@ public:
         return multiplyRaw(encodeBinary(zN, input), getTInv(zN));
     }
 
+    static ZPolynomial encodeZeros(uint32_t zN) {
+        return ZPolynomial(zN);
+    }
+
     // Round to [-1, 1)
     static ZPolynomial roundNOneToOne(ZPolynomial input) {
         std::vector<BigFixedPoint> output;

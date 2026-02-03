@@ -112,8 +112,8 @@ void NoiseTestExample(int zN, std::string directive) {
     auto sfq0      = cryptoParams->GetScalingFactorBFP(0);
 
     auto oneTest = [&]() -> std::array<double, 6> {
-        std::vector<uint64_t> vec(zSlots, 0);
-        std::vector<uint64_t> vec2(zSlots, 0);
+        std::vector<BigInteger> vec(zSlots, 0);
+        std::vector<BigInteger> vec2(zSlots, 0);
         for (size_t i = 0; i != zSlots; ++i) {
             vec[i]  = i + rand();  // between 0 and RAND_MAX = 2147483647
             vec2[i] = 2 * i + rand();

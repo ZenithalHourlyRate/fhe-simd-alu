@@ -14,6 +14,7 @@ public:
     //
     // Operations in Z
     //
+    // ct-ct versions.
     Ciphertext<DCRTPoly> EvalAddInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
     Ciphertext<DCRTPoly> EvalSubInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
     Ciphertext<DCRTPoly> EvalNegateInZ(ConstCiphertext<DCRTPoly> ct1);
@@ -23,10 +24,14 @@ public:
     // Here is full multiplication, ct1 * ct2 * t
     Ciphertext<DCRTPoly> EvalMultFullInZ(ConstCiphertext<DCRTPoly> ct1, ConstCiphertext<DCRTPoly> ct2);
 
-    // Helpers. Here ptxt will be ZEncoded
-    // TODO: add vector<BigInteger> version
-    Ciphertext<DCRTPoly> EvalAddInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
-    Ciphertext<DCRTPoly> EvalMultInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
+    // ct-pt versions. Here ptxt will be ZEncoded
+    Ciphertext<DCRTPoly> EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
+    Ciphertext<DCRTPoly> EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
+    Ciphertext<DCRTPoly> EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, BigInteger ptxt);
+
+    Ciphertext<DCRTPoly> EvalAddPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt);
+    Ciphertext<DCRTPoly> EvalSubPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt);
+    Ciphertext<DCRTPoly> EvalMultPtInZ(ConstCiphertext<DCRTPoly> ct, std::vector<BigInteger> ptxt);
 
     // Conversion between [m]_t / t and [m]_t
     Ciphertext<DCRTPoly> EvalMultTInZ(ConstCiphertext<DCRTPoly> ct);

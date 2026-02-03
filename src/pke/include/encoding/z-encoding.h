@@ -88,7 +88,7 @@ public:
                              const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                              const BigFixedPoint& scalingFactor) {
         if (input.size() < zSlots) {
-            input.resize(zSlots, ZPolynomial::encode(zN, 0));
+            input.resize(zSlots, ZPolynomial::encodeZeros(zN));
         }
         std::vector<BigComplex> mergedSlots(zSlots * (zN / 2));
 #pragma omp parallel for num_threads(OpenFHEParallelControls.GetThreadLimit(zSlots))
@@ -103,22 +103,23 @@ public:
         return encodeC(mergedCSlots, elementParams, scalingFactor);
     }
 
-    static ZEncoding encodeArith(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
+    static ZEncoding encodeArith(std::vector<BigInteger> input, uint32_t zN, uint32_t zSlots,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                  const BigFixedPoint& scalingFactor) {
-        if (input.size() < zSlots) {
-            input.resize(zSlots, 0);
-        }
         std::vector<ZPolynomial> zPolys;
-        for (size_t i = 0; i != zSlots; ++i) {
+        for (size_t i = 0; i != input.size(); ++i) {
             zPolys.push_back(ZPolynomial::encode(zN, input[i]));
+        }
+        if (zPolys.size() < zSlots) {
+            zPolys.resize(zSlots, ZPolynomial::encodeZeros(zN));
         }
         return encodeZ(zPolys, zN, zSlots, elementParams, scalingFactor);
     }
 
-    static ZEncoding encodeArith(uint64_t input, uint32_t zN,
+    static ZEncoding encodeArith(BigInteger input, uint32_t zN,
                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                  const BigFixedPoint& scalingFactor) {
+        // Here zSlots = 1 can be automatically broadcasted to actual zSlots by sparse packing
         return encodeArith({input}, zN, 1, elementParams, scalingFactor);
     }
 
@@ -134,7 +135,7 @@ public:
         return encodeZ(zPolys, zN, 1, elementParams, scalingFactor);
     }
 
-    static std::vector<ZEncoding> encodeBooleanFull(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
+    static std::vector<ZEncoding> encodeBooleanFull(std::vector<BigInteger> input, uint32_t zN, uint32_t zSlots,
                                                     const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                                     const BigFixedPoint& scalingFactor) {
         if (input.size() < zSlots) {
@@ -158,7 +159,7 @@ public:
         return {lowHalfEncoded, highHalfEncoded};
     }
 
-    static ZEncoding encodeBooleanSparse(std::vector<uint64_t> input, uint32_t zN, uint32_t zSlots,
+    static ZEncoding encodeBooleanSparse(std::vector<BigInteger> input, uint32_t zN, uint32_t zSlots,
                                          const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                          const BigFixedPoint& scalingFactor) {
         if (input.size() < zSlots) {
