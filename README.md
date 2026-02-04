@@ -19,7 +19,7 @@ make -j z-example
 ./bin/examples/pke/z-example
 ```
 
-In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed. An example log can be checked in ![example.log](/log/example.log).
+In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed. An example log can be checked in [example.log](/log/example.log).
 
 If you want to benchmark, use
 
