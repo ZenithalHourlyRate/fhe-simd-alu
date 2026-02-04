@@ -19,11 +19,13 @@ make -j z-example
 ./bin/examples/pke/z-example
 ```
 
-In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed. An example log can be checked in [example.log](/log/example.log).
+In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed. An example log can be checked in [example.log](/log/example.log). Note that for demonstration purpose we use ring dimension of 1024.
 
-If you want to benchmark, use
+If you want to benchmark, use the following program whose RLWE parameter satisfies 128-bit security.
 
 ```bash
 make -j z-benchmark-full
 OMP_NUM_THREADS=1 ./bin/examples/pke/z-benchmark-full 64 bench
 ```
+
+Please note that this repository is a prototype and there is no warranty on its reliability.
