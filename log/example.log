@@ -1,0 +1,140 @@
+Scaling Factor: 43 bits
+Auxiliary Prime Size: 50 bits
+Level Budget: 3 2 
+Multiplicative Depth: 20
+CKKS scheme ring dimension: 1024
+log2(Q) = 904 log2(P) = 350 log2(QP) = 1254
+Bootstrapping parameters: zN = 64, zSlots = 16
+
+Arith ct DecryptResult: 
+  Value[0]: 0xdeadbeaf
+  Value[1]: 0xdeadbeb0
+  Value[2]: 0xdeadbeb1
+  Value[3]: 0xdeadbeb2
+  ... (total 16 slots)
+  logMaxNoise: -32.9166
+Arith ct2 DecryptResult: 
+  Value[0]: 0xf0f0f0ff
+  Value[1]: 0xf0f0f100
+  Value[2]: 0xf0f0f101
+  Value[3]: 0xf0f0f102
+  ... (total 16 slots)
+  logMaxNoise: -32.8519
+Bool ct3 DecryptResult: 
+  Value[0]: 0xdeadbeaf
+  Value[1]: 0xdeadbeb0
+  Value[2]: 0xdeadbeb1
+  Value[3]: 0xdeadbeb2
+  ... (total 16 slots)
+  logMaxNoise: -29.6982
+Bool ct4 DecryptResult: 
+  Value[0]: 0xf0f0f0ff
+  Value[1]: 0xf0f0f100
+  Value[2]: 0xf0f0f101
+  Value[3]: 0xf0f0f102
+  ... (total 16 slots)
+  logMaxNoise: -29.6279
+
+Add DecryptResult: 
+  Value[0]: 0x01cf9eafae
+  Value[1]: 0x01cf9eafb0
+  Value[2]: 0x01cf9eafb2
+  Value[3]: 0x01cf9eafb4
+  ... (total 16 slots)
+  logMaxNoise: -32.9176
+Add Current Noise -32.9176, Difference: -0.000966963
+
+Sub DecryptResult: 
+  Value[0]: 0x12433250
+  Value[1]: 0x12433250
+  Value[2]: 0x12433250
+  Value[3]: 0x12433250
+  ... (total 16 slots)
+  logMaxNoise: -32.076
+Sub Current Noise -32.076, Difference: 0.775907
+
+MultFull DecryptResult: 
+  Value[0]: 0xc1b1cca2ca8e3ba1
+  Value[1]: 0xc1b1cca487e9b900
+  Value[2]: 0xc1b1cca645453661
+  Value[3]: 0xc1b1cca802a0b3c4
+  ... (total 16 slots)
+  logMaxNoise: -29.3537
+  logMaxI: 4
+MultFull Current Noise -29.3537, Difference: 3.5629
+
+MultShort DecryptResult: 
+  Value[0]: 0x029c093c0d
+  Value[1]: 0x037ab6fac0
+  Value[2]: 0x045964b975
+  Value[3]: 0x053812782c
+  ... (total 16 slots)
+  logMaxNoise: -32.2633
+  logMaxI: 1.58496
+MultShort Current Noise -32.2633, Difference: 0.653257
+
+BooleanAND DecryptResult: 
+  Value[0]: 0xd0a0b0af
+  Value[1]: 0xd0a0b000
+  Value[2]: 0xd0a0b001
+  Value[3]: 0xd0a0b002
+  ... (total 16 slots)
+  logMaxNoise: -29.6158
+BooleanAND Current Noise -29.6158, Difference: 3.30075
+
+BooleanAND pt DecryptResult: 
+  Value[0]: 0xaf
+  Value[1]: 0xb0
+  Value[2]: 0xb1
+  Value[3]: 0xb2
+  ... (total 16 slots)
+  logMaxNoise: -29.9528
+BooleanAND pt Current Noise -29.9528, Difference: 2.96381
+
+ShiftLeft DecryptResult: 
+  Value[0]: 0xdeadbeaf00
+  Value[1]: 0xdeadbeb000
+  Value[2]: 0xdeadbeb100
+  Value[3]: 0xdeadbeb200
+  ... (total 16 slots)
+  logMaxNoise: -29.6897
+ShiftLeft Current Noise -29.6897, Difference: 0.00846939
+
+ShiftRight DecryptResult: 
+  Value[0]: 0xdeadbe
+  Value[1]: 0xdeadbe
+  Value[2]: 0xdeadbe
+  Value[3]: 0xdeadbe
+  ... (total 16 slots)
+  logMaxNoise: -29.3248
+ShiftRight Current Noise -29.3248, Difference: 0.373458
+
+RotateRight DecryptResult: 
+  Value[0]: 0xaf00000000deadbe
+  Value[1]: 0xb000000000deadbe
+  Value[2]: 0xb100000000deadbe
+  Value[3]: 0xb200000000deadbe
+  ... (total 16 slots)
+  logMaxNoise: -29.0442
+RotateRight Current Noise -29.0442, Difference: 0.653979
+
+Compare DecryptResult: 
+  Value[0]: 0x01
+  Value[1]: 0x0
+  Value[2]: 0x01
+  Value[3]: 0x0
+  ... (total 16 slots)
+  logMaxNoise: -24.8249
+Compare Current Noise -24.8249, Difference: 8.09166
+
+B2A Current Noise -29.8914, Difference: 3.02523
+
+B2B Current Noise -24.2716, Difference: 5.42665
+
+A2A Current Noise -28.7576, Difference: 4.09431
+
+B-A2B-0 Current Noise -24.9143, Difference: 8.00229
+B-A2B-1 Current Noise -24.7997, Difference: 8.05222
+
+A2B Current Noise -23.5176, Difference: 9.33428
+
