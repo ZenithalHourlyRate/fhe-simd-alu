@@ -2,20 +2,134 @@
 
 namespace lbcrypto {
 
-void UserZImpl::Setup(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlot,
-                      std::vector<uint32_t> leftShifts, std::vector<uint32_t> rightShifts, bool enableSignExtract) {
-    auto cc   = privateKey->GetCryptoContext();
-    auto algo = cc->GetScheme();
+void UserZImpl::Setup(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots, bool enableSignExtract,
+                      std::vector<uint32_t> leftShifts, std::vector<uint32_t> rightShifts,
+                      std::vector<uint32_t> leftRotates, std::vector<uint32_t> rightRotates) {
+    auto cc       = privateKey->GetCryptoContext();
+    auto ringDim  = cc->GetRingDimension();
+    auto algo     = cc->GetScheme();
+    auto cSlots   = (zN / 2) * (zSlots);
+    auto isSparse = (cSlots < ringDim / 2);
 
     std::vector<int32_t> indices;
     if (enableSignExtract) {
-        // For full packing...
-        indices.push_back(static_cast<int32_t>(zN / 2 - 1));
+        if (!isSparse) {
+            // Full packing
+            indices.push_back(static_cast<int32_t>(zN / 2 - 1));
+        }
+        else {
+            auto offset1 = (zN / 2) * (zSlots) + (zN / 2 - 1);
+            indices.push_back(offset1);
+        }
     }
+
+    // Left shift
+    for (auto ls : leftShifts) {
+        int32_t index = -static_cast<int32_t>(ls);
+        if (ls >= zN) {
+            OPENFHE_THROW("Left shift amount exceeds zN");
+        }
+        if (ls < zN / 2) {
+            if (!isSparse) {
+                indices.push_back(-index);
+                auto offset2 = -index + static_cast<int32_t>(zN / 2);
+                indices.push_back(offset2);
+            }
+            else {
+                indices.push_back(-index);
+                int32_t offset2 = (zN / 2) * (zSlots - 1) + index;
+                indices.push_back(-offset2);
+            }
+        }
+        else {
+            if (!isSparse) {
+                auto offset3 = -index + static_cast<int32_t>(zN / 2);
+                indices.push_back(offset3);
+            }
+            else {
+                int32_t offset3 = (zN / 2) * (zSlots - 1) + index;
+                indices.push_back(-offset3);
+            }
+        }
+    }
+
+    // Right shift
+    for (auto rs : rightShifts) {
+        if (rs >= zN) {
+            OPENFHE_THROW("Right shift amount exceeds zN");
+        }
+        int32_t index = static_cast<int32_t>(rs);
+        if (rs < zN / 2) {
+            if (!isSparse) {
+                indices.push_back(index);
+                int32_t offset2 = -index + static_cast<int32_t>(zN / 2);
+                indices.push_back(-offset2);
+            }
+            else {
+                indices.push_back(index);
+                int32_t offset2 = (zN / 2) * (zSlots - 1) + index;
+                indices.push_back(offset2);
+            }
+        }
+        else {
+            if (!isSparse) {
+                int32_t offset3 = index - static_cast<int32_t>(zN / 2);
+                indices.push_back(offset3);
+            }
+            else {
+                int32_t offset3 = (zN / 2) * (zSlots - 1) + index;
+                indices.push_back(offset3);
+            }
+        }
+    }
+
+    // Left rotate/right rotate
+    for (auto rr : rightRotates) {
+        leftRotates.push_back(zN - rr);
+    }
+    for (auto lr : leftRotates) {
+        int32_t index = -static_cast<int32_t>(lr);
+        if (lr >= zN) {
+            OPENFHE_THROW("Left shift amount exceeds zN");
+        }
+        if (lr < zN / 2) {
+            if (!isSparse) {
+                indices.push_back(-index);
+                auto offset2 = -index + static_cast<int32_t>(zN / 2);
+                indices.push_back(offset2);
+            }
+            else {
+                indices.push_back(-index);
+                int32_t offset2 = (zN / 2) * (zSlots - 1) + index;
+                indices.push_back(-offset2);
+                int32_t offset3 = -(zN / 2) * (zSlots - 1) + index;
+                indices.push_back(-offset3);
+            }
+        }
+        else {
+            if (!isSparse) {
+                auto offset1 = -index + static_cast<int32_t>(zN / 2);
+                indices.push_back(offset1);
+                int32_t offset2 = -index + static_cast<int64_t>(zN);
+                indices.push_back(offset2);
+            }
+            else {
+                int32_t offset1 = (zN / 2) * (zSlots - 1) + index;
+                indices.push_back(-offset1);
+                int32_t offset2 = (zN / 2) * (zSlots + 1) - index;
+                indices.push_back(offset2);
+                int64_t offset3 = (zN)-index;
+                indices.push_back(offset3);
+            }
+        }
+    }
+
+    // Deduplicate indices
+    std::set<int32_t> indexSet(indices.begin(), indices.end());
+    indices.assign(indexSet.begin(), indexSet.end());
+
     auto evalKeys = algo->EvalAtIndexKeyGen(privateKey, indices);
     cc->InsertEvalAutomorphismKey(evalKeys, privateKey->GetKeyTag());
-
-    // TODO: add left/right shifts keys
 }
 
 CiphertextGroup UserZAdvancedImpl::EvalLessThan(Ciphertext<DCRTPoly> ct1, Ciphertext<DCRTPoly> ct2) {

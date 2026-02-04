@@ -84,7 +84,7 @@ void SimpleExample() {
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     // Enable sign extraction
-    u->Setup(keyPair.secretKey, zN, zSlots, {}, {}, true);
+    u->Setup(keyPair.secretKey, zN, zSlots, true, {8}, {8}, {0}, {8});
 
     auto elemParam = cc->GetCryptoParameters()->GetElementParams();
     auto sfq0      = cryptoParams->GetScalingFactorBFP(0);

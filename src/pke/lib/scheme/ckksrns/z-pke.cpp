@@ -174,7 +174,7 @@ static std::string bigIntegerToHexString(BigInteger value) {
     NTL::ZZ v = value;
 
     if (v == 0) {
-        return "0x0";
+        return "0x00";
     }
 
     long nbytes = NumBytes(v);

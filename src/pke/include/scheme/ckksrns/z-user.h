@@ -65,8 +65,9 @@ public:
 
     CiphertextGroup EvalSignExtract(CiphertextGroup ct1);
 
-    void Setup(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots, std::vector<uint32_t> leftShifts,
-               std::vector<uint32_t> rightShifts, bool enableSignExtract);
+    void Setup(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots, bool enableSignExtract,
+               std::vector<uint32_t> leftShifts, std::vector<uint32_t> rightShifts, std::vector<uint32_t> leftRotates,
+               std::vector<uint32_t> rightRotates);
 
 private:
     LeveledZ z;
