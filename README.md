@@ -1,41 +1,73 @@
+Installation Instructions
+=====================================
+
+We enable OpenMP, NTL, tcmalloc and HEXL in OpenFHE.
+
+The needed packages in Debian/Ubuntu:
+
+```bash
+sudo apt install build-essential git libntl-dev libgmp-dev cmake autoconf libtool clang libomp5 libomp-dev
+```
+
+Now we can build and run an example
+
+```bash
+mkdir build; cd build
+CC=clang CXX=clang++ cmake -DWITH_INTEL_HEXL=ON -DMATHBACKEND=6 -DWITH_NTL=ON -DWITH_TCM=ON ..
+make -j tcm
+make -j z-example
+./bin/examples/pke/z-example
+```
+
+In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed.
+
+If you want to benchmark, use
+
+```bash
+make -j z-benchmark-full
+OMP_NUM_THREADS=1 ./bin/examples/pke/z-benchmark-full 64 bench
+```
+
 OpenFHE - Open-Source Fully Homomorphic Encryption Library
 =====================================
 
 Fully Homomorphic Encryption (FHE) is a powerful cryptographic primitive that enables performing computations over encrypted data without having access to the secret key.
 OpenFHE is an open-source FHE library that includes efficient implementations of all common FHE schemes:
-  * Brakerski/Fan-Vercauteren (BFV) scheme for integer arithmetic
-  * Brakerski-Gentry-Vaikuntanathan (BGV) scheme for integer arithmetic
-  * Cheon-Kim-Kim-Song (CKKS) scheme for real-number arithmetic (includes approximate bootstrapping)
-  * Ducas-Micciancio (DM/FHEW), Chillotti-Gama-Georgieva-Izabachene (CGGI/TFHE), and Lee-Micciancio-Kim-Choi-Deryabin-Eom-Yoo (LMKCDEY) schemes for evaluating Boolean circuits and arbitrary functions over larger plaintext spaces using lookup tables
+
+* Brakerski/Fan-Vercauteren (BFV) scheme for integer arithmetic
+* Brakerski-Gentry-Vaikuntanathan (BGV) scheme for integer arithmetic
+* Cheon-Kim-Kim-Song (CKKS) scheme for real-number arithmetic (includes approximate bootstrapping)
+* Ducas-Micciancio (DM/FHEW), Chillotti-Gama-Georgieva-Izabachene (CGGI/TFHE), and Lee-Micciancio-Kim-Choi-Deryabin-Eom-Yoo (LMKCDEY) schemes for evaluating Boolean circuits and arbitrary functions over larger plaintext spaces using lookup tables
 
 OpenFHE also supports hybrid vectorized schemes, with the goal of enabling the FHEW/TFHE-like functional bootstrapping capability for schemes such as CKKS and BFV. In particular, OpenFHE supports
-  * Switching between CKKS and FHEW/TFHE to evaluate non-smooth functions, e.g., comparison, using (scalar) FHEW/TFHE functional bootstrapping
-  * Switching between RLWE (a scheme equivalent to the coefficient-encoded additive BFV scheme) and CKKS to evaluate arbitrary lookup tables over vectors of integers, e.g., modular reduction, comparison or S-box, using vectorized functional bootstrapping implemented in CKKS
+
+* Switching between CKKS and FHEW/TFHE to evaluate non-smooth functions, e.g., comparison, using (scalar) FHEW/TFHE functional bootstrapping
+* Switching between RLWE (a scheme equivalent to the coefficient-encoded additive BFV scheme) and CKKS to evaluate arbitrary lookup tables over vectors of integers, e.g., modular reduction, comparison or S-box, using vectorized functional bootstrapping implemented in CKKS
 
 OpenFHE also supports partial schemes, called schemelets, such as RLWE which is equivalent to the coefficient-encoded additive BFV scheme. In OpenFHE, the RLWE schemelet is the starting point for the vectorized functional bootstrapping capability, which allows the evaluation of arbitrary lookup tables over vectors of integers, e.g., modular reduction, comparison or Sbox, using CKKS in an intermediate step.
 
 OpenFHE also includes the following multiparty extensions of FHE:
-  * Threshold FHE for BGV, BFV, and CKKS schemes
-  * Interactive bootstrapping for Threshold CKKS
-  * Proxy Re-Encryption for BGV, BFV, and CKKS schemes
+
+* Threshold FHE for BGV, BFV, and CKKS schemes
+* Interactive bootstrapping for Threshold CKKS
+* Proxy Re-Encryption for BGV, BFV, and CKKS schemes
 
 OpenFHE supports any GNU C++ compiler version 9 or above and clang C++ compiler version 10 or above. To achieve the best runtime performance, we recommend following the
 guidelines outlined in [building OpenFHE for best performance](https://github.com/openfheorg/openfhe-development/blob/main/docs/static_docs/Best_Performance.md).
 
 ## Links and Resources
 
- * [OpenFHE documentation](https://openfhe-development.readthedocs.io/en/latest/)
- * [Design paper for OpenFHE](https://eprint.iacr.org/2022/915)
- * [OpenFHE website](https://openfhe.org)
- * [Community forum for OpenFHE](https://openfhe.discourse.group/)
- * [OpenFHE Release Notes](https://github.com/openfheorg/openfhe-development/blob/main/docs/static_docs/Release_Notes.md)
- * [Quickstart](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/quickstart.html)
- * [BSD 2-Clause License](LICENSE)
- * [Contributing to OpenFHE](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/contributing/contributing.html)
- * [OpenFHE Governance](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/misc/governance.html)
- * [Openfhe-development Github Issues](https://github.com/openfheorg/openfhe-development/issues)
- * To report security vulnerabilities, please email us at contact@openfhe.org
-
+* [OpenFHE documentation](https://openfhe-development.readthedocs.io/en/latest/)
+* [Design paper for OpenFHE](https://eprint.iacr.org/2022/915)
+* [OpenFHE website](https://openfhe.org)
+* [Community forum for OpenFHE](https://openfhe.discourse.group/)
+* [OpenFHE Release Notes](https://github.com/openfheorg/openfhe-development/blob/main/docs/static_docs/Release_Notes.md)
+* [Quickstart](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/quickstart.html)
+* [BSD 2-Clause License](LICENSE)
+* [Contributing to OpenFHE](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/contributing/contributing.html)
+* [OpenFHE Governance](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/misc/governance.html)
+* [Openfhe-development Github Issues](https://github.com/openfheorg/openfhe-development/issues)
+* To report security vulnerabilities, please email us at <contact@openfhe.org>
 
 ## Installation
 
@@ -43,16 +75,16 @@ Refer to our General Installation Information: [readthedocs](https://openfhe-dev
 
 Or refer to the following for your specific operating system:
 
-- [Linux](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/installation/linux.html)
+* [Linux](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/installation/linux.html)
 
-- [MacOS](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/installation/macos.html)
+* [MacOS](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/installation/macos.html)
 
-- [Windows](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/installation/windows.html)
-
+* [Windows](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/intro/installation/windows.html)
 
 ## Code Examples
 
 To get familiar with the main API of OpenFHE, we recommend looking at the code of the following examples:
+
    1. FHE for arithmetic over integers (BFV):
        1. [Simple Code Example](src/pke/examples/simple-integers.cpp)
        2. [Simple Code Example with Serialization](src/pke/examples/simple-integers-serial.cpp)
@@ -62,22 +94,22 @@ To get familiar with the main API of OpenFHE, we recommend looking at the code o
    1. FHE for arithmetic over real numbers (CKKS):
        1. [Simple Code Example](src/pke/examples/simple-real-numbers.cpp)
        2. [Advanced Code Example](src/pke/examples/advanced-real-numbers.cpp)
-       2. [Advanced Code Example for High-Precision CKKS](src/pke/examples/advanced-real-numbers-128.cpp)
-       2. [Arbitrary Smooth Function Evaluation](src/pke/examples/function-evaluation.cpp)
-       3. [Simple CKKS Bootstrapping Example](src/pke/examples/simple-ckks-bootstrapping.cpp)
-       4. [Advanced CKKS Bootstrapping Example](src/pke/examples/advanced-ckks-bootstrapping.cpp)
-       5. [Double-Precision (Iterative) Bootstrapping Example](src/pke/examples/iterative-ckks-bootstrapping.cpp)
-       6. [Basic CKKS Arithmetic in the CKKS Composite Scaling Mode](src/pke/examples/simple-real-numbers-composite-scaling.cpp)
+       3. [Advanced Code Example for High-Precision CKKS](src/pke/examples/advanced-real-numbers-128.cpp)
+       4. [Arbitrary Smooth Function Evaluation](src/pke/examples/function-evaluation.cpp)
+       5. [Simple CKKS Bootstrapping Example](src/pke/examples/simple-ckks-bootstrapping.cpp)
+       6. [Advanced CKKS Bootstrapping Example](src/pke/examples/advanced-ckks-bootstrapping.cpp)
+       7. [Double-Precision (Iterative) Bootstrapping Example](src/pke/examples/iterative-ckks-bootstrapping.cpp)
+       8. [Basic CKKS Arithmetic in the CKKS Composite Scaling Mode](src/pke/examples/simple-real-numbers-composite-scaling.cpp)
    1. FHE for arithmetic over complex numbers (CKKS):
        1. [Leveled and Boostrapping Code Examples](src/pke/examples/simple-complex-numbers.cpp)
    1. FHE for Boolean circuits and larger plaintext spaces (FHEW/TFHE):
        1. [Simple Code Example with Symmetric Encryption](src/binfhe/examples/boolean.cpp)
        2. [Simple Code Example with PKE](src/binfhe/examples/pke/boolean-pke.cpp)
-       2. [Evaluation of Multi-Input Gates](src/binfhe/examples/boolean-multi-input.cpp)
-       2. [Code with JSON serialization](src/binfhe/examples/boolean-serial-json.cpp)
-       3. [Code with Binary Serialization](src/binfhe/examples/boolean-serial-binary.cpp)
-       4. [Large-Precision Comparison](src/binfhe/examples/eval-sign.cpp)
-       4. [Small-Precison Arbitrary Function Evaluation](src/binfhe/examples/eval-function.cpp)
+       3. [Evaluation of Multi-Input Gates](src/binfhe/examples/boolean-multi-input.cpp)
+       4. [Code with JSON serialization](src/binfhe/examples/boolean-serial-json.cpp)
+       5. [Code with Binary Serialization](src/binfhe/examples/boolean-serial-binary.cpp)
+       6. [Large-Precision Comparison](src/binfhe/examples/eval-sign.cpp)
+       7. [Small-Precison Arbitrary Function Evaluation](src/binfhe/examples/eval-function.cpp)
    1. Scheme Switching:
        1. [Examples with Scheme Switching between CKKS and FHEW/TFHE](src/pke/examples/scheme-switching.cpp)
    1. Functional Bootstrapping over integers (RLWE and CKKS):
@@ -91,10 +123,10 @@ To get familiar with the main API of OpenFHE, we recommend looking at the code o
 
 ## Main API
 
-- [PKE CryptoContext API (BGV/BFV/CKKS)](https://openfhe-development.readthedocs.io/en/latest/api/classlbcrypto_1_1CryptoContextImpl.html)
-- [Description of CryptoContext Parameters for BGV, BFV, and CKKS](https://github.com/openfheorg/openfhe-development/blob/main/src/pke/examples#description-of-the-cryptocontext-parameters-and-their-restrictions)
+* [PKE CryptoContext API (BGV/BFV/CKKS)](https://openfhe-development.readthedocs.io/en/latest/api/classlbcrypto_1_1CryptoContextImpl.html)
+* [Description of CryptoContext Parameters for BGV, BFV, and CKKS](https://github.com/openfheorg/openfhe-development/blob/main/src/pke/examples#description-of-the-cryptocontext-parameters-and-their-restrictions)
 
-- [BinFHE Context API (FHEW/TFHE)](https://openfhe-development.readthedocs.io/en/latest/api/classlbcrypto_1_1BinFHEContext.html)
+* [BinFHE Context API (FHEW/TFHE)](https://openfhe-development.readthedocs.io/en/latest/api/classlbcrypto_1_1BinFHEContext.html)
 
 ## Code of Conduct
 
@@ -102,7 +134,6 @@ In the interest of fostering an open and welcoming environment, we as contributo
 participation in our project and our community a harassment-free experience for everyone, regardless of age, body size,
 disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education,
 socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
-
 
 OpenFHE is a community-driven open source project developed by a diverse group of
 [contributors](https://openfhe-development.readthedocs.io/en/latest/sphinx_rsts/misc/contributors.html). The OpenFHE leadership has made a strong commitment to creating an open,
@@ -114,10 +145,10 @@ makes our community thrive.
 
 We welcome all contributions including but not limited to:
 
-- [reporting issues](https://github.com/openfheorg/openfhe-development/issues)
-- addressing [bugs](https://github.com/openfheorg/openfhe-development/issues) big or small. We label issues to help you filter them to your skill level.
-- documentation changes
-- talks and seminars using OpenFHE
+* [reporting issues](https://github.com/openfheorg/openfhe-development/issues)
+* addressing [bugs](https://github.com/openfheorg/openfhe-development/issues) big or small. We label issues to help you filter them to your skill level.
+* documentation changes
+* talks and seminars using OpenFHE
 
 ## How to Cite OpenFHE
 
@@ -133,7 +164,9 @@ To cite OpenFHE in academic papers, please use the following BibTeX entry (updat
       url = {https://eprint.iacr.org/2022/915}
 }
 ```
+
 or, alternatively (original WAHC@CCS'22 version),
+
 ```
 @inproceedings{10.1145/3560827.3563379,
       author = {Al Badawi, Ahmad and Bates, Jack and Bergamaschi, Flavio and Cousins, David Bruce and Erabelli, Saroja and Genise, Nicholas and Halevi, Shai and Hunt, Hamish and Kim, Andrey and Lee, Yongwoo and Liu, Zeyu and Micciancio, Daniele and Quah, Ian and Polyakov, Yuriy and R.V., Saraswathy and Rohloff, Kurt and Saylor, Jonathan and Suponitsky, Dmitriy and Triplett, Matthew and Vaikuntanathan, Vinod and Zucca, Vincent},
