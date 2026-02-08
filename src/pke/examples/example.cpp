@@ -84,7 +84,9 @@ void SimpleExample() {
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     // Enable sign extraction
-    u->Setup(keyPair.secretKey, zN, zSlots, true, {8}, {8}, {0}, {8});
+    // zSlotRotates = {1, -1} for one left and one right rotate in the slot dimension, which is useful for many applications
+    // leftShifts = {8} for shift left by 8 bits, rightShifts = {8} for shift right by 8 bits, leftRotates = {8} for rotate left by 8 bits, rightRotates = {8} for rotate right by 8 bits
+    u->Setup(keyPair.secretKey, zN, zSlots, true, {1, -1}, {8}, {8}, {0}, {8});
 
     auto elemParam = cc->GetCryptoParameters()->GetElementParams();
     auto sfq0      = cryptoParams->GetScalingFactorBFP(0);
@@ -196,6 +198,30 @@ void SimpleExample() {
         }
         ctResDec.print("BooleanAND pt");
         ctResDec.printNoiseComparison(ctDec, "BooleanAND pt");
+        std::cout << std::endl;
+    }
+
+    // zSlot Rotate Right
+    if (1) {
+        auto ctRes    = uAdv->EvalRotateInZ(ct, 1);
+        auto ctResDec = pkeZ->Decrypt(ctRes);
+        if (ctResDec[0] != ct3Dec[1]) {
+            std::cout << "Error in zSlot Rotate Right!" << std::endl;
+        }
+        ctResDec.print("zSlot Rotate Right");
+        ctResDec.printNoiseComparison(ct3Dec, "zSlot Rotate Right");
+        std::cout << std::endl;
+    }
+
+    // zSlot Rotate Left
+    if (1) {
+        auto ctRes    = uAdv->EvalRotateInZ(ct, -1);
+        auto ctResDec = pkeZ->Decrypt(ctRes);
+        if (ctResDec[0] != ct3Dec[zSlots - 1]) {
+            std::cout << "Error in zSlot Rotate Left!" << std::endl;
+        }
+        ctResDec.print("zSlot Rotate Left");
+        ctResDec.printNoiseComparison(ct3Dec, "zSlot Rotate Left");
         std::cout << std::endl;
     }
 

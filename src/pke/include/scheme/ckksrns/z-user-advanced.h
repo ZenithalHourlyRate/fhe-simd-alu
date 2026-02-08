@@ -14,7 +14,10 @@ public:
     UserZAdvancedImpl(LeveledZ z, FHEZ fheZ, UserZ userZ) : z(z), fheZ(fheZ), userZ(userZ) {}
 
     CiphertextGroup EvalLessThan(Ciphertext<DCRTPoly> ct1, Ciphertext<DCRTPoly> ct2);
-    CiphertextGroup EvalEqualTo(Ciphertext<DCRTPoly> ct1, Ciphertext<DCRTPoly> ct2);
+    // CiphertextGroup EvalEqualTo(Ciphertext<DCRTPoly> ct1, Ciphertext<DCRTPoly> ct2);
+
+    // This works for both ZMode and BMode
+    CiphertextGroup EvalRotateInZ(CiphertextGroup ct, int32_t index);
 
 private:
     LeveledZ z;

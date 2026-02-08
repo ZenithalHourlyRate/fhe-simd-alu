@@ -66,6 +66,9 @@ public:
     CiphertextGroup EvalSignExtract(CiphertextGroup ct1);
 
     void Setup(const PrivateKey<DCRTPoly> privateKey, uint32_t zN, uint32_t zSlots, bool enableSignExtract,
+               // This is zSlot shifts
+               std::vector<int32_t> zSlotRotates,
+               // The following are bit shifts
                std::vector<uint32_t> leftShifts, std::vector<uint32_t> rightShifts, std::vector<uint32_t> leftRotates,
                std::vector<uint32_t> rightRotates);
 
