@@ -15,7 +15,7 @@ Now we can build and run an example
 mkdir build; cd build
 CC=clang CXX=clang++ cmake -DWITH_INTEL_HEXL=ON -DMATHBACKEND=6 -DWITH_NTL=ON -DWITH_TCM=ON ..
 make -j tcm
-make -j z-example
+make -j example
 ./bin/examples/pke/example
 ```
 
@@ -24,7 +24,7 @@ In the example, we demonstrate the results of arithmetic (add/multiplication) an
 If you want to benchmark, use the following program whose RLWE parameter satisfies 128-bit security.
 
 ```bash
-make -j z-benchmark-full
+make -j benchmark-full
 OMP_NUM_THREADS=1 ./bin/examples/pke/benchmark-full 64 bench
 ```
 
