@@ -19,7 +19,7 @@ make -j example
 ./bin/examples/pke/example
 ```
 
-In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed. An example log can be checked in [example.log](/log/example.log). Note that for demonstration purpose we use ring dimension of 1024.
+In the example, we demonstrate the results of arithmetic (add/multiplication) and boolean operations (bitwise logic, shift/rotation, compare). We also demonstrate bootstrappings. The noise growth after each operation is also printed. An example log can be checked in [example.log](https://anonymous.4open.science/r/fhe-simd-alu-5E6C/log/example.log). Note that for demonstration purpose we use ring dimension of 1024.
 
 If you want to benchmark, use the following program whose RLWE parameter satisfies 128-bit security.
 
