@@ -35,7 +35,7 @@ void NoiseTestExample(int zN, std::string directive) {
         parameters.SetSecurityLevel(lbcrypto::HEStd_128_classic);
         parameters.SetRingDim(1 << 16);
         if (directive == "bench")
-            repeats = 10;
+            repeats = 20;
     }
     else {  // test
         parameters.SetSecurityLevel(lbcrypto::HEStd_NotSet);

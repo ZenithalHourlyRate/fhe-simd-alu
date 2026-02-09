@@ -28,4 +28,11 @@ make -j benchmark-full
 OMP_NUM_THREADS=1 ./bin/examples/pke/benchmark-full 64 bench
 ```
 
+Other programs we provide
+
+```bash
+make -j noise-test
+make -j mul-depth-test
+```
+
 Please note that this repository is a prototype and there is no warranty on its reliability.
