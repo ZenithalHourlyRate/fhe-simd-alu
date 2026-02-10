@@ -101,7 +101,7 @@ void NoiseTestExample(int zN, std::string directive) {
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl << std::endl;
 
-    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -24, 1);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     //------
@@ -156,11 +156,19 @@ void NoiseTestExample(int zN, std::string directive) {
 
         // Test ct-pt mult, i.e. multshort
 
-        auto ctMultShort = u->EvalMultPtInZ(ctA2A, BigInteger(vec2[0]));
+        // vec2 is 32bit
+        auto pt = BigInteger(vec2[0]);
+        if (zN > 32) {
+            for (size_t i = 1; i < zN / 32; i++) {
+                pt = (pt << 32) + (BigInteger(vec2[0]));
+            }
+        }
+
+        auto ctMultShort = u->EvalMultPtInZ(ctA2A, pt);
 
         auto ctMultShortDec          = pkeZ->Decrypt(ctMultShort);
         auto valueMultShort0         = ctMultShortDec[0];
-        auto valueMultShortExpected0 = (ctA2ADec[0] * BigInteger(vec2[0])) % (BigInteger(1) << zN);
+        auto valueMultShortExpected0 = (ctA2ADec[0] * pt) % (BigInteger(1) << zN);
         if (valueMultShort0 != valueMultShortExpected0) {
             std::cout << "Error in MultShort!" << std::endl;
         }

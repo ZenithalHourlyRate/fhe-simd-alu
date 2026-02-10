@@ -98,7 +98,7 @@ void NoiseTestExample(int zN, std::string directive) {
     uint32_t zSlots = cc->GetRingDimension() / zN;  // Full packing
     std::cout << "Bootstrapping parameters: zN = " << zN << ", zSlots = " << zSlots << std::endl << std::endl;
 
-    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -24, 1);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     //------

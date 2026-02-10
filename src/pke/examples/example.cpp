@@ -80,7 +80,7 @@ void SimpleExample() {
     // w = 4, the A2B LUT parameter
     // a2b-cutoff = -24
     // lutOrder = 1, the A2B LUT parameter
-    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -24, 1);
+    fheZ->EvalBootstrapSetup(*cc, zN, zSlots, levelBudget, {0, 0}, 4, -16, 1);
     fheZ->EvalBootstrapKeyGen(keyPair.secretKey, zN, zSlots);
 
     // Enable sign extraction
