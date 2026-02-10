@@ -106,6 +106,8 @@ ZDecryptResult PKEZImpl::Decrypt(CiphertextGroup cts) {
     auto zEncodeParams = ct->GetZEncodingParams();
     auto zN            = zEncodeParams.getZN();
     auto zSlots        = zEncodeParams.getZSlots();
+    auto level         = ct->GetLevel();
+    auto sfBFP         = ct->GetScalingFactorBFP();
     auto zEncode       = std::make_shared<ZEncodingImpl>(b.GetParams(), b, sfBigFP, zEncodeParams);
     RPolynomial rPoly  = ZEncodingImpl::decodeR(zEncode);
 
@@ -166,7 +168,7 @@ ZDecryptResult PKEZImpl::Decrypt(CiphertextGroup cts) {
         OPENFHE_THROW("Unknown encoding mode");
     }
 
-    return ZDecryptResult(values, log2MaxNoise, log2MaxI);
+    return ZDecryptResult(values, log2MaxNoise, log2MaxI, level, sfBFP);
 }
 
 static std::string bigIntegerToHexString(BigInteger value) {
@@ -200,6 +202,8 @@ void ZDecryptResult::print(std::string msg, size_t maxSlotsToPrint) const {
     std::cout << "  logMaxNoise: " << logMaxNoise << std::endl;
     if (logMaxI != 0)
         std::cout << "  logMaxI: " << logMaxI << std::endl;
+    std::cout << "  level: " << level << std::endl;
+    std::cout << "  Scaling factor log2: " << std::setprecision(2) << sfBFP.log2Norm() << std::endl;
 }
 
 void PKEZImpl::debug(Ciphertext<DCRTPoly> ct, std::string msg) {

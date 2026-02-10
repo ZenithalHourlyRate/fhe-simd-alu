@@ -344,6 +344,7 @@ void SimpleExample() {
         }
         ctResDec0.printNoiseComparison(ctDec, "B-A2B-0");
         ctResDec1.printNoiseComparison(ct2Dec, "B-A2B-1");
+        ctResDec0.print("B-A2B-0");
         std::cout << std::endl;
     }
 
@@ -355,6 +356,7 @@ void SimpleExample() {
             std::cout << "Error in A2B!" << std::endl;
         }
         ctResDec.printNoiseComparison(ct2Dec, "A2B");
+        ctResDec.print("A2B");
         std::cout << std::endl;
     }
     return;
