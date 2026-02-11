@@ -204,7 +204,7 @@ void ZDecryptResult::print(std::string msg, size_t maxSlotsToPrint) const {
     if (logMaxI != 0)
         std::cout << "  logMaxI: " << logMaxI << std::endl;
     std::cout << "  level: " << level << std::endl;
-    std::cout << "  Scaling factor log2: " << std::setprecision(2) << sfBFP.log2Norm() << std::endl;
+    std::cout << "  Scaling factor log2: " << sfBFP.log2Norm() << std::endl;
     std::cout << "  Encoding type: " << encodingType << std::endl;
 }
 

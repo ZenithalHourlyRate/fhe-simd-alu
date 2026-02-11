@@ -731,26 +731,7 @@ CiphertextGroup FHEZImpl::EvalArithToBooleanBatched(CiphertextGroup ctxts) {
                 }
             }
         }
-        // Remove itself from core
-        for (size_t j = 0; j != targetGroup.size() / 2; ++j) {
-            auto recombMaskPtxt = getATBMask(iter + j, w, zN, zSlots, elemParam, sf);
-            {
-                auto scaled = z->EvalMult(lut0, recombMaskPtxt);
-                z->ModReduceInPlace(scaled);
-
-                bool targetSecondHalf = secondHalf;
-                auto coreCt           = core[2 * j + targetSecondHalf];
-                z->EvalSubWithAdjustInPlace(coreCt, scaled);
-            }
-            {
-                auto scaled = z->EvalMult(lut1, recombMaskPtxt);
-                z->ModReduceInPlace(scaled);
-
-                bool targetSecondHalf = secondHalf;
-                auto coreCt           = core[2 * (targetGroup.size() / 2 + j) + targetSecondHalf];
-                z->EvalSubWithAdjustInPlace(coreCt, scaled);
-            }
-        }
+        // No need to remove itself from core unlike the sparse case
     }
 
     //------------------------------------------------------------------------------
