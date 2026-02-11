@@ -12,49 +12,55 @@ Arith ct DecryptResult:
   Value[2]: 0xdeadbeb1
   Value[3]: 0xdeadbeb2
   ... (total 2048 slots)
-  logMaxNoise: -25.7457
+  logMaxNoise: -25.7009
+  level: 0
+  Scaling factor log2: 43
+  Encoding type: ZMode
 Bool ct DecryptResult: 
   Value[0]: 0xdeadbeaf
   Value[1]: 0xdeadbeb0
   Value[2]: 0xdeadbeb1
   Value[3]: 0xdeadbeb2
   ... (total 2048 slots)
-  logMaxNoise: -22.9066
+  logMaxNoise: -23.034
+  level: 0
+  Scaling factor log2: 43
+  Encoding type: BModeFull
 
-MultFull Current Noise -21.8138, Difference: 3.93197
-Finished Warmup for MultFull 1.80769 s
-Time for MultFull : 0.0938512 s
+MultFull Current Noise -21.6021, Difference: 4.09878
+Finished Warmup for MultFull 1.89642 s
+Time for MultFull : 0.0929412 s
 
-BooleanOR Current Noise -22.6221, Difference: 3.12363
-Finished Warmup for BooleanOR 0.448251 s
-Time for BooleanOR : 0.194772 s
+BooleanOR Current Noise -22.7396, Difference: 2.96128
+Finished Warmup for BooleanOR 0.455027 s
+Time for BooleanOR : 0.195126 s
 
-B2A Current Noise -23.6984, Difference: 2.04732
-Finished Warmup for B2A 6.04739 s
-Time for B2A : 1.69207 s
+B2A Current Noise -23.5216, Difference: 2.17922
+Finished Warmup for B2A 6.2073 s
+Time for B2A : 1.68375 s
 
-B2B Current Noise -20.3316, Difference: 2.57503
-Finished Warmup for B2B 57.1659 s
-Time for B2B : 5.85682 s
+B2B Current Noise -20.0958, Difference: 2.93816
+Finished Warmup for B2B 59.2107 s
+Time for B2B : 5.84907 s
 
-A2AI Current Noise -25.9385, Difference: 0.10119
-Finished Warmup for A2AI 23.3199 s
-Time for A2AI : 5.28444 s
+A2AI Current Noise -25.8811, Difference: 0.124984
+Finished Warmup for A2AI 23.781 s
+Time for A2AI : 5.2726 s
 
-A2Ae Current Noise -24.6136, Difference: 1.42606
-Finished Warmup for A2Ae 12.7866 s
-Time for A2Ae : 6.45102 s
+A2Ae Current Noise -24.604, Difference: 1.40216
+Finished Warmup for A2Ae 13.0219 s
+Time for A2Ae : 6.45712 s
 
-A2A Current Noise -24.7092, Difference: 1.3305
-Finished Warmup for A2A 13.3982 s
-Time for A2A : 11.7725 s
+A2A Current Noise -24.7693, Difference: 1.23678
+Finished Warmup for A2A 13.4589 s
+Time for A2A : 11.6942 s
 
-B-A2B-0 Current Noise -21.14, Difference: 4.60573
-B-A2B-1 Current Noise -21.0369, Difference: 5.00277
-Finished Warmup for B-A2B 65.5543 s
-Time for B-A2B : 58.0702 s
+B-A2B-0 Current Noise -20.8947, Difference: 4.80613
+B-A2B-1 Current Noise -21.3366, Difference: 4.66953
+Finished Warmup for B-A2B 62.5707 s
+Time for B-A2B : 57.6866 s
 
-A2B Current Noise -20.2211, Difference: 5.81855
-Finished Warmup for A2B 40.9929 s
-Time for A2B : 40.7969 s
+A2B Current Noise -20.2413, Difference: 5.76485
+Finished Warmup for A2B 40.8461 s
+Time for A2B : 40.631 s
 
