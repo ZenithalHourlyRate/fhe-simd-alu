@@ -814,13 +814,17 @@ Plaintext FHEZImpl::getATBMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN
     return oneHotPtxt;
 }
 
-Plaintext FHEZImpl::getATBRecombMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
-                                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                                const BigFixedPoint& scalingFactor, BigFixedPoint scaleDown,
-                                                int32_t rotateIndex) {
-    auto key = std::make_tuple(iter, w, zN, zSlots, elementParams->GetModulus(), scalingFactor, scaleDown, rotateIndex);
-    auto it  = m_atbRecombMaskPtxtCache.find(key);
-    if (it != m_atbRecombMaskPtxtCache.end()) {
+Plaintext FHEZImpl::getATBSubtractMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                                  const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                                  const BigFixedPoint& scalingFactor, BigFixedPoint scaleDown) {
+    uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+    // wrap around if iter exceeds the number of iterations needed to cover all slots
+    // This is for B-ATB where we need to reuse the same masks for multiple ciphertexts
+    iter = iter % numIter;
+
+    auto key = std::make_tuple(iter, w, zN, zSlots, elementParams->GetModulus(), scalingFactor, scaleDown);
+    auto it  = m_atbSubtractMaskPtxtCache.find(key);
+    if (it != m_atbSubtractMaskPtxtCache.end()) {
         return it->second;
     }
 
@@ -840,25 +844,23 @@ Plaintext FHEZImpl::getATBRecombMaskFullPacking(uint32_t iter, uint32_t w, uint3
         }
     }
 
-    // Rotate
-    std::vector<BigComplex> rotatedOneHotVec(cSlots, BigFixedPoint::zero());
-    for (uint32_t i = 0; i != cSlots; ++i) {
-        auto rotatedIndex   = static_cast<uint32_t>(static_cast<int32_t>(i + cSlots) + rotateIndex) % cSlots;
-        rotatedOneHotVec[i] = oneHotVec[rotatedIndex];
-    }
-
     ZEncodingParams oneHotZEncodeParams(CMode, zN * zSlots);  // full packing
-    RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, rotatedOneHotVec).toRPolynomial();
+    RPolynomial oneHotPoly = CSlots(oneHotZEncodeParams, oneHotVec).toRPolynomial();
 
     Plaintext oneHotPtxt = ZEncodingImpl::encodeR(oneHotPoly, elementParams, scalingFactor);
 
-    m_atbRecombMaskPtxtCache[key] = oneHotPtxt;
+    m_atbSubtractMaskPtxtCache[key] = oneHotPtxt;
     return oneHotPtxt;
 }
 
 Plaintext FHEZImpl::getATBMask(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
                                const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                const BigFixedPoint& scalingFactor) {
+    uint32_t numIter = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
+    // wrap around if iter exceeds the number of iterations needed to cover all slots
+    // This is for B-ATB where we need to reuse the same masks for multiple ciphertexts
+    iter = iter % numIter;
+
     auto ringDim         = elementParams->GetRingDimension();
     bool isSparse        = (zN * zSlots != ringDim);
     MaskPlaintextKey key = std::make_tuple(iter, w, zN, zSlots, elementParams->GetModulus(), scalingFactor);

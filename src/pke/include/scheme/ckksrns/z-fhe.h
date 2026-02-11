@@ -281,10 +281,9 @@ private:
                                     const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
                                     const BigFixedPoint& scalingFactor);
 
-    Plaintext getATBRecombMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
-                                          const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
-                                          const BigFixedPoint& scalingFactor, BigFixedPoint scaleDown,
-                                          int32_t rotateIndex);
+    Plaintext getATBSubtractMaskFullPacking(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
+                                            const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
+                                            const BigFixedPoint& scalingFactor, BigFixedPoint scaleDown);
 
     Plaintext getATBMask(uint32_t iter, uint32_t w, uint32_t zN, uint32_t zSlots,
                          const std::shared_ptr<typename DCRTPoly::Params>& elementParams,
@@ -295,10 +294,10 @@ private:
     using MaskPlaintextKey = std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, BigInteger, BigFixedPoint>;
     std::map<MaskPlaintextKey, Plaintext> m_atbMaskPtxtCache;
 
-    // iter, w, zN, zSlots, modulus, scalingFactor, scaleDown, rotateIndex
-    using RecombMaskPlaintextKey =
-        std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, BigInteger, BigFixedPoint, BigFixedPoint, int32_t>;
-    std::map<RecombMaskPlaintextKey, Plaintext> m_atbRecombMaskPtxtCache;
+    // iter, w, zN, zSlots, modulus, scalingFactor, scaleDown
+    using SubtractMaskPlaintextKey =
+        std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, BigInteger, BigFixedPoint, BigFixedPoint>;
+    std::map<SubtractMaskPlaintextKey, Plaintext> m_atbSubtractMaskPtxtCache;
 
 private:
     // corresponds to probability of less than 2^{-128}

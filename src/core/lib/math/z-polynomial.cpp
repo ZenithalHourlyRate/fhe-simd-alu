@@ -114,4 +114,27 @@ double CSlots::getIntegerErrorAtBooleanMode(size_t slotIndex) const {
     return getIntegerAndErrorAtBooleanMode(slotIndex).second;
 }
 
+std::ostream& operator<<(std::ostream& os, const ZEncodingType& type) {
+    switch (type) {
+        case INVALID:
+            os << "INVALID";
+            break;
+        case ZMode:
+            os << "ZMode";
+            break;
+        case BModeSparse:
+            os << "BModeSparse";
+            break;
+        case BModeFull:
+            os << "BModeFull";
+            break;
+        case CMode:
+            os << "CMode";
+            break;
+        default:
+            os << "Unknown Encoding Type";
+    }
+    return os;
+}
+
 }  // namespace lbcrypto

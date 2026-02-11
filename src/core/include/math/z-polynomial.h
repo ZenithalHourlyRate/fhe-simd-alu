@@ -14,6 +14,8 @@ enum ZEncodingType {
     CMode,        // Representing Complex values. Used at bootstrapping and C
 };
 
+std::ostream& operator<<(std::ostream& os, const ZEncodingType& type);
+
 struct ZEncodingParams {
 private:
     ZEncodingType m_encodingType;

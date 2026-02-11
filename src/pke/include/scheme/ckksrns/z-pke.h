@@ -7,9 +7,10 @@
 namespace lbcrypto {
 
 struct ZDecryptResult {
-    ZDecryptResult() : logMaxNoise(0), logMaxI(0), level(0), sfBFP(BigFixedPoint::zero()) {}
-    ZDecryptResult(std::vector<BigInteger> vals, double logNoise, double logI, uint32_t level, BigFixedPoint sfBFP)
-        : values(vals), logMaxNoise(logNoise), logMaxI(logI), level(level), sfBFP(sfBFP) {}
+    ZDecryptResult() : logMaxNoise(0), logMaxI(0), level(0), sfBFP(BigFixedPoint::zero()), encodingType(INVALID) {}
+    ZDecryptResult(std::vector<BigInteger> vals, double logNoise, double logI, uint32_t level, BigFixedPoint sfBFP,
+                   ZEncodingType encodingType)
+        : values(vals), logMaxNoise(logNoise), logMaxI(logI), level(level), sfBFP(sfBFP), encodingType(encodingType) {}
 
     size_t size() const {
         return values.size();
@@ -59,6 +60,7 @@ private:
 
     uint32_t level;  // in the sense of GetLevel()
     BigFixedPoint sfBFP;
+    ZEncodingType encodingType;
 };
 
 class PKEZImpl {

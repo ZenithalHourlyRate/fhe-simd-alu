@@ -119,6 +119,7 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
         auto numIter   = static_cast<uint32_t>(std::ceil(static_cast<double>(zN) / (static_cast<double>(w))));
         auto batchSize = numIter / 2;
 
+        // For pre-rotation and LUT.MSB result combination
         for (int32_t i = 0; i != batchSize; ++i) {
             s.insert(i * w);
             s.insert(-i * w);
@@ -137,10 +138,7 @@ std::vector<int32_t> FHEZImpl::FindBootstrapRotationIndices(uint32_t zN, uint32_
                 if (nextIter * w >= zN / 2 && iter * w < zN / 2) {
                     rotationIndex += zN / 2;
                 }
-                for (size_t j = 0; j != batchSize; ++j) {
-                    auto targetRotateIndex = rotationIndex + static_cast<int32_t>(j * w);
-                    s.insert(targetRotateIndex);
-                }
+                s.insert(rotationIndex);
             }
         }
     }

@@ -205,11 +205,11 @@ void SimpleExample() {
     if (1) {
         auto ctRes    = uAdv->EvalRotateInZ(ct, 1);
         auto ctResDec = pkeZ->Decrypt(ctRes);
-        if (ctResDec[0] != ct3Dec[1]) {
+        if (ctResDec[0] != ctDec[1]) {
             std::cout << "Error in zSlot Rotate Right!" << std::endl;
         }
         ctResDec.print("zSlot Rotate Right");
-        ctResDec.printNoiseComparison(ct3Dec, "zSlot Rotate Right");
+        ctResDec.printNoiseComparison(ctDec, "zSlot Rotate Right");
         std::cout << std::endl;
     }
 
@@ -217,11 +217,11 @@ void SimpleExample() {
     if (1) {
         auto ctRes    = uAdv->EvalRotateInZ(ct, -1);
         auto ctResDec = pkeZ->Decrypt(ctRes);
-        if (ctResDec[0] != ct3Dec[zSlots - 1]) {
+        if (ctResDec[0] != ctDec[zSlots - 1]) {
             std::cout << "Error in zSlot Rotate Left!" << std::endl;
         }
         ctResDec.print("zSlot Rotate Left");
-        ctResDec.printNoiseComparison(ct3Dec, "zSlot Rotate Left");
+        ctResDec.printNoiseComparison(ctDec, "zSlot Rotate Left");
         std::cout << std::endl;
     }
 
@@ -336,15 +336,21 @@ void SimpleExample() {
         auto ctGroupBool = fheZ->EvalArithToBooleanBatched(batchCts);
         auto ctResDec0   = pkeZ->Decrypt(CiphertextGroup({ctGroupBool[0], ctGroupBool[1]}));
         auto ctResDec1   = pkeZ->Decrypt(CiphertextGroup({ctGroupBool[2], ctGroupBool[3]}));
+        auto ctResDec2   = pkeZ->Decrypt(CiphertextGroup({ctGroupBool[4], ctGroupBool[5]}));
         if (!ctResDec0.valuesEqual(ctDec)) {
             std::cout << "Error in B-A2B!" << std::endl;
         }
         if (!ctResDec1.valuesEqual(ct2Dec)) {
             std::cout << "Error in B-A2B!" << std::endl;
         }
+        if (!ctResDec2.valuesEqual(ctDec)) {
+            std::cout << "Error in B-A2B!" << std::endl;
+        }
         ctResDec0.printNoiseComparison(ctDec, "B-A2B-0");
         ctResDec1.printNoiseComparison(ct2Dec, "B-A2B-1");
+        ctResDec2.printNoiseComparison(ctDec, "B-A2B-2");
         ctResDec0.print("B-A2B-0");
+        ctResDec1.print("B-A2B-1");
         std::cout << std::endl;
     }
 
