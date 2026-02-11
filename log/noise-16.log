@@ -7,8 +7,16 @@ log2(Q) = 904 log2(P) = 350 log2(QP) = 1254
 Bootstrapping parameters: zN = 16, zSlots = 4096
 
 
-Max noise growth after Mult on A2A ct over 10 runs: 4.81571 bits.
-Max noise growth after MultShort on A2A ct over 10 runs: 2.53007 bits.
+Max noise growth after Mult on A2A ct over 20 runs: 4.96448 bits.
+Max noise growth after MultShort on A2A ct over 20 runs: 2.43911 bits.
 
-Average noise growth after Mult on A2A ct over 10 runs: 4.46347 bits.
-Average noise growth after MultShort on A2A ct over 10 runs: 1.93943 bits.
+Average noise growth after Mult on A2A ct over 20 runs: 4.26015 bits.
+Average noise growth after MultShort on A2A ct over 20 runs: 1.74118 bits.
+
+Max overflow growth after Mult on A2A ct over 20 runs: 5.55459 bits.
+Max overflow growth after MultShort on A2A ct over 20 runs: 2.78136 bits.
+Max overflow before Mult on A2A ct over 20 runs: 3.16993 bits.
+
+Average overflow growth after Mult on A2A ct over 20 runs: 5.32377 bits.
+Average overflow growth after MultShort on A2A ct over 20 runs: 2.26424 bits.
+Average overflow before Mult on A2A ct over 20 runs: 2.89348 bits.
