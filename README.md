@@ -13,7 +13,7 @@ Now we can build and run an example
 
 ```bash
 mkdir build; cd build
-CC=clang CXX=clang++ cmake -DWITH_INTEL_HEXL=ON -DMATHBACKEND=6 -DWITH_NTL=ON -DWITH_TCM=ON ..
+CC=clang CXX=clang++ cmake -DWITH_INTEL_HEXL=ON -DINTEL_HEXL_HINT_DIR=$PWD/install -DCMAKE_INSTALL_PREFIX=$PWD/install -DMATHBACKEND=6 -DWITH_NTL=ON -DWITH_TCM=ON ..
 make -j tcm
 make -j example
 ./bin/examples/pke/example
